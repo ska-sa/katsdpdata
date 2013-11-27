@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from optparse import OptionParser
 from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 
