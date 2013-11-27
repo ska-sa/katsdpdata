@@ -1,11 +1,11 @@
 import unittest
 import os
 import time
-from katsdpdata import KatSdpData
+from katsdpdata import KatSdpSolrClient
 
 class TestParsingDateRange(unittest.TestCase):
 	def setUp(self):
-		self.sdptest = KatSdpData('junk')
+		self.sdptest = KatSdpSolrClient('junk')
 
 	def test__SAST_to_ISO8601(self):
 		test_input = '1/1/2001 00:00:00 SAST'

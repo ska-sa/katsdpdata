@@ -1,1 +1,1 @@
-from metadatasearch import KatSdpData
+from solr_clients import KatSdpSolrClient
