@@ -132,19 +132,16 @@ class FileMgrClient(OODTClientBase):
             The UUID for the product to delete.
 
         """
-        product = self._rpc_proxy.filemgr.getProductByName(product_id)
+        product = self._rpc_proxy.filemgr.getProductById(product_id)
         return self._delete_product(product)
 
-    def get_product_by_name(self, product_name, thin_call=True):
+    def get_product_by_name(self, product_name):
         """Query the File Manager for a product's information.
 
         Parameters
         ----------
         product_name : string
             The name of the product.
-
-        thin_call : boolean
-            If set to true, do not get the product references.
 
         Returns
         -------
@@ -153,8 +150,23 @@ class FileMgrClient(OODTClientBase):
 
         """
         product = self._rpc_proxy.filemgr.getProductByName(product_name)
-        if not thin_call:
-            product['references'] = self._rpc_proxy.filemgr.getProductReferences(product)
+        return product
+
+    def get_product_by_id(self, product_id):
+        """Query the File Manager for a product's information.
+
+        Parameters
+        ----------
+        product_id: string
+            The UUID of the product.
+
+        Returns
+        -------
+        product : dictionary
+            A dictionary containing the product information.
+
+        """
+        product = self._rpc_proxy.filemgr.getProductById(product_id)
         return product
 
     def is_alive(self):
