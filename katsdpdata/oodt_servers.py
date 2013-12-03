@@ -18,6 +18,7 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
         raise NotImplementedError
 
     def handle_event(self, event_name, metadata):
+        print 'Event: %s' % (event_name)
         getattr(self, event_name)(metadata)
         return True
 
