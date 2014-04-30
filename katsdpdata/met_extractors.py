@@ -1,3 +1,10 @@
+import os
+import subprocess
+import time
+
+from katsdpdata.met_extractors import KAT7MetExtractor
+from xml.etree import ElementTree
+
 class MetExtractorException(object):
     """Raises a MetExtractor exception."""
     pass
@@ -34,7 +41,7 @@ class MetExtractor(object):
                 val.text = self.metadata[k]
         return ElementTree.tostring(xml_tree, 'utf-8')
 
-class KatFileMetExtractor(MetExtractor):
+class KAT7MetExtractor(MetExtractor):
     """Used for extracting metdata from an HDF5 KAT File.
 
     Parameters

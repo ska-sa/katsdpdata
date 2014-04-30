@@ -5,7 +5,7 @@ import sys
 import subprocess
 import time
 
-from katsdpdata.met_extractors import KatFileMetExtractor
+from katsdpdata.met_extractors import KAT7MetExtractor
 from optparse import OptionParser
 from xml.etree import ElementTree
 #from xml.dom import minidom
@@ -28,7 +28,7 @@ if os.path.isfile(metfilename):
 #met extractor specific
 katdata = katdal.open(os.path.abspath(filename))
 major_version = int(float(katdata.version))
-met_extractor = KatFileMetExtractor(katdata)
+met_extractor = KAT7MetExtractor(katdata)
 met_extractor.set_metadata()
 
 with open(metfilename, 'w') as metfile:
