@@ -57,6 +57,7 @@ class KAT7MetExtractor(MetExtractor):
     def __init__(self, katdata):
         super(KAT7MetExtractor, self).__init__()
         self.katdata = katdata
+        self.metadata['ProductType'] = 'KatFile'
 
     def set_metadata(self):
         """Populate self.metadata with information scraped from self.katdata"""
