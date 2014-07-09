@@ -25,7 +25,7 @@ class KatSdpSolrClient(object):
         """For search purposes. Take a local date stamp and format it for searching a solr index that
         has time stamps recorded in iso8601 format."""
         return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.mktime(
-                                 time.strptime(date_range, '%d/%m/%Y %H:%M:%S SAST'))))
+                                 time.strptime(date_range, '%d/%m/%Y %H:%M:%S %Z'))))
 
     def _date_to_ISO8601(self, date_range):
         """
