@@ -11,6 +11,13 @@ setup(
         "pysolr",
     ],
     url = 'http://ska.ac.za/',
+    scripts = [
+        "scripts/katfile_met_extractor.py",
+        "scripts/rts_met_extractor.py",
+        "scripts/cas-crawler-client.sh",
+        "scripts/cas-filemgr-client.sh",
+        "scripts/cas-workflow-client.sh",
+    ],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
