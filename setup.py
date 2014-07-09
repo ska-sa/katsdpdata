@@ -8,8 +8,7 @@ setup(
     author_email = "thomas@ska.ac.za",
     packages = find_packages(),
     install_requires = [
-        "pysolr",
-        "python-dateutil"
+        "pysolr"
     ],
     url = 'http://ska.ac.za/',
     scripts = [

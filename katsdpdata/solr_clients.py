@@ -2,8 +2,6 @@ import pysolr
 import re
 import time
 
-from dateutil import parser
-
 #--------------------------------------------------------------------------------------------------
 #--- CLASS :  DataSet
 #--------------------------------------------------------------------------------------------------
@@ -23,35 +21,38 @@ class KatSdpSolrClient(object):
         self.results = SearchResult()
         self.query = None
 
-    def _SAST_to_ISO8601(self, date_range):
+    def _SAST_to_ISO8601(self, date_str):
         """For search purposes. Take a local date stamp and format it for searching a solr index that
         has time stamps recorded in iso8601 format.
 
         Parameters
         ----------
-        date_range : string
-        Date of format specified as %d/%m/%Y %H:%M:%S %Z, for example 1/1/2001 00:00:00 SAST 
+        date_str : string
+        Date of format specified as '%d/%m/%Y %H:%M:%S SAST', for example '1/1/2001 00:00:00 SAST' 
 
         Returns
         -------
         iso8601 : string
-        A date format specified as %Y-%m-%dT%H:%M:%SZ, for example 2000-12-31T22:00:00Z
+        A date format specified as '%Y-%m-%dT%H:%M:%SZ', for example '2000-12-31T22:00:00Z'
         """
-        return time.strftime('%Y-%m-%dT%H:%M:%SZ', parser.parse(date_range, dayfirst=True).utctimetuple())
+        #remove all timezone offsets, we're only interested in SAST
+        sast_time = time.mktime(time.strptime(date_str, '%d/%m/%Y %H:%M:%S SAST')) - time.timezone
+        utc_time = time.gmtime(sast_time - 2*3600)
+        return time.strftime('%Y-%m-%dT%H:%M:%SZ', utc_time)
 
-    def _date_to_ISO8601(self, date_range):
+    def _date_to_ISO8601(self, date_str):
         """
         For the purposes of displaying times in SAST time.
         Parameters
         ----------
-        date_range: string
+        date_str: string
             The date string to parse of the format "day/month/year", eg "01/01/2010"
         """
         self._date_regex = re.compile('[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}|[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}')
-        for match in self._date_regex.findall(date_range):
+        for match in self._date_regex.findall(date_str):
             iso8601_date = self._SAST_to_ISO8601('%s 00:00:00 SAST' % (match))
-            date_range = date_range.replace(match, iso8601_date, 1)
-        return date_range
+            date_str = date_str.replace(match, iso8601_date, 1)
+        return date_str
 
     def _parse_date_range(self, date_range):
         """
