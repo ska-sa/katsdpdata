@@ -9,6 +9,7 @@ setup(
     packages = find_packages(),
     install_requires = [
         "pysolr",
+        "python-dateutil"
     ],
     url = 'http://ska.ac.za/',
     scripts = [
