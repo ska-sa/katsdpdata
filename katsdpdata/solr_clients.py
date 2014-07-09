@@ -2,6 +2,8 @@ import pysolr
 import re
 import time
 
+from dateutil import parser
+
 #--------------------------------------------------------------------------------------------------
 #--- CLASS :  DataSet
 #--------------------------------------------------------------------------------------------------
@@ -23,9 +25,19 @@ class KatSdpSolrClient(object):
 
     def _SAST_to_ISO8601(self, date_range):
         """For search purposes. Take a local date stamp and format it for searching a solr index that
-        has time stamps recorded in iso8601 format."""
-        return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.mktime(
-                                 time.strptime(date_range, '%d/%m/%Y %H:%M:%S %Z'))))
+        has time stamps recorded in iso8601 format.
+
+        Parameters
+        ----------
+        date_range : string
+        Date of format specified as %d/%m/%Y %H:%M:%S %Z, for example 1/1/2001 00:00:00 SAST 
+
+        Returns
+        -------
+        iso8601 : string
+        A date format specified as %Y-%m-%dT%H:%M:%SZ, for example 2000-12-31T22:00:00Z
+        """
+        return time.strftime('%Y-%m-%dT%H:%M:%SZ', parser.parse(date_range, dayfirst=True).utctimetuple())
 
     def _date_to_ISO8601(self, date_range):
         """
