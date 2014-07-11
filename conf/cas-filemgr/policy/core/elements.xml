@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<cas:elements xmlns:cas="http://oodt.jpl.nasa.gov/1.0/cas">
+	<element id="urn:oodt:ProductId" name="ProductId">
+		<dcElement>Identifier</dcElement>
+        <!--  
+         You can optionally specify a 'trim' tag to identify whether
+         or not you want newlines trimmed from the element description. To
+         turn off trimming (now done by default), include the following with your
+         description definition: trim="false"       
+         -->
+		<description>
+			A Product's unique identifier.
+		</description>
+	</element>
+	<element id="urn:oodt:ProductName" name="ProductName">
+		<dcElement>Title</dcElement>
+		<description>
+			A Product's name.
+		</description>
+	</element>
+	<element id="urn:oodt:ProductReceivedTime"
+		name="ProductReceivedTime">
+		<dcElement />
+		<description>
+			The ISO 8601 formatted time that the Product was received.
+		</description>
+	</element>
+	<element id="urn:oodt:Filename" name="Filename">
+		<description>
+			The names of the files that represent this product.
+		</description>
+		<dcElement />
+	</element>
+	<element id="urn:oodt:FileLocation" name="FileLocation">
+		<description>
+			The locations of the files that represent this product.
+		</description>
+		<dcElement />
+	</element>
+	<element id="urn:oodt:ProductType" name="ProductType">
+		<description>
+			Type of product, as specified by, e.g., a data bible.
+		</description>
+		<dcElement />
+	</element>
+	<element id="urn:oodt:ProductStructure" name="ProductStructure">
+		<description>
+			Whether or not a product is Flat (e.g., a set of independent
+			files), or hierarchical, e.g., a dir structure.
+		</description>
+		<dcElement />
+	</element>
+	<element id="urn:oodt:MimeType" name="MimeType">
+		<description>The IETF mime type of this product.</description>
+		<dcElement />
+	</element>
+	<element id="urn:test:DataVersion" name="DataVersion">
+		<description>The version of the data product</description>
+		<dcElement />
+	</element>
+  <!--  
+   KAT specific elements
+   -->
+	<element id="urn:kat:Antennas" name="Antennas">
+		<description>Antennas recorded from during the experiment</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:CenterFrequency" name="CenterFrequency">
+		<description>Spectral window centre frequency in Hz</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:ChannelWidth" name="ChannelWidth">
+		<description>Channel width in Hz of each frequency channel</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:Description" name="Description">
+		<description>The observer description for the experiment</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:Details" name="Details">
+		<details>The katdal.__str__() return.</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:DumpPeriod" name="DumpPeriod">
+		<description>Correlator output dump rate</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:Duration" name="Duration">
+		<description>The experiment duration</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:ExperimentId" name="ExperimentId">
+		<description>The UUID for the experiment</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:FileDigest" name="FileDigest">
+		<description>MD5 check sum for the file</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:FileSize" name="FileSize">
+		<description>Filesize in bytes</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:InstructionSet" name="InstructionSet">
+		<description>The script and parameters for the observation</description>
+		<dcElement />
+	</element>
+        <element id="urn:kat:InputDataProductId" name="InputDataProductId">
+                <description>The input product to process</description>
+                <dcElement />
+        </element>
+	<element id="urn:kat:KatfileVersion" name="KatfileVersion">
+		<description>KAT HDF5 major/minor version</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:NumFreqChannels" name="NumFreqChannels">
+		<description>Number of frequency channels in the correlator output</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:Observer" name="Observer">
+		<description>The experiment observer</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:ReductionName" name="ReductionName">
+		<description>The reduction function to call</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:RefAntenna" name="RefAntenna">
+		<description>The reference antenna for the experiment</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:StartTime" name="StartTime">
+		<description>The experiment start time in UTC</description>
+		<dcElement />
+	</element>
+	<element id="urn:kat:Targets" name="Targets">
+		<description>A list of katpoint targets captured during the experiment</description>
+		<dcElement />
+	</element>
+      	<element id="urn:kat:KatpointTargets" name="KatpointTargets">
+		<description>A list of katpoint targets captured during the experiment</description>
+		<dcElement />
+	</element>
+</cas:elements>
