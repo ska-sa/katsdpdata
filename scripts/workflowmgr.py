@@ -1,0 +1,87 @@
+#!/usr/bin/env python
+import os
+from katsdpdata import FileMgrClient
+
+from katsdpworkflow.RTS import qualification_tests
+from katsdpworkflow.KAT7 import pipelines
+#from katsdpworkflow.KAT7 import tuonare 
+
+from urlparse import urlparse
+
+from optparse import OptionParser
+from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
+
+def get_options():
+    """Sets options from the arguments passed to the script.
+
+    Returns
+    -------
+    options: (Boolean, optparse.Values)
+        Options and arguments.
+    """
+
+    usage = 'usage: %prog [options]'
+
+    parser = OptionParser(usage=usage)
+    parser.add_option('-p', '--port', type='int',
+         help='The port to listen on for XMLRPC requests')
+
+    (options, args) = parser.parse_args()
+
+    return options
+
+class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
+    def __init__(self, *args, **kwargs):
+        SimpleXMLRPCServer.__init__(self, requestHandler=SimpleXMLRPCRequestHandler, *args, **kwargs)
+
+    def serve_forever(self):
+        self.finished = False
+        self.register_function(self.handle_event, 'workflowmgr.handleEvent')
+        self.register_function(self.exit_event, 'exit')
+        self.register_introspection_functions()
+        while not self.finished:
+            self.handle_request()
+
+    def stubEvent(self, metadata):
+        raise NotImplementedError
+
+    def handle_event(self, event_name, metadata):
+        print 'Event: %s' % (event_name)
+        getattr(self, event_name)(metadata)
+        return True 
+
+    def exit_event(self):
+        self.finished = True
+        return True
+
+class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
+    def __init__(self, filemgr_url, *args, **kwargs):
+        self.filemgr_url = filemgr_url
+        self.filemgr = FileMgrClient(filemgr_url)
+        WorkflowManagerXMLRPCServer.__init__(self, *args, **kwargs)
+
+    def _get_product_info_from_filemgr(self, metadata):
+        product = self.filemgr.get_product_by_name(metadata['ProductName'][0])
+        data_store_ref = urlparse(product['references'][0]['dataStoreReference'])
+        if os.path.split(os.path.normpath(data_store_ref.path))[1] == 'null':
+            data_store_ref = urlparse(product['references'][0]['origReference'])
+        product_metadata = self.filemgr.get_product_metadata(product['name'])
+        return data_store_ref, product_metadata
+
+    def RTSTelescopeProductRTSIngest(self, metadata):
+        raise NotImplementedError 
+
+    def KatFileRTSTesting(self, metadata):
+        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url)
+
+    def KatFileImagerPipeline(self, metadata):
+        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        pipelines.run_kat_cont_pipe.delay(product_metadata)
+
+    def KatFileObsReporter(self, metadata):
+        pipelines.generate_obs_report.delay(metadata)
+
+options = get_options()
+server = OODTWorkflowManager('http://localhost:9101', ("", options.port,))
+server.serve_forever()
