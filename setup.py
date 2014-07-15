@@ -17,6 +17,7 @@ setup(
         "scripts/cas-crawler-client.sh",
         "scripts/cas-filemgr-client.sh",
         "scripts/cas-workflow-client.sh",
+        "scripts/workflowmgr-client.py",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
