@@ -3,7 +3,7 @@ import os
 from katsdpdata import FileMgrClient
 
 from katsdpworkflow.RTS import qualification_tests
-from katsdpworkflow.KAT7 import pipelines
+#from katsdpworkflow.KAT7 import pipelines
 #from katsdpworkflow.KAT7 import tuonare 
 
 from urlparse import urlparse
