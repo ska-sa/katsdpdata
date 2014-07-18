@@ -2,7 +2,6 @@ import os
 import subprocess
 import time
 
-from katsdpdata.met_extractors import KAT7MetExtractor
 from xml.etree import ElementTree
 
 class MetExtractorException(object):
@@ -103,5 +102,5 @@ class RTSMetExtractor(KAT7MetExtractor):
 
     def set_metadata(self):
         """Populate self.metadata with information scraped from self.katdata"""
-        self.metadata['ReductionName'] = self.katdata.obs_params['reduction_name']
+        self.metadata['ReductionName'] = self.katdata.obs_params.get('reduction_name', '')
         super(RTSMetExtractor, self).set_metadata()
