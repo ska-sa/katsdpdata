@@ -2,7 +2,6 @@ import os
 import subprocess
 import time
 
-from katsdpdata.met_extractors import KAT7MetExtractor
 from xml.etree import ElementTree
 
 class MetExtractorException(object):
