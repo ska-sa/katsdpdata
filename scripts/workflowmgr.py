@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import logging
 from katsdpdata import FileMgrClient
 
 from katsdpworkflow.RTS import qualification_tests
@@ -10,6 +11,9 @@ from urlparse import urlparse
 
 from optparse import OptionParser
 from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
+
+LOG_FILENAME='/var/log/cas_workflowmgr/cas_workflowmgr.log'
+logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
 
 def get_options():
     """Sets options from the arguments passed to the script.
@@ -46,11 +50,12 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
         raise NotImplementedError
 
     def handle_event(self, event_name, metadata):
-        print 'Event: %s' % (event_name)
+        logging.info('Event: %s' % (event_name))
         getattr(self, event_name)(metadata)
         return True 
 
     def exit_event(self):
+        logging.info("Exit event called. Exiting.")
         self.finished = True
         return True
 
@@ -69,19 +74,21 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         return data_store_ref, product_metadata
 
     def RTSTelescopeProductRTSIngest(self, metadata):
-        raise NotImplementedError 
+        logging.info('ReductionName: %s' % (metadata['ReductionName']))
 
     def KatFileRTSTesting(self, metadata):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url)
 
-    def KatFileImagerPipeline(self, metadata):
-        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
-        pipelines.run_kat_cont_pipe.delay(product_metadata)
+#    def KatFileImagerPipeline(self, metadata):
+#        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+#        pipelines.run_kat_cont_pipe.delay(product_metadata)
 
-    def KatFileObsReporter(self, metadata):
-        pipelines.generate_obs_report.delay(metadata)
+#    def KatFileObsReporter(self, metadata):
+#        pipelines.generate_obs_report.delay(metadata)
 
 options = get_options()
 server = OODTWorkflowManager('http://localhost:9101', ("", options.port,))
+logging.info("Starting workflow manager on port %d" % (options.port))
+logging.info("Using file manager on http://localhost:9101")
 server.serve_forever()
