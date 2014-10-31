@@ -14,11 +14,12 @@ setup(
     scripts = [
         "scripts/katfile_met_extractor.py",
         "scripts/rts_met_extractor.py",
-        "scripts/cas-crawler-client.sh",
-        "scripts/cas-filemgr-client.sh",
-        "scripts/cas-workflow-client.sh",
         "scripts/workflowmgr-client.py",
-        "scripts/celery-workflowmgr.py"
+        "scripts/celery-workflowmgr.py",
+        "bin/cas-crawler-client.sh",
+        "bin/cas-filemgr-client.sh",
+        "bin/cas-workflow-client.sh",
+        "bin/celery-workflowmgr"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
