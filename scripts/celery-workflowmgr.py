@@ -12,7 +12,7 @@ from urlparse import urlparse
 from optparse import OptionParser
 from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 
-LOG_FILENAME='/var/log/cas_workflowmgr/cas_workflowmgr.log'
+LOG_FILENAME='/var/log/celery_workflowmgr/celery_workflowmgr.log'
 logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
 
 def get_options():
