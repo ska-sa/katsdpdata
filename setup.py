@@ -18,6 +18,7 @@ setup(
         "scripts/cas-filemgr-client.sh",
         "scripts/cas-workflow-client.sh",
         "scripts/workflowmgr-client.py",
+        "scripts/workflowmgr.py"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
