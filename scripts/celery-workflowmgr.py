@@ -85,7 +85,8 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         pipelines.run_kat_cont_pipe.delay(product_metadata)
 
     def KatFileObsReporter(self, metadata):
-        pipelines.generate_obs_report.delay(metadata)
+        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        pipelines.generate_obs_report.delay(product_metadata)
 
 options = get_options()
 server = OODTWorkflowManager('http://localhost:9101', ("", options.port,))
