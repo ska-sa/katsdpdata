@@ -4,7 +4,7 @@ import logging
 from katsdpdata import FileMgrClient
 
 from katsdpworkflow.RTS import qualification_tests
-#from katsdpworkflow.KAT7 import pipelines
+from katsdpworkflow.KAT7 import pipelines
 #from katsdpworkflow.KAT7 import tuonare 
 
 from urlparse import urlparse
@@ -80,12 +80,13 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url)
 
-#    def KatFileImagerPipeline(self, metadata):
-#        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
-#        pipelines.run_kat_cont_pipe.delay(product_metadata)
+    def KatFileImagerPipeline(self, metadata):
+        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        pipelines.run_kat_cont_pipe.delay(product_metadata)
 
-#    def KatFileObsReporter(self, metadata):
-#        pipelines.generate_obs_report.delay(metadata)
+    def KatFileObsReporter(self, metadata):
+        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        pipelines.generate_obs_report.delay(product_metadata)
 
 options = get_options()
 server = OODTWorkflowManager('http://localhost:9101', ("", options.port,))

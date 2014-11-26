@@ -48,7 +48,7 @@ if opts.filename:
 if opts.KatFileObsReporter and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('KatFileObsReporter', product_metadata)
 if opts.KatFileImagerPipeline and product_metadata:
-    xmlrpc_client.workflowmgr.handleEvent('KatFileFileImagerPipeline', product_metadata)
+    xmlrpc_client.workflowmgr.handleEvent('KatFileImagerPipeline', product_metadata)
 if opts.TestTuonarePipeline and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('TestTuonarePipeline', product_metadata)
 if opts.KatFileRTSTesting and product_metadata:
