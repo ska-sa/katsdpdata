@@ -17,7 +17,7 @@ def get_options():
 
     parser = OptionParser(usage=usage)
     parser.add_option('--url', type='str', default='http://192.168.6.185:9103',
-            help='The URL for the workflow manager XMLRPC interface. Default is http://192.168.6.185:9103')
+         help='The URL for the workflow manager XMLRPC interface. Default is http://192.168.6.185:9103')
     parser.add_option('--filename', type='str',
          help='The file to use to fake workflow metatdata')
     parser.add_option('--KatFileObsReporter', action='store_true', default=False,
