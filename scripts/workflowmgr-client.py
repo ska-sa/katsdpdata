@@ -16,8 +16,8 @@ def get_options():
     usage = 'usage: %prog [options]'
 
     parser = OptionParser(usage=usage)
-    parser.add_option('--url', type='str',
-         help='The URL for the workflow manager XMLRPC interface.')
+    parser.add_option('--url', type='str', default='http://192.168.6.185:9103',
+            help='The URL for the workflow manager XMLRPC interface. Default is http://192.168.6.185:9103')
     parser.add_option('--filename', type='str',
          help='The file to use to fake workflow metatdata')
     parser.add_option('--KatFileObsReporter', action='store_true', default=False,
@@ -30,6 +30,10 @@ def get_options():
          help='Call TestTuonarePipeline on the xmlrpc interface.')
     parser.add_option('--KatFileRTSTesting', action='store_true', default=False,
          help='Call KatFileRTSTesting on the xmlrpc interface.')
+    parser.add_option('--RTSTelescopeProductRTSIngest', action='store_true', default=False,
+         help='Call RTSTelescopeProductRTSIngest. Note you need to specify the reduction to perform')
+    parser.add_option('--ReductionName', type='str',
+         help='String containing the data to set for ReductionName metadata')
     (options, args) = parser.parse_args()
 
     return options
@@ -53,6 +57,10 @@ if opts.TestTuonarePipeline and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('TestTuonarePipeline', product_metadata)
 if opts.KatFileRTSTesting and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
+if opts.RTSTelescopeProductRTSIngest and product_metadata and opts.ReductionName:
+    product_metadata['ReductionName'] = opts.ReductionName
+    xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductRTSIngest', product_metadata)
+
 if opts.CallExit:
     while True:
         user_input = raw_input("Shutdown the workflow manager? [Y/N]: ").strip().upper()
