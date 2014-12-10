@@ -18,7 +18,6 @@ setup(
         "scripts/celery-workflowmgr.py",
         "bin/cas-crawler-client.sh",
         "bin/cas-filemgr-client.sh",
-        "bin/cas-workflow-client.sh",
         "bin/celery-workflowmgr"
     ],
     classifiers=[
