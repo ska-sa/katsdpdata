@@ -73,6 +73,11 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         product_metadata = self.filemgr.get_product_metadata(product['name'])
         return data_store_ref, product_metadata
 
+    def RTSTelescopeProductReduce(self, metadata):
+        product = self.filemgr.get_product_by_name(metadata['ProductName'][0])
+        data_store_ref = self._get_product_ref_from_filemgr(product)
+        qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url)
+
     def RTSTelescopeProductRTSIngest(self, metadata):
         logging.info('ReductionName: %s' % (metadata['ReductionName']))
 
