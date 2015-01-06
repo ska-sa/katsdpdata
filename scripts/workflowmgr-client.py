@@ -24,16 +24,14 @@ def get_options():
          help='Call KatFileObsReporter on the xmlrpc interface.')
     parser.add_option('--KatFileImagerPipeline', action='store_true', default=False,
          help='Call KatFileObsReporter on the xmlrpc interface.')
-    parser.add_option('--CallExit', action='store_true', default=False,
-         help='Call exit on the xmlrpc interface')
-    parser.add_option('--TestTuonarePipeline', action='store_true', default=False,
-         help='Call TestTuonarePipeline on the xmlrpc interface.')
     parser.add_option('--KatFileRTSTesting', action='store_true', default=False,
          help='Call KatFileRTSTesting on the xmlrpc interface.')
     parser.add_option('--RTSTelescopeProductReduce', action='store_true', default=False,
          help='Call RTSTelescopeProductReduce. Note you need to specify the reduction to perform.')
     parser.add_option('--ReductionName', type='str',
          help='String containing the data to set for ReductionName metadata')
+    parser.add_option('--CallExit', action='store_true', default=False,
+         help='Call exit on the xmlrpc interface')
     (options, args) = parser.parse_args()
 
     return options
@@ -53,8 +51,6 @@ if opts.KatFileObsReporter and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('KatFileObsReporter', product_metadata)
 if opts.KatFileImagerPipeline and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('KatFileImagerPipeline', product_metadata)
-if opts.TestTuonarePipeline and product_metadata:
-    xmlrpc_client.workflowmgr.handleEvent('TestTuonarePipeline', product_metadata)
 if opts.KatFileRTSTesting and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
 if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
