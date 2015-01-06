@@ -52,7 +52,7 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
     def handle_event(self, event_name, metadata):
         logging.info('Event: %s' % (event_name))
         getattr(self, event_name)(metadata)
-        return True 
+        return True
 
     def exit_event(self):
         logging.info("Exit event called. Exiting.")
