@@ -18,6 +18,8 @@ def get_options():
     parser = OptionParser(usage=usage)
     parser.add_option('--url', type='str', default='http://192.168.6.185:9103',
          help='The URL for the workflow manager XMLRPC interface. Default is http://192.168.6.185:9103')
+    parser.add_option('--FileMgrUrl', type='str', default='http://192.168.1.50:9101',
+         help='The URL for the workflow manager XMLRPC interface. Default is http://192.168.1.50:9101')
     parser.add_option('--filename', type='str',
          help='The file to use to fake workflow metatdata')
     parser.add_option('--KatFileObsReporter', action='store_true', default=False,
@@ -44,7 +46,7 @@ xmlrpc_client = xmlrpclib.ServerProxy(opts.url)
 product_metadata = None
 
 if opts.filename:
-    fm = katsdpdata.FileMgrClient('http://192.168.1.50:9101')
+    fm = katsdpdata.FileMgrClient(opts.FileMgrUrl)
     product_metadata = fm.get_product_metadata(opts.filename)
 
 if opts.KatFileObsReporter and product_metadata:
