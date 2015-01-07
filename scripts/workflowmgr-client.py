@@ -54,6 +54,7 @@ if opts.KatFileObsReporter and product_metadata:
 if opts.KatFileImagerPipeline and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('KatFileImagerPipeline', product_metadata)
 if opts.KatFileRTSTesting and product_metadata:
+    product_metadata['ReductionName'] = product_metadata['Description']
     xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
 if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
     product_metadata['ReductionName'] = opts.ReductionName
