@@ -5,8 +5,7 @@ from katsdpdata import FileMgrClient
 
 from katsdpworkflow.RTS import qualification_tests
 from katsdpworkflow.KAT7 import pipelines
-#from katsdpworkflow.KAT7 import tuonare 
-
+ d
 from urlparse import urlparse
 
 from optparse import OptionParser
