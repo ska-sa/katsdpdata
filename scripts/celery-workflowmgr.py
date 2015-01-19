@@ -5,7 +5,6 @@ from katsdpdata import FileMgrClient
 
 from katsdpworkflow.RTS import qualification_tests
 from katsdpworkflow.KAT7 import pipelines
- d
 from urlparse import urlparse
 
 from optparse import OptionParser
@@ -73,8 +72,10 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         return data_store_ref, product_metadata
 
     def RTSTelescopeProductReduce(self, metadata):
-        product = self.filemgr.get_product_by_name(metadata['ProductName'][0])
-        data_store_ref = self._get_product_ref_from_filemgr(product)
+        data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
+        #client call for this method already  contains a call to the file manager
+        logging.info('RTSTelescopeProduct clien call with own specified reduction name')
+        logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
         qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url)
 
     def RTSTelescopeProductRTSIngest(self, metadata):

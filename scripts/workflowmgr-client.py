@@ -57,7 +57,7 @@ if opts.KatFileRTSTesting and product_metadata:
     product_metadata['ReductionName'] = product_metadata['Description']
     xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
 if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
-    product_metadata['ReductionName'] = opts.ReductionName
+    product_metadata['ReductionName'] = [opts.ReductionName]
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductReduce', product_metadata)
 
 if opts.CallExit:
