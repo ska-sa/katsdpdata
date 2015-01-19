@@ -74,23 +74,33 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
     def RTSTelescopeProductReduce(self, metadata):
         data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
         #client call for this method already  contains a call to the file manager
-        logging.info('RTSTelescopeProduct clien call with own specified reduction name')
+        logging.info('RTSTelescopeProductReduce called')
+        logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
         qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url)
 
     def RTSTelescopeProductRTSIngest(self, metadata):
-        logging.info('ReductionName: %s' % (metadata['ReductionName']))
+        logging.info('RTSTelescopeProductRTSIngest called')
+        logging.info('Filename: %s' % (metadata['Filename'][0]))
+        logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
 
     def KatFileRTSTesting(self, metadata):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        logging.info('KatFileRTSTesting called')
+        logging.info('Filename: %s' % (metadata['Filename'][0]))
+        logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
         qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url)
 
     def KatFileImagerPipeline(self, metadata):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        logging.info('KatFileImagerPipeline called')
+        logging.info('Filename: %s' % (metadata['Filename'][0]))
         pipelines.run_kat_cont_pipe.delay(product_metadata)
 
     def KatFileObsReporter(self, metadata):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        logging.info('KatFileObsReporter called')
+        logging.info('Filename: %s' % (metadata['Filename'][0]))
         pipelines.generate_obs_report.delay(product_metadata)
 
 options = get_options()
