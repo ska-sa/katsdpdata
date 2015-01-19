@@ -5,8 +5,6 @@ from katsdpdata import FileMgrClient
 
 from katsdpworkflow.RTS import qualification_tests
 from katsdpworkflow.KAT7 import pipelines
-#from katsdpworkflow.KAT7 import tuonare 
-
 from urlparse import urlparse
 
 from optparse import OptionParser
@@ -52,7 +50,7 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
     def handle_event(self, event_name, metadata):
         logging.info('Event: %s' % (event_name))
         getattr(self, event_name)(metadata)
-        return True 
+        return True
 
     def exit_event(self):
         logging.info("Exit event called. Exiting.")
@@ -72,6 +70,13 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
             data_store_ref = urlparse(product['references'][0]['origReference'])
         product_metadata = self.filemgr.get_product_metadata(product['name'])
         return data_store_ref, product_metadata
+
+    def RTSTelescopeProductReduce(self, metadata):
+        data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
+        #client call for this method already  contains a call to the file manager
+        logging.info('RTSTelescopeProduct clien call with own specified reduction name')
+        logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
+        qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url)
 
     def RTSTelescopeProductRTSIngest(self, metadata):
         logging.info('ReductionName: %s' % (metadata['ReductionName']))
