@@ -27,6 +27,8 @@ def get_options():
     parser = OptionParser(usage=usage)
     parser.add_option('-p', '--port', type='int',
          help='The port to listen on for XMLRPC requests')
+    parser.add_option('--DisableCeleryBackend', action='store_true', default=False,
+         help='For testing purposes. Disable push onto the celery queue.')
 
     (options, args) = parser.parse_args()
 
@@ -58,8 +60,9 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
         return True
 
 class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
-    def __init__(self, filemgr_url, *args, **kwargs):
+    def __init__(self, filemgr_url, disable_backend, *args, **kwargs):
         self.filemgr_url = filemgr_url
+        self.disable_backend = disable_backend
         self.filemgr = FileMgrClient(filemgr_url)
         WorkflowManagerXMLRPCServer.__init__(self, *args, **kwargs)
 
@@ -76,7 +79,10 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         #client call for this method already  contains a call to the file manager
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
-        qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url)
+        if self.disable_backend:
+            logging.info('Disabled backend: qualification_tests.run_qualification_tests()')
+        else:
+            qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url)
 
     def RTSTelescopeProductRTSIngest(self, metadata):
         logging.info('Filename: %s' % (metadata['Filename'][0]))
@@ -86,20 +92,31 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
-        qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url)
+        if self.disable_backend:
+            logging.info('Disabled backend: qualification_tests.run_qualification_tests()')
+        else:
+            qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url)
 
     def KatFileImagerPipeline(self, metadata):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
-        pipelines.run_kat_cont_pipe.delay(product_metadata)
+        if self.disable_backend:
+            logging.info('Disabled backend: pipelines.run_kat_cont_pipe.delay()')
+        else:
+            pipelines.run_kat_cont_pipe.delay(product_metadata)
 
     def KatFileObsReporter(self, metadata):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
-        pipelines.generate_obs_report.delay(product_metadata)
+        if self.disable_backend:
+            logging.info('Disabled backend: pipelines.generate_obs_report.delay()')
+        else:
+            pipelines.generate_obs_report.delay(product_metadata)
 
 options = get_options()
-server = OODTWorkflowManager('http://localhost:9101', ("", options.port,))
+server = OODTWorkflowManager('http://localhost:9101', options.DisableCeleryBackend, ("", options.port,))
 logging.info("Starting workflow manager on port %d" % (options.port))
 logging.info("Using file manager on http://localhost:9101")
+if options.DisableCeleryBackend:
+    logging.info("No tasks will be pushed onto the celery backend")
 server.serve_forever()
