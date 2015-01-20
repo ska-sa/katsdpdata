@@ -25,7 +25,7 @@ def get_options():
     parser.add_option('--KatFileObsReporter', action='store_true', default=False,
          help='Call KatFileObsReporter on the xmlrpc interface.')
     parser.add_option('--KatFileImagerPipeline', action='store_true', default=False,
-         help='Call KatFileObsReporter on the xmlrpc interface.')
+         help='Call KatFileImagerPipeline on the xmlrpc interface.')
     parser.add_option('--KatFileRTSTesting', action='store_true', default=False,
          help='Call KatFileRTSTesting on the xmlrpc interface.')
     parser.add_option('--RTSTelescopeProductReduce', action='store_true', default=False,
