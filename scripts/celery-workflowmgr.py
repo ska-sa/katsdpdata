@@ -11,7 +11,6 @@ from optparse import OptionParser
 from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 
 LOG_FILENAME='/var/log/celery_workflowmgr/celery_workflowmgr.log'
-logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
 
 def get_options():
     """Sets options from the arguments passed to the script.
@@ -27,6 +26,8 @@ def get_options():
     parser = OptionParser(usage=usage)
     parser.add_option('-p', '--port', type='int',
          help='The port to listen on for XMLRPC requests')
+    parser.add_option('--Foreground', action='store_true', default=False,
+         help='For testing purposes. Log to console and not the file.')
     parser.add_option('--DisableCeleryBackend', action='store_true', default=False,
          help='For testing purposes. Disable push onto the celery queue.')
 
@@ -114,6 +115,13 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
             pipelines.generate_obs_report.delay(product_metadata)
 
 options = get_options()
+if options.Foreground:
+    logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
+    logging.info('Logging to console')
+else:
+    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
+    logging.info('Starting in daemon mode')
+
 server = OODTWorkflowManager('http://localhost:9101', options.DisableCeleryBackend, ("", options.port,))
 logging.info("Starting workflow manager on port %d" % (options.port))
 logging.info("Using file manager on http://localhost:9101")
