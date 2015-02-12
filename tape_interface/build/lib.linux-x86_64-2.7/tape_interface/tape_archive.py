@@ -16,10 +16,9 @@ class tape_archive:
 
     def __init__(self, dbLocation = cnf["DB_location"]):
         # frmt = logging.Formatter()
-        logging.basicConfig(format = '%(asctime)s - %(name)s - %(funcName)s -%(levelname)s - %(message)s', filename='/home/kat/katsdpdata/tape_interface/src/tape_archive.log', level = logging.DEBUG)
+        logging.basicConfig(level = logging.INFO, format = '%(asctime)s - %(name)s - %(funcName)s -%(levelname)s - %(message)s')
         
         self.logger = logging.getLogger("tape_archive")
-        
         # self.logger.setFormatter(frmt)
         self.logger.info('Initialising tape_archive with state database at %s'%dbLocation)
         self.db = sql.connect(dbLocation)
@@ -160,28 +159,28 @@ class tape_archive:
             self.cur.execute("""SELECT * FROM tape""")
             all_rows = self.cur.fetchall()
             for row in all_rows:
-                ret+=", ".join(str(item) for item in row)+"\n"
+                ret+=", ".join(row)+"\n"
 
         if table == None or table == "SLOT":
             ret+= "#############\n# SLOTS     #\n#############\n"
             self.cur.execute("""SELECT * FROM slot""")
             all_rows = self.cur.fetchall()
             for row in all_rows:
-                ret+=", ".join(str(item) for item in row)+"\n"
+                ret+=", ".join(row)+"\n"
 
         if table == None or table == "DRIVE":
             ret+= "#############\n# DRIVES    #\n#############\n"
             self.cur.execute("""SELECT * FROM drive""")
             all_rows = self.cur.fetchall()
             for row in all_rows:
-                ret+=", ".join(str(item) for item in row)+"\n"
+                ret+=", ".join(row)+"\n"
 
         if table == None or table == "MAGAZINE":
             ret+= "#############\n# MAGAZINES #\n#############\n"
             self.cur.execute("""SELECT * FROM magazine""")
             all_rows = self.cur.fetchall()
             for row in all_rows:
-                ret+=", ".join(str(item) for item in row)+"\n"
+                ret+=", ".join(row)+"\n"
         return ret
 
 
@@ -236,8 +235,6 @@ class tape_archive:
                 slotid = tapes[0][1]
         
         self.load(slotid, driveid)
-
-        return slotid, driveid
 
     """Get the slot and drive that a tape is loaded in."""
     def get_location_of_tape(self, tape):
@@ -516,7 +513,7 @@ class tape_archive:
 
 if __name__ == "__main__":
     ta = tape_archive()
-    ta.get_state()
+    # ta.get_state()
     # ta.unload(1)
     # ta.load_tape()
     # 
@@ -525,10 +522,10 @@ if __name__ == "__main__":
     # ta.end_of_last_tar(1)
     # ta.tar_folder_to_tape('/home/kat/test_dir', 1)
     # print ta.get_file_list(1)
-    # ta.read_file (1,'test_dir/', '/home/kat/katsdpdata/tape_interface/src/dir', tar_num = 1)
+    ta.read_file (1,'test_dir/', '/home/kat/katsdpdata/tape_interface/src/dir', tar_num = 1)
     # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
     # ta.tar_folder_to_tape('/home/kat/test_dir', 1)
     # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
     
-    print ta.print_state()
+    #ta.print_state()
     ta.close()

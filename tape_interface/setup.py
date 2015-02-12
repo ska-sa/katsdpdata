@@ -18,7 +18,6 @@ setup(name = 'tape_interface',
         'Topic :: Scientific/Engineering :: Astronomy',
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
-    requires=[,],
     provides=['tape_interface'],
     package_dir = {'tape_interface':'src'},
     packages = ['tape_interface'])
