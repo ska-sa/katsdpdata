@@ -61,9 +61,9 @@ class FileWriterServer(DeviceServer):
     def _get_attribute(self, attribute):
         return self._telstate.get(attribute.full_name)
 
-    def _get_sensor(self, sensor):
+    def _get_sensor(self, sensor, start_timestamp):
         try:
-            values = self._telstate.get_range(sensor.full_name, 0.0, np.inf)
+            values = self._telstate.get_range(sensor.full_name, start_timestamp, np.inf)
         except KeyError:
             return None
         if values is None:
@@ -72,7 +72,7 @@ class FileWriterServer(DeviceServer):
         # any status information from the telescope state
         return [(ts, value, 'nominal') for (value, ts) in values]
 
-    def _do_capture(self, file_obj):
+    def _do_capture(self, file_obj, start_timestamp):
         """Capture a stream from SPEAD and write to file. This is run in a
         separate thread.
 
@@ -103,7 +103,8 @@ class FileWriterServer(DeviceServer):
                 timestamps = np.array(timestamps) + self._telstate.cbf_sync_time
                 file_obj.set_timestamps(timestamps)
                 self._logger.info('Set %d timestamps', len(timestamps))
-            file_obj.set_metadata(self._model, self._get_attribute, self._get_sensor)
+            file_obj.set_metadata(self._model, self._get_attribute,
+                    lambda sensor: self._get_sensor(sensor, start_timestamp))
             file_obj.close()
 
     @request()
@@ -113,14 +114,14 @@ class FileWriterServer(DeviceServer):
         if self._capture_thread is not None:
             self._logger.info("Ignoring capture_init because already capturing")
             return ("fail", "Already capturing")
-        timestamp = int(time.time())
-        self._final_filename = os.path.join(self._file_base, "{0}.h5".format(timestamp))
-        self._stage_filename = os.path.join(self._file_base, "{0}.writing.h5".format(timestamp))
+        timestamp = time.time()
+        self._final_filename = os.path.join(self._file_base, "{0}.h5".format(int(timestamp)))
+        self._stage_filename = os.path.join(self._file_base, "{0}.writing.h5".format(int(timestamp)))
         self._filename_sensor.set_value(self._final_filename)
         self._status_sensor.set_value("capturing")
         self._dumps_sensor.set_value(0)
         f = file_writer.File(self._stage_filename)
-        self._capture_thread = threading.Thread(target=self._do_capture, name='capture', args=(f,))
+        self._capture_thread = threading.Thread(target=self._do_capture, name='capture', args=(f, timestamp))
         self._capture_thread.start()
         self._logger.info("Starting capture to %s", self._stage_filename)
         return ("ok", "Capture initialised to {0}".format(self._stage_filename))
