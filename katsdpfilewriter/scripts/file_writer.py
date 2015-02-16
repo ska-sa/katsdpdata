@@ -9,7 +9,8 @@ The status sensor has the following states:
 
   - `idle`: data is not being captured
   - `capturing`: data is being captured
-  - `finalising`: file is being finalised
+  - `waiting`: CBF data stream has finished, waiting for capture_done request
+  - `finalising`: metadata is being written to file
 """
 
 from __future__ import print_function, division
@@ -38,6 +39,8 @@ class FileWriterServer(DeviceServer):
         self._capture_thread = None
         self._telstate = telstate
         self._model = rts_model.create_model()
+        self._file_obj = None
+        self._start_timestamp = None
 
     def setup_sensors(self):
         self._status_sensor = Sensor.string("status", "The current status of the capture process", "", "idle")
@@ -72,7 +75,7 @@ class FileWriterServer(DeviceServer):
         # any status information from the telescope state
         return [(ts, value, 'nominal') for (value, ts) in values]
 
-    def _do_capture(self, file_obj, start_timestamp):
+    def _do_capture(self, file_obj):
         """Capture a stream from SPEAD and write to file. This is run in a
         separate thread.
 
@@ -94,7 +97,7 @@ class FileWriterServer(DeviceServer):
                 n_dumps += 1
                 self._dumps_sensor.set_value(n_dumps)
         finally:
-            self._status_sensor.set_value("finalising")
+            self._status_sensor.set_value("waiting")
             sock.close()
             # Timestamps in the SPEAD stream are relative to sync_time
             if not timestamps:
@@ -103,9 +106,6 @@ class FileWriterServer(DeviceServer):
                 timestamps = np.array(timestamps) + self._telstate.cbf_sync_time
                 file_obj.set_timestamps(timestamps)
                 self._logger.info('Set %d timestamps', len(timestamps))
-            file_obj.set_metadata(self._model, self._get_attribute,
-                    lambda sensor: self._get_sensor(sensor, start_timestamp))
-            file_obj.close()
 
     @request()
     @return_reply(Str())
@@ -120,8 +120,9 @@ class FileWriterServer(DeviceServer):
         self._filename_sensor.set_value(self._final_filename)
         self._status_sensor.set_value("capturing")
         self._dumps_sensor.set_value(0)
-        f = file_writer.File(self._stage_filename)
-        self._capture_thread = threading.Thread(target=self._do_capture, name='capture', args=(f, timestamp))
+        self._file_obj = file_writer.File(self._stage_filename)
+        self._start_timestamp = timestamp
+        self._capture_thread = threading.Thread(target=self._do_capture, name='capture', args=(self._file_obj,))
         self._capture_thread.start()
         self._logger.info("Starting capture to %s", self._stage_filename)
         return ("ok", "Capture initialised to {0}".format(self._stage_filename))
@@ -130,6 +131,8 @@ class FileWriterServer(DeviceServer):
     @return_reply(Str())
     def request_capture_done(self, req):
         """Stop capturing and close the HDF5 file, if it is not already done."""
+        if self._capture_thread is None:
+            self._logger.info("Ignoring capture_done because already explicitly stopped")
         return self.capture_done()
 
     def capture_done(self):
@@ -137,7 +140,6 @@ class FileWriterServer(DeviceServer):
         to be called on `KeyboardInterrupt`.
         """
         if self._capture_thread is None:
-            self._logger.info("Ignoring capture_done because already explicitly stopped")
             return ("fail", "Not capturing")
         # Nasty hack until PySPEAD has a way to interrupt an iterheaps: send an
         # end-of-stream packet to ourself, and keep doing it until it is received
@@ -147,15 +149,23 @@ class FileWriterServer(DeviceServer):
             time.sleep(0.1)
         self._capture_thread.join()
         self._capture_thread = None
-        self._status_sensor.set_value("idle")
+
+        self._status_sensor.set_value("finalising")
+        self._file_obj.set_metadata(self._model, self._get_attribute,
+                lambda sensor: self._get_sensor(sensor, self._start_timestamp))
+        self._file_obj.close()
+        self._file_obj = None
+        self._start_timestamp = None
 
         # File is now closed, so rename it
         try:
             os.rename(self._stage_filename, self._final_filename)
+            result = ("ok", "File renamed to {0}".format(self._final_filename))
         except OSError as e:
             logger.error("Failed to rename output file %s to %s".format(self._stage_filename, self._final_filename, exc_info=True))
-            return ("fail","Failed to rename output file from {0} to {1}.".format(self._stage_filename, self._final_filename))
-        return ("ok", "File renamed to {0}".format(self._final_filename))
+            result = ("fail","Failed to rename output file from {0} to {1}.".format(self._stage_filename, self._final_filename))
+        self._status_sensor.set_value("idle")
+        return result
 
 def main():
     logging.basicConfig()
