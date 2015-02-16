@@ -131,13 +131,13 @@ class File(object):
             for sensor in sorted(component.sensors, key=lambda sensor: sensor.name):
                 data = get_sensor(sensor)
                 if data is not None:
-                    dset = np.rec.fromrecords(data, names='timestamp, value, status')
-                    dset.sort(axis=0)
                     try:
+                        dset = np.rec.fromrecords(data, names='timestamp, value, status')
+                        dset.sort(axis=0)
                         c_group.create_dataset(sensor.name, data=dset)
                         if sensor.description is not None:
                             c_group[sensor.name].attrs['description'] = sensor.description
-                    except ValueError:
+                    except IndexError:
                         logger.warning("Failed to create dataset %s/%s as the model has no values",
                             comp_base, sensor.name)
                     except RuntimeError:
