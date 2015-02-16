@@ -1,5 +1,17 @@
 #!/usr/bin/env python
 
+"""Capture L0 visibilities from a SPEAD stream and write to HDF5 file. When
+the file is closed, metadata is also extracted from the telescope state and
+written to the file. This process lives across multiple observations and
+hence multiple HDF5 files.
+
+The status sensor has the following states:
+
+  - `idle`: data is not being captured
+  - `capturing`: data is being captured
+  - `finalising`: file is being finalised
+"""
+
 from __future__ import print_function, division
 import spead64_48 as spead
 import katsdptelstate
@@ -28,8 +40,12 @@ class FileWriterServer(DeviceServer):
         self._model = rts_model.create_model()
 
     def setup_sensors(self):
-        # TODO: sensors: filename, amount written, status
-        pass
+        self._status_sensor = Sensor.string("status", "The current status of the capture process", "", "idle")
+        self.add_sensor(self._status_sensor)
+        self._filename_sensor = Sensor.string("filename", "Final name for file being captured", "")
+        self.add_sensor(self._filename_sensor)
+        self._dumps_sensor = Sensor.integer("dumps", "Number of L0 dumps captured", "", [0, 2**63], 0)
+        self.add_sensor(self._dumps_sensor)
 
     def _multicast_socket(self):
         """Returns a socket that is subscribed to any necessary multicast groups."""
@@ -67,6 +83,7 @@ class FileWriterServer(DeviceServer):
         """
         timestamps = []
         sock = self._multicast_socket()
+        n_dumps = 0
         try:
             rx = spead.TransportUDPrx(self._endpoints[0].port, pkt_count=1024, buffer_size=51200000)
             ig = spead.ItemGroup()
@@ -74,7 +91,10 @@ class FileWriterServer(DeviceServer):
                 ig.update(heap)
                 file_obj.add_data_frame(ig['correlator_data'], ig['flags'])
                 timestamps.append(ig['timestamp'])
+                n_dumps += 1
+                self._dumps_sensor.set_value(n_dumps)
         finally:
+            self._status_sensor.set_value("finalising")
             sock.close()
             # Timestamps in the SPEAD stream are relative to sync_time
             if not timestamps:
@@ -96,6 +116,9 @@ class FileWriterServer(DeviceServer):
         timestamp = int(time.time())
         self._final_filename = os.path.join(self._file_base, "{0}.h5".format(timestamp))
         self._stage_filename = os.path.join(self._file_base, "{0}.writing.h5".format(timestamp))
+        self._filename_sensor.set_value(self._final_filename)
+        self._status_sensor.set_value("capturing")
+        self._dumps_sensor.set_value(0)
         f = file_writer.File(self._stage_filename)
         self._capture_thread = threading.Thread(target=self._do_capture, name='capture', args=(f,))
         self._capture_thread.start()
@@ -123,6 +146,7 @@ class FileWriterServer(DeviceServer):
             time.sleep(0.1)
         self._capture_thread.join()
         self._capture_thread = None
+        self._status_sensor.set_value("idle")
 
         # File is now closed, so rename it
         try:
