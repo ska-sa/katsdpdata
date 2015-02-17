@@ -10,11 +10,13 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 class Attribute(object):
     def __init__(self, name, full_name, critical=False):
         self.name = name
         self.full_name = full_name
         self.critical = critical
+
 
 class Sensor(object):
     def __init__(self, name, full_name, critical=False, description=None):
@@ -22,6 +24,7 @@ class Sensor(object):
         self.full_name = full_name
         self.critical = critical
         self.description = description
+
 
 class TelescopeComponent(object):
     def __init__(self, name, proxy_path=None):
@@ -40,6 +43,7 @@ class TelescopeComponent(object):
             self.attributes.append(Attribute(
                 name, '{0}_{1}'.format(self.proxy_path, name), critical))
 
+
 class TelescopeModel(object):
     def __init__(self):
         self.components = {}
@@ -54,13 +58,14 @@ class TelescopeModel(object):
 
     def add_components(self, components):
         for component in components:
-            if self.components.has_key(component):
-                logger.warning("Component name %s is not unique", component.name)
+            if component in self.components:
+                logger.warning("Component name %s is not unique",
+                               component.name)
                 continue
             self.components[component.name] = component
         logger.debug("Added %d components to model.", len(self.components))
 
     def set_flags_description(self, flags_description):
-        """Set names and descriptions for flags. `flags_description` is a list of (name, description)
-        tuples."""
+        """Set names and descriptions for flags. `flags_description` is a list
+        of (name, description) tuples."""
         self.flags_description = flags_description

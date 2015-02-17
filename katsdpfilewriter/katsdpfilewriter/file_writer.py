@@ -19,6 +19,7 @@ _FLAGS_DATASET = '/Data/flags'
 _FLAGS_DESCRIPTION_DATASET = '/Data/flags_description'
 _CBF_DATA_DATASET = '/Data/correlator_data'
 
+
 def _split_array(array, dtype):
     """Return a view of `array` which has one extra dimension. Each element is `array` is
     treated as some number of elements of type `dtype`, whose size must divide
@@ -40,6 +41,7 @@ def _split_array(array, dtype):
     interface['descr'] = out_dtype.descr
     return np.asarray(np.lib.stride_tricks.DummyArray(interface, base=array))
 
+
 class File(object):
     def __init__(self, filename):
         """Initialises an HDF5 output file as appropriate for this version of
@@ -58,10 +60,12 @@ class File(object):
 
     def _create_data(self, shape):
         """Creates the data sets for visibilities and flags."""
-        shape = list(shape) # Ensures that + works belows
-        self._h5_file.create_dataset(_CBF_DATA_DATASET, [0] + shape + [2],
+        shape = list(shape)  # Ensures that + works belows
+        self._h5_file.create_dataset(
+                _CBF_DATA_DATASET, [0] + shape + [2],
                 maxshape=[None] + shape + [2], dtype=np.float32)
-        self._h5_file.create_dataset(_FLAGS_DATASET, [0] + shape,
+        self._h5_file.create_dataset(
+                _FLAGS_DATASET, [0] + shape,
                 maxshape=[None] + shape, dtype=np.uint8)
         self._created_data = True
 
@@ -139,10 +143,10 @@ class File(object):
                             c_group[sensor.name].attrs['description'] = sensor.description
                     except IndexError:
                         logger.warning("Failed to create dataset %s/%s as the model has no values",
-                            comp_base, sensor.name)
+                                       comp_base, sensor.name)
                     except RuntimeError:
                         logger.warning("Failed to insert dataset %s/%s as it already exists",
-                            comp_base, sensor.name)
+                                       comp_base, sensor.name)
 
     def close(self):
         self._h5_file.close()

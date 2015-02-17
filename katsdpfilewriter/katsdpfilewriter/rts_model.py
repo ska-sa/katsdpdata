@@ -5,7 +5,8 @@ be replaced by having the configuration stored in the telescope state.
 
 from .telescope_model import TelescopeComponent, TelescopeModel
 
-#### Component Definitions
+
+# Component Definitions
 
 class AntennaPositioner(TelescopeComponent):
     def __init__(self, *args, **kwargs):
@@ -14,6 +15,7 @@ class AntennaPositioner(TelescopeComponent):
                 ['activity', 'target', 'pos_actual_scan_elev', 'pos_request_scan_elev',
                  'pos_actual_scan_azim', 'pos_request_scan_azim'], True)
         self.add_attributes(['description'], True)
+
 
 class CorrelatorBeamformer(TelescopeComponent):
     def __init__(self, *args, **kwargs):
@@ -25,6 +27,7 @@ class CorrelatorBeamformer(TelescopeComponent):
                  'sync_time', 'int_time', 'scale_factor_timestamp'], True)
         self.add_attributes(['center_freq'], False)
 
+
 class Enviro(TelescopeComponent):
     def __init__(self, *args, **kwargs):
         super(Enviro, self).__init__(*args, **kwargs)
@@ -32,16 +35,19 @@ class Enviro(TelescopeComponent):
                 ['air_pressure', 'air_relative_humidity', 'air_temperature',
                  'wind_speed', 'wind_direction'])
 
+
 class Digitiser(TelescopeComponent):
     def __init__(self, *args, **kwargs):
         super(Digitiser, self).__init__(*args, **kwargs)
         self.add_sensors(['overflow'])
+
 
 class Observation(TelescopeComponent):
     def __init__(self, *args, **kwargs):
         super(Observation, self).__init__(*args, **kwargs)
         self.add_sensors(['label', 'params'], True)
         self.add_sensors(['script_log'], False)
+
 
 def create_model():
     m063 = AntennaPositioner(name='m063')

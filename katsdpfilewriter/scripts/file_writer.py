@@ -28,6 +28,7 @@ from katcp import DeviceServer, Sensor
 from katcp.kattypes import request, return_reply, Str
 from katsdpfilewriter import rts_model, file_writer
 
+
 class FileWriterServer(DeviceServer):
     VERSION_INFO = ("sdp-file-writer", 0, 1)
     BUILD_INFO = ("sdp-file-writer", 0, 1, "rc1")
@@ -43,11 +44,14 @@ class FileWriterServer(DeviceServer):
         self._start_timestamp = None
 
     def setup_sensors(self):
-        self._status_sensor = Sensor.string("status", "The current status of the capture process", "", "idle")
+        self._status_sensor = Sensor.string(
+                "status", "The current status of the capture process", "", "idle")
         self.add_sensor(self._status_sensor)
-        self._filename_sensor = Sensor.string("filename", "Final name for file being captured", "")
+        self._filename_sensor = Sensor.string(
+                "filename", "Final name for file being captured", "")
         self.add_sensor(self._filename_sensor)
-        self._dumps_sensor = Sensor.integer("dumps", "Number of L0 dumps captured", "", [0, 2**63], 0)
+        self._dumps_sensor = Sensor.integer(
+                "dumps", "Number of L0 dumps captured", "", [0, 2**63], 0)
         self.add_sensor(self._dumps_sensor)
 
     def _multicast_socket(self):
@@ -115,14 +119,17 @@ class FileWriterServer(DeviceServer):
             self._logger.info("Ignoring capture_init because already capturing")
             return ("fail", "Already capturing")
         timestamp = time.time()
-        self._final_filename = os.path.join(self._file_base, "{0}.h5".format(int(timestamp)))
-        self._stage_filename = os.path.join(self._file_base, "{0}.writing.h5".format(int(timestamp)))
+        self._final_filename = os.path.join(
+                self._file_base, "{0}.h5".format(int(timestamp)))
+        self._stage_filename = os.path.join(
+                self._file_base, "{0}.writing.h5".format(int(timestamp)))
         self._filename_sensor.set_value(self._final_filename)
         self._status_sensor.set_value("capturing")
         self._dumps_sensor.set_value(0)
         self._file_obj = file_writer.File(self._stage_filename)
         self._start_timestamp = timestamp
-        self._capture_thread = threading.Thread(target=self._do_capture, name='capture', args=(self._file_obj,))
+        self._capture_thread = threading.Thread(
+                target=self._do_capture, name='capture', args=(self._file_obj,))
         self._capture_thread.start()
         self._logger.info("Starting capture to %s", self._stage_filename)
         return ("ok", "Capture initialised to {0}".format(self._stage_filename))
@@ -151,7 +158,8 @@ class FileWriterServer(DeviceServer):
         self._capture_thread = None
 
         self._status_sensor.set_value("finalising")
-        self._file_obj.set_metadata(self._model, self._get_attribute,
+        self._file_obj.set_metadata(
+                self._model, self._get_attribute,
                 lambda sensor: self._get_sensor(sensor, self._start_timestamp))
         self._file_obj.close()
         self._file_obj = None
@@ -162,10 +170,13 @@ class FileWriterServer(DeviceServer):
             os.rename(self._stage_filename, self._final_filename)
             result = ("ok", "File renamed to {0}".format(self._final_filename))
         except OSError as e:
-            logger.error("Failed to rename output file %s to %s".format(self._stage_filename, self._final_filename, exc_info=True))
-            result = ("fail","Failed to rename output file from {0} to {1}.".format(self._stage_filename, self._final_filename))
+            logger.error("Failed to rename output file %s to %s",
+                         self._stage_filename, self._final_filename, exc_info=True)
+            result = ("fail", "Failed to rename output file from {0} to {1}.".format(
+                self._stage_filename, self._final_filename))
         self._status_sensor.set_value("idle")
         return result
+
 
 def main():
     logging.basicConfig()
@@ -183,7 +194,7 @@ def main():
 
     restart_queue = Queue.Queue()
     server = FileWriterServer(logger, args.l0_spectral_spead, args.file_base, args.telstate,
-            host=args.host, port=args.port)
+                              host=args.host, port=args.port)
     server.set_restart_queue(restart_queue)
     server.start()
     logger.info("Started file writer server.")
