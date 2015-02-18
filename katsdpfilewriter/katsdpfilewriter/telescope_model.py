@@ -1,8 +1,5 @@
 """
 Defines the expected and required sensors and attributes for a telescope.
-
-This is purely declarative and does not store any values. Logic for loading and
-saving lives elsewhere.
 """
 
 import logging
@@ -45,6 +42,9 @@ class TelescopeComponent(object):
 
 
 class TelescopeModel(object):
+    """A static view of the telescope, with no actual data. Data is provided
+    by subclasses of :class:`TelescopeModelData`.
+    """
     def __init__(self):
         self.components = {}
         self.flags_description = []
@@ -69,3 +69,60 @@ class TelescopeModel(object):
         """Set names and descriptions for flags. `flags_description` is a list
         of (name, description) tuples."""
         self.flags_description = flags_description
+
+
+class TelescopeModelData(object):
+    """Abstract base class for accessing the values of sensors and attributes.
+    Subclasses must implement `get_sensor_values` and `get_attribute_value`.
+
+    .. todo::
+
+        Add a is_valid method that checks whether all critical attributes and
+        sensors are present.
+
+    Parameters
+    ----------
+    model : :class:`TelescopeModel`
+        Underlying telescope model
+    """
+
+    def __init__(self, model):
+        self.model = model
+
+    @property
+    def components(self):
+        return self.model.components
+
+    @property
+    def flags_description(self):
+        return self.model.flags_description
+
+    def get_attribute_value(self, attribute):
+        """Return the value of an attribute.
+
+        Parameters
+        ----------
+        attribute : :class:`Attribute`
+            Attribute to query
+
+        Returns
+        -------
+        object
+            Value of the attribute, or `None` if the attribute is missing
+        """
+        raise NotImplementedError()
+
+    def get_sensor_values(self, sensor):
+        """Return the values of a sensor.
+
+        Parameters
+        ----------
+        sensor : :class:`Sensor`
+            Sensor to query
+
+        Returns
+        -------
+        list of (timestamp, value, status) tuples
+            Recorded values of the sensor, or `None` if the sensor is missing
+        """
+        raise NotImplementedError()

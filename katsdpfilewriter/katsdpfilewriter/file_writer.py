@@ -100,27 +100,24 @@ class File(object):
         h5_flags[idx] = flags
         self._h5_file.flush()
 
-    def set_metadata(self, model, get_attribute, get_sensor, base_path="/TelescopeModel"):
+    def set_metadata(self, model_data, base_path="/TelescopeModel"):
         """
         Writes to the telescope model group of the HDF5 file.
 
         Parameters:
         -----------
-        model : :class:`telescope_model.TelescopeModel`
-            Defines the structure of the model
-        get_attribute : callable
-            Callback that takes an :class:`~telescope_model.Attribute` and returns a value or `None`
-        get_sensor : callable
-            Callback that takes a :class:`~telescope_model.Sensor` and returns a list of
-            (timestamp, value, status) tuples, or `None`
+        model_data : :class:`telescope_model.TelescopeModelData`
+            The telescope model with a view of the data
+        base_path : str, optional
+            Name of the HDF5 group which will be created to contain the metadata
         """
         h5py._errors.silence_errors()
          # needed to supress h5py error printing in child threads.
          # exception handling and logging are used to print
          # more informative messages.
 
-        self._h5_file.create_dataset(_FLAGS_DESCRIPTION_DATASET, data=model.flags_description)
-        for component in model.components.values():
+        self._h5_file.create_dataset(_FLAGS_DESCRIPTION_DATASET, data=model_data.flags_description)
+        for component in model_data.components.values():
             comp_base = "{0}/{1}/".format(base_path, component.name)
             try:
                 c_group = self._h5_file.create_group(comp_base)
@@ -129,11 +126,11 @@ class File(object):
                 c_group = self._h5_file[comp_base]
                 logger.warning("Failed to create group %s (likely to already exist)", comp_base)
             for attribute in component.attributes:
-                value = get_attribute(attribute)
+                value = model_data.get_attribute_value(attribute)
                 if value is not None:
                     c_group.attrs[attribute.name] = value
             for sensor in sorted(component.sensors, key=lambda sensor: sensor.name):
-                data = get_sensor(sensor)
+                data = model_data.get_sensor_values(sensor)
                 if data is not None:
                     try:
                         dset = np.rec.fromrecords(data, names='timestamp, value, status')
@@ -147,6 +144,7 @@ class File(object):
                     except RuntimeError:
                         logger.warning("Failed to insert dataset %s/%s as it already exists",
                                        comp_base, sensor.name)
+        self._h5_file.flush()
 
     def close(self):
         self._h5_file.close()
