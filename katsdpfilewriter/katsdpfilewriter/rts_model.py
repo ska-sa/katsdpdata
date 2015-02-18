@@ -49,14 +49,21 @@ class Observation(TelescopeComponent):
         self.add_sensors(['script_log'], False)
 
 
+class SDP(TelescopeComponent):
+    def __init__(self, *args, **kwargs):
+        super(SDP, self).__init__(*args, **kwargs)
+        self.add_attributes(['l0_int_time'], True)
+
+
 def create_model():
     m063 = AntennaPositioner(name='m063')
     m062 = AntennaPositioner(name='m062')
     cbf = CorrelatorBeamformer(name='cbf')
     env = Enviro(name='anc_asc')
     obs = Observation(name='obs')
+    sdp = SDP(name='sdp')
     model = TelescopeModel()
-    model.add_components([m063, m062, cbf, env, obs])
+    model.add_components([m063, m062, cbf, env, obs, sdp])
     model.set_flags_description([
         ('reserved0', 'reserved - bit 0'),
         ('static', 'predefined static flag list'),
