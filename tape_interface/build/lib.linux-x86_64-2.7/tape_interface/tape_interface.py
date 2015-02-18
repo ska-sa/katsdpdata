@@ -66,12 +66,6 @@ class tape_interface:
         self.drives = drives_regex.findall(self.request.text)
         self.drives = np.unique(self.drives)
 
-    def move_tape(self, module, horizontal, vertical, drive):
-        payload = {'pt1:actionPanelRegion:1:goOnline':'t',
-                    'org.apache.myfaces.trinidad.faces.FORM':'f1',
-                    'javax.faces.ViewState':'%s'%self.viewstate,
-                    'event':
-        }
 
     def print_state(self):
         print "ctrlstate = %s"%self.ctrlstate

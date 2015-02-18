@@ -16,11 +16,12 @@ class tape_archive:
 
     def __init__(self, dbLocation = cnf["DB_location"]):
         # frmt = logging.Formatter()
-        logging.basicConfig(format = '%(asctime)s - %(name)s - %(funcName)s -%(levelname)s - %(message)s', filename='/home/kat/katsdpdata/tape_interface/src/tape_archive.log', level = logging.DEBUG)
+        logging.basicConfig(format = '%(asctime)s - %(name)s - %(funcName)s -%(levelname)s - %(message)s', level = logging.DEBUG)
         
         self.logger = logging.getLogger("tape_archive")
         
         # self.logger.setFormatter(frmt)
+        self.logger.setLevel(logging.DEBUG)
         self.logger.info('Initialising tape_archive with state database at %s'%dbLocation)
         self.db = sql.connect(dbLocation)
         self.cur = self.db.cursor()
@@ -71,8 +72,8 @@ class tape_archive:
     """Queries the tape machine to find the state of the tapes, slots and drives.
     Updates the DB accordingly. This will only work if the DB is empty"""
     def get_state(self):
-        self.logger.info('Querying tape machine with command [sudo mtx-f/dev/sg6 status]')
-        cmd = subprocess.Popen(["sudo","mtx", "-f", "/dev/sg6", "status"], stdout=subprocess.PIPE)
+        self.logger.info('Querying tape machine with command [sudo mtx-f/dev/sg9 status]')
+        cmd = subprocess.Popen(["sudo","mtx", "-f", "/dev/sg9", "status"], stdout=subprocess.PIPE)
         cmd.wait()
         out, err = cmd.communicate()
         self.logger.debug('Response %s\n Err %s'%(out, str(err)))
@@ -195,7 +196,7 @@ class tape_archive:
         drive = [None,None]
         slot = None
 
-        self.logger.info("Load_tape with driveid = %s, tapeid = %s, slotid=%s"%(str(driveid), str(tapeid), str(slot(id))))
+        self.logger.info("Load_tape with driveid = %s, tapeid = %s, slotid=%s"%(str(driveid or "na"), str(tapeid or "na"), str(slotid or "na")))
 
         if driveid == None:
             self.logger.info("No drive provided, choosing a free drive")
@@ -241,12 +242,12 @@ class tape_archive:
 
     """Get the slot and drive that a tape is loaded in."""
     def get_location_of_tape(self, tape):
-        self.logger.info("Getting location for tape %s"%tapeid)
+        self.logger.info("Getting location for tape %s"%tape)
         self.cur.execute(
             """SELECT tape.slot_id, drive.id
             FROM tape LEFT OUTER JOIN drive ON drive.tape_id = tape.id
-            WHERE tape.id = %s"""(
-                tape))
+            WHERE tape.id = \'%s\'"""%(
+                tape,))
         res = self.cur.fetchone ()
         self.db.commit()
         return res
@@ -311,8 +312,8 @@ class tape_archive:
             WHERE id = %d"""%(
                 res[0], drive))
         self.db.commit()
-        self.logger.debug("Running command sudo mtx -f /dev/sg6 load %d %d"%(slot, drive))
-        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/sg6","load", str(slot), str(drive)], stdout=subprocess.PIPE)
+        self.logger.debug("Running command sudo mtx -f /dev/sg9 load %d %d"%(slot, drive))
+        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/sg9","load", str(slot), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
         self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
@@ -340,14 +341,16 @@ class tape_archive:
             SET state = 'UNLOADING'
             WHERE id = %d"""%(
                 drive,))
+        
+
+        if (len(res) < 1):
+            raise Exception("No tape in drive")
+
         self.db.commit()
 
-        if (res[0] == None):
-            res[0] = select
-
-        self.logger.debug("Running command sudo mtx -f /dev/sg6 unload %d %d"%(res[0], drive))
+        self.logger.debug("Running command sudo mtx -f /dev/sg9 unload %d %d"%(res[0], drive))
         
-        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/sg6","unload", str(res[0]), str(drive)], stdout=subprocess.PIPE)
+        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/sg9","unload", str(res[0]), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
         self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
