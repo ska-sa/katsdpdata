@@ -9,7 +9,7 @@ The status sensor has the following states:
 
   - `idle`: data is not being captured
   - `capturing`: data is being captured
-  - `waiting`: CBF data stream has finished, waiting for capture_done request
+  - `ready`: CBF data stream has finished, waiting for capture_done request
   - `finalising`: metadata is being written to file
 """
 
@@ -101,7 +101,7 @@ class FileWriterServer(DeviceServer):
                 n_dumps += 1
                 self._dumps_sensor.set_value(n_dumps)
         finally:
-            self._status_sensor.set_value("waiting")
+            self._status_sensor.set_value("ready")
             sock.close()
             # Timestamps in the SPEAD stream are relative to sync_time
             if not timestamps:
