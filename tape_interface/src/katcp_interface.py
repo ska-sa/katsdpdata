@@ -23,33 +23,57 @@ class tape_katcp_server(DeviceServer):
 
     VERSION_INFO = ("tape_katcp_interface", 1, 0)
     BUILD_INFO = ("tape_katcp_interface", 0, 1, "")
-
-    # Optionally set the KATCP protocol version and features. Defaults to
-    # the latest implemented version of KATCP, with all supported optional
-    # features
-    # PROTOCOL_INFO = ProtocolFlags(5, 0, set([
-    #     ProtocolFlags.MULTI_CLIENT,
-    #     ProtocolFlags.MESSAGE_IDS,
-    # ]))
-    
     
 
     def setup_sensors(self):
         """Setup some server sensors."""
 
-        self._buffer_dir = Sensor.string("eval.result",
-            "Last ?eval result.", "")
+        self.buffer_dirs=["/var/kat/data/tape_buffer1", "/var/kat/data/tape_buffer2"]
+        self.buffer_index = 0
 
-        
+        self._buffer_dir = Sensor.string("buffer_dir",
+            "Last ?buffer_dir result.", "")
+        self._buffer1_size = Sensor.integer("buffer1_size",
+            "Last ?buffer1_size result.", "")
+        self._buffer2_size = Sensor.integer("buffer2_size",
+            "Last ?buffer_size result.", "")
 
         self.add_sensor(self._buffer_dir)
 
+        self._buffer_dir.set_value("/var/kat/data/tape_buffer1")
 
     def __init__(self, server_host, server_port):
         DeviceServer.__init__(self, server_host, server_port)
         # self.ta = tape_archive.tape_archive()
         self.set_concurrency_options(False, False)
         signal.signal(signal.SIGINT, signal_handler)
+
+    @request()
+    @return_reply(Str())
+    def request_swap_buffer(self, req):
+        """Set the buffer_dir sensor"""
+        self.buffer_index = (self.buffer_index + 1) % 2
+        self._buffer_dir.set_value(buffer_dirs[self.buffer_index])
+        return ("ok", "buffer_dir_set_to_%s"%buffer_dirs[self.buffer_index])
+
+    @request(Str())
+    @return_reply(Str())
+    def request_set_buffer_dir(self, req, buffer_dir):
+        """Set the buffer_dir sensor"""
+        self._buffer_dir.set_value(buffer_dir)
+        return ("ok", "buffer_dir_set_to_%s"%buffer_dir)
+
+    @request(Int(), Int())
+    @return_reply(Str())
+    def request_set_buffer_size(self, req, bufnum, size):
+        """Set the buffer_dir sensor"""
+        if bufnum == 1:
+            self._buffer1_size.set_value(size)
+        elif bufnum == 2:
+            self.buffer2_size.set_value(size)
+        else:
+            return ("fail", "no buffer %d"%bufnum)
+        return ("ok", "buffer_dir_set_to_%s"%buffer_dir)
 
     @request(Str())
     @return_reply(Str())
@@ -171,7 +195,7 @@ class tape_katcp_server(DeviceServer):
         ta = tape_archive.tape_archive()
         ta.load(slot,drive)
         ta.close()
-        return ('ok', "drive %d loaded with tape from slot %d"%drive)
+        return ('ok', "drive %d loaded with tape from slot %d"%(drive, slot))
 
     @request(Int())
     @return_reply(Str())
@@ -195,6 +219,22 @@ class tape_katcp_server(DeviceServer):
             req.inform("slot %d"%line[0])
         ta.close()
         return ('ok', "get-free-slots COMPLETE")
+
+    @request(Str(),Int())
+    @return_reply(Str())
+    def request_write_buffer_to_tape(self, req, buffer_dir, drive):
+        """Write the buffer to a empty tape"""
+        ta = tape_archive.tape_archive()
+        try:
+            tape = ta.write_buffer_to_tape(buffer_dir, drive)
+        except Exception, e:
+            ta.close()
+            return ('fail', str(e).replace(' ', '_'))
+            print tape
+        ta.close()
+        return('ok', 'Wrote  to tape')
+
+
 
     @request(Str(), Int())
     @return_reply(Str())

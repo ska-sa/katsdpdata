@@ -72,8 +72,8 @@ class tape_archive:
     """Queries the tape machine to find the state of the tapes, slots and drives.
     Updates the DB accordingly. This will only work if the DB is empty"""
     def get_state(self):
-        self.logger.info('Querying tape machine with command [sudo mtx-f/dev/sg9 status]')
-        cmd = subprocess.Popen(["sudo","mtx", "-f", "/dev/sg9", "status"], stdout=subprocess.PIPE)
+        self.logger.info('Querying tape machine with command [sudo mtx-f/dev/%s status]'%cnf["controller"])
+        cmd = subprocess.Popen(["sudo","mtx", "-f", "/dev/%s"%cnf["controller"], "status"], stdout=subprocess.PIPE)
         cmd.wait()
         out, err = cmd.communicate()
         self.logger.debug('Response %s\n Err %s'%(out, str(err)))
@@ -147,6 +147,7 @@ class tape_archive:
         self.db.commit()
         self.logger.info("Committing DB")
         self.logger.debug ("DB state :\n%s"%self.print_state())
+
 
     """Get the state of the tape_archive from the DB.
     Can choose which table to check by using the table argument.
@@ -252,6 +253,35 @@ class tape_archive:
         self.db.commit()
         return res
 
+        """Get drive info"""
+    def get_drive (self, drive):
+        self.logger.info("Getting drive %d info")
+        self.cur.execute(
+            """SELECT * FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id
+            WHERE drive.id = %d"""%(
+                drive,))
+        names = list(map(lambda x: x[0], self.cur.description))
+        # print names
+        res = self.cur.fetchone ()
+        return [names,res]
+
+    def write_buffer_to_tape(self, buffer_dir, drive):
+        res = self.get_drive(drive)
+        tape = None
+        if res[1][res[0].index("attached")] == 0:
+            raise Exception ("Drive not attached for writing")
+        if res[1][res[0].index("tape_id")] == None:
+            tape = self.load_empty_tape(drive)
+        elif res[1][res[0].index("bytes_written")] > 0:
+            self.unload(drive)
+            tape = self.load_empty_tape(drive)
+        self.rewind_drive(drive)
+        self.tar_folder_to_tape(buffer_dir, drive)
+        self.unload(drive)
+
+        return tape
+
+
     """Get free drives.
     returns a list of free drives, each drive will have a tuple (id, state)"""
     def get_free_drives(self, magazine = None):
@@ -296,6 +326,19 @@ class tape_archive:
         res = self.cur.fetchall()
         return res
 
+    def load_empty_tape (self, drive):
+        # self.logger.info("Loading empty tape to drive %d"%drive)
+        res = self.get_empty_tapes()
+        self.logger.info ("%d empty tapes"%len(res))
+        if len(res) < 1:
+            raise Exception("No empty tapes")
+        else:
+            self.logger.info("Loading empty tape %s to drive %d from slot %d"%(res[0][0], drive, res[0][1]))
+            self.load(res[0][1], drive)
+
+        return [['tape_id','drive_id'],res[0]]
+
+
     """Load tape from slot to drive"""
     def load (self, slot, drive):
         self.logger.info("Loading tape from slot %d to drive %d"%(slot, drive))
@@ -312,8 +355,8 @@ class tape_archive:
             WHERE id = %d"""%(
                 res[0], drive))
         self.db.commit()
-        self.logger.debug("Running command sudo mtx -f /dev/sg9 load %d %d"%(slot, drive))
-        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/sg9","load", str(slot), str(drive)], stdout=subprocess.PIPE)
+        self.logger.debug("Running command sudo mtx -f /dev/%s load %d %d"%(cnf["controller"], slot, drive))
+        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/%s"%cnf["controller"],"load", str(slot), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
         self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
@@ -348,9 +391,9 @@ class tape_archive:
 
         self.db.commit()
 
-        self.logger.debug("Running command sudo mtx -f /dev/sg9 unload %d %d"%(res[0], drive))
+        self.logger.debug("Running command sudo mtx -f /dev/%s unload %d %d"%(cnf["controller"], res[0], drive))
         
-        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/sg9","unload", str(res[0]), str(drive)], stdout=subprocess.PIPE)
+        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/%s"%cnf["controller"],"unload", str(res[0]), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
         self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
@@ -386,7 +429,7 @@ class tape_archive:
 
         res = self.cur.fetchone()
         if res[0] == 1 and res[1] != None:
-            size = subprocess.check_output(["du","-s",folder]).split()[0]
+            size =int(subprocess.check_output(["du","-s",folder]).split()[0])
             self.cur.execute(
                 """UPDATE drive
                 SET state = 'WRITING', num_writes = num_writes + 1
@@ -398,13 +441,15 @@ class tape_archive:
             print "/".join(path[:-1])
 
             os.chdir("/".join(path[:-1]))
-            self.logger.debug("Taring folder %s with size %d bytes to tape %s in drive %d with :\n tar cvf /dev/n%s %s"%(
+            self.logger.debug("Taring folder %s with size %d bytes to tape %s in drive %d with :\n tar cvf /dev/%s %s"%(
                 folder, size, res[1], drive, cnf["drive%s"%drive][0], path[-1]))
 
-            cmd=subprocess.Popen(["tar","cvf","/dev/n%s"%cnf["drive%s"%drive][0], path[-1]], stdout=subprocess.PIPE)
+            cmd=subprocess.Popen(["sudo", "tar","cvf","/dev/%s"%cnf["drive%s"%drive][0], path[-1]], stdout=subprocess.PIPE)
             cmd.wait()
             comm=cmd.communicate()
             self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
+
+            self.logger.info("Updating  DB")
             
             self.cur.execute(
                 """UPDATE drive
@@ -413,8 +458,8 @@ class tape_archive:
                     drive,))
             self.cur.execute(
                 """UPDATE tape
-                SET bytes_written = bytes_written + %s
-                WHERE id = '%s'"""%(
+                SET bytes_written = bytes_written + %d
+                WHERE id = \'%s\'"""%(
                     size, res[1]))
             self.db.commit()
             self.logger.info("Committed changes to DB")
@@ -430,8 +475,8 @@ class tape_archive:
                 WHERE id = %d"""%(
                     drive,))
         self.db.commit()
-        self.logger.debug("Rewinding with command mt -f /dev/n%s rewind"%cnf["drive%s"%drive][0] )
-        cmd=subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "rewind"], stdout=subprocess.PIPE)
+        self.logger.debug("Rewinding with command mt -f /dev/%s rewind"%cnf["drive%s"%drive][0] )
+        cmd=subprocess.Popen(["sudo", "mt","-f", "/dev/%s"%cnf["drive%s"%drive][0], "rewind"], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
         self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
@@ -463,14 +508,14 @@ class tape_archive:
             print "----------------"
             print out
             ret.append(out)
-            cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+            cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
             cmd.wait()
-            cmd=subprocess.Popen(["tar","-tf","/dev/n%s"%cnf["drive%s"%drive][0]], stdout=subprocess.PIPE)
+            cmd=subprocess.Popen(["sudo", "tar","-tf","/dev/n%s"%cnf["drive%s"%drive][0]], stdout=subprocess.PIPE)
             cmd.wait()
             out = cmd.communicate()[0]
             count += 1
 
-        cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "bsfm", "1"], stdout=subprocess.PIPE)
+        cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "bsfm", "1"], stdout=subprocess.PIPE)
         cmd.wait()
 
         self.cur.execute(
@@ -495,10 +540,10 @@ class tape_archive:
 
         for i in range(tar_num):
             print "FORWARD"
-            cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+            cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
             cmd.wait()
 
-        cmd=subprocess.Popen(["tar","-xvf","/dev/n%s"%cnf["drive%s"%drive][0], filenames], stdout=subprocess.PIPE)
+        cmd=subprocess.Popen(["sudo", "tar","-xvf","/dev/n%s"%cnf["drive%s"%drive][0], filenames], stdout=subprocess.PIPE)
         cmd.wait()
         print cmd.communicate()
 
@@ -509,17 +554,18 @@ class tape_archive:
                     drive,))
 
     def end_of_last_tar (self, drive):
-        cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+        cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
         cmd.wait()
         while cmd.returncode == 0:
-            cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+            cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
             cmd.wait()
 
 
 
 if __name__ == "__main__":
     ta = tape_archive()
-    ta.get_state()
+    # ta.get_state()
+    print ta.write_buffer_to_tape('/var/kat/data/tape_buffer2',1)
     # ta.unload(1)
     # ta.load_tape()
     # 
@@ -533,5 +579,5 @@ if __name__ == "__main__":
     # ta.tar_folder_to_tape('/home/kat/test_dir', 1)
     # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
     
-    print ta.print_state()
+    # print ta.print_state()
     ta.close()
