@@ -8,6 +8,8 @@
 # Short-Description: OODT Filemgr daemon initscript
 # Description:       This initscript instantiates a OODT File Manager
 #                    daemon.
+# Debug: To debug script, remove the start_stop_daemon --background to 
+#        run the script in the foreground.
 ### END INIT INFO
 
 # Author: Thomas Bennett <thomas@ska.ac.za>
