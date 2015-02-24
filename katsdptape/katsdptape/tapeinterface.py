@@ -25,6 +25,7 @@ class TapeMachineInterface:
         self.db = sql.connect(dbLocation)
         self.cur = self.db.cursor()
         self.create_tables()
+        self.get_state()
 
 
     def create_tables (self):
@@ -45,7 +46,7 @@ class TapeMachineInterface:
         self.logger.info('Creating drive table')
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS drive (
-                id INTEGER,
+                id INTEGER PRIMARY KEY,
                 num_writes INTEGER,
                 num_reads INTEGER,
                 num_cleans INTEGER,
@@ -68,9 +69,9 @@ class TapeMachineInterface:
     def close(self):
         self.db.close()
 
-    """Queries the tape machine to find the state of the tapes, slots and drives.
-    Updates the DB accordingly. This will only work if the DB is empty"""
     def get_state(self):
+        """Queries the tape machine to find the state of the tapes, slots and drives.
+        Updates the DB accordingly. This will update the location of tapes"""
         self.logger.info('Querying tape machine with command [sudo mtx-f/dev/%s status]'%cnf["controller"])
         cmd = subprocess.Popen(["sudo","mtx", "-f", "/dev/%s"%cnf["controller"], "status"], stdout=subprocess.PIPE)
         cmd.wait()
@@ -98,21 +99,21 @@ class TapeMachineInterface:
                     count+=1
                 self.logger.debug('Adding tape %s in slot %d in magazine %d'%(tape_id, slot_id, slot_id/30))
                 self.cur.execute("""
-                    INSERT INTO tape(id, slot_id, bytes_written, size)
-                    VALUES (?,?,?,?)""", (tape_id, slot_id, 0, cnf["tape_size_limit"]))
+                    INSERT OR REPLACE INTO tape(id, slot_id, bytes_written, size)
+                    VALUES (?,?,COALESCE((SELECT bytes_written FROM tape WHERE id = ?),?),?)""", (tape_id, slot_id, tape_id, 0, cnf["tape_size_limit"]))
                 self.cur.execute("""
-                    INSERT INTO slot (id, type, magazine_id)
+                    INSERT OR REPLACE INTO slot (id, type, magazine_id)
                     VALUES (?,?,?)""", (slot_id, t,(slot_id-1)/30))
             else:
                 self.logger.debug('Adding empty slot %d in magazine %d'%(slot_id, (slot_id-1)/30))
                 self.cur.execute("""
-                    INSERT INTO slot (id, type, magazine_id)
+                    INSERT OR REPLACE INTO slot (id, type, magazine_id)
                     VALUES (?,?,?)""", (slot_id, t,(slot_id-1)/30))
 
             if (slot_id-1) % 30 == 0:
                 self.logger.debug('Adding magazine %d'%(slot_id-1/30))
                 self.cur.execute("""
-                        INSERT INTO magazine (id, state)
+                        INSERT OR REPLACE INTO magazine (id, state)
                         VALUES (?,?)""", ((slot_id-1)/30, "LOCKED"))
 
         data_transfer = data_transfer_regex.findall(out)
@@ -133,26 +134,113 @@ class TapeMachineInterface:
             if "Full" in d_t:
                 self.logger.debug('Adding tape %s in drive %d and slot %d in magazine %d'%(d_t[-7:-1], drive_id, slot_id, drive_id/2))
                 self.cur.execute("""
-                    INSERT INTO tape(id, bytes_written, size, slot_id, size)
-                    VALUES (?,?,?,?,?)""", (d_t[-7:-1], 0, cnf["tape_size_limit"], free_slots.pop()[0], cnf['tape_size_limit']))
+                    INSERT OR REPLACE INTO tape(id, bytes_written, size, slot_id, size)
+                    VALUES (?,COALESCE((SELECT bytes_written FROM tape WHERE id = ?),?),?,?,?)""", (d_t[-7:-1], d_t[-7:-1], 0, cnf["tape_size_limit"], free_slots.pop()[0], cnf['tape_size_limit']))
                 self.cur.execute("""
-                    INSERT INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, tape_id, attached)
-                    VALUES (?,?,?,?,?,?,?,?)""", (drive_id, "IDLE", drive_id/2, 0, 0, 0, d_t[-7:-1], attached))
+                    INSERT OR REPLACE INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, tape_id, attached)
+                    VALUES (?,?,?,COALESCE((SELECT num_writes FROM drive WHERE id = ?),?)
+                        ,COALESCE((SELECT num_reads FROM drive WHERE id = ?),?)
+                            ,COALESCE((SELECT num_cleans FROM drive WHERE id = ?),?)
+                                ,?,COALESCE((SELECT attached FROM drive WHERE id = ?),?))""", (
+                                    drive_id, "IDLE", drive_id/2, drive_id, 0, drive_id, 0, drive_id, 0, d_t[-7:-1], drive_id, attached))
             else:
                 self.cur.execute("""
-                    INSERT INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, attached)
-                    VALUES (?,?,?,?,?,?,?)""", (drive_id, "EMPTY", drive_id/2, 0, 0, 0, attached))
+                    INSERT OR REPLACE INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, attached)
+                    VALUES (?,?,?,COALESCE((SELECT num_writes FROM drive WHERE id = ?),?)
+                        ,COALESCE((SELECT num_reads FROM drive WHERE id = ?),?)
+                            ,COALESCE((SELECT num_cleans FROM drive WHERE id = ?),?)
+                                ,COALESCE((SELECT attached FROM drive WHERE id = ?),?))""", (
+                                    drive_id, "IDLE", drive_id/2, drive_id, 0, drive_id, 0, drive_id, 0, drive_id, attached))
 
         self.db.commit()
         self.logger.info("Committing DB")
         self.logger.debug ("DB state :\n%s"%self.print_state())
 
+    # def get_state(self):
+    #     """Queries the tape machine to find the state of the tapes, slots and drives.
+    #     Updates the DB accordingly. This will only work if the DB is empty"""
+    #     self.logger.info('Querying tape machine with command [sudo mtx-f/dev/%s status]'%cnf["controller"])
+    #     cmd = subprocess.Popen(["sudo","mtx", "-f", "/dev/%s"%cnf["controller"], "status"], stdout=subprocess.PIPE)
+    #     cmd.wait()
+    #     out, err = cmd.communicate()
+    #     self.logger.debug('Response %s\n Err %s'%(out, str(err)))
+    #     storage_elements = storage_element_regex.findall(out)
+    #     num_regex = re.compile ("\d{1,3}")
 
-    """Get the state of the TapeMachineInterface from the DB.
-    Can choose which table to check by using the table argument.
-    The options are "TAPE", "SLOT", "DRIVE", "MAGAZINE". If no table is selected, all tables states are returned.
-    Returns a formatted string of the state."""
+    #     count = 0
+
+    #     self.logger.debug('Storage elements returned by regex of %s :\n%s'%(storage_element_regex.pattern, "\n".join(storage_elements)))
+    #     self.logger.info("Adding tapes, slots and magazines")
+
+    #     for s_e in storage_elements:
+    #         slot_id = int(num_regex.findall(s_e)[0])
+    #         # print slot_id
+    #         t = "MAGAZINE"
+    #         if "IMPORT" in s_e:
+    #             t = "MAIL"
+    #             print t
+    #         if "Full" in s_e:
+    #             tape_id = s_e[-7:-1]
+    #             if "Full" in tape_id:
+    #                 tape_id = "NO LABEL - %03d"%count
+    #                 count+=1
+    #             self.logger.debug('Adding tape %s in slot %d in magazine %d'%(tape_id, slot_id, slot_id/30))
+    #             self.cur.execute("""
+    #                 INSERT INTO tape(id, slot_id, bytes_written, size)
+    #                 VALUES (?,?,?,?)""", (tape_id, slot_id, 0, cnf["tape_size_limit"]))
+    #             self.cur.execute("""
+    #                 INSERT INTO slot (id, type, magazine_id)
+    #                 VALUES (?,?,?)""", (slot_id, t,(slot_id-1)/30))
+    #         else:
+    #             self.logger.debug('Adding empty slot %d in magazine %d'%(slot_id, (slot_id-1)/30))
+    #             self.cur.execute("""
+    #                 INSERT INTO slot (id, type, magazine_id)
+    #                 VALUES (?,?,?)""", (slot_id, t,(slot_id-1)/30))
+
+    #         if (slot_id-1) % 30 == 0:
+    #             self.logger.debug('Adding magazine %d'%(slot_id-1/30))
+    #             self.cur.execute("""
+    #                     INSERT INTO magazine (id, state)
+    #                     VALUES (?,?)""", ((slot_id-1)/30, "LOCKED"))
+
+    #     data_transfer = data_transfer_regex.findall(out)
+
+    #     free_slots = self.get_free_slots()
+
+    #     cmd = subprocess.Popen(["lsscsi"], stdout=subprocess.PIPE)
+    #     cmd.wait()
+    #     out, err = cmd.communicate()
+
+    #     self.logger.info("Adding drives")
+
+    #     for d_t in data_transfer:
+    #         attached = 0
+    #         drive_id = int(num_regex.findall(d_t)[0])
+    #         if any(s in out for s in cnf['drive%d'%drive_id]):
+    #             attached = 1
+    #         if "Full" in d_t:
+    #             self.logger.debug('Adding tape %s in drive %d and slot %d in magazine %d'%(d_t[-7:-1], drive_id, slot_id, drive_id/2))
+    #             self.cur.execute("""
+    #                 INSERT INTO tape(id, bytes_written, size, slot_id, size)
+    #                 VALUES (?,?,?,?,?)""", (d_t[-7:-1], 0, cnf["tape_size_limit"], free_slots.pop()[0], cnf['tape_size_limit']))
+    #             self.cur.execute("""
+    #                 INSERT INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, tape_id, attached)
+    #                 VALUES (?,?,?,?,?,?,?,?)""", (drive_id, "IDLE", drive_id/2, 0, 0, 0, d_t[-7:-1], attached))
+    #         else:
+    #             self.cur.execute("""
+    #                 INSERT INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, attached)
+    #                 VALUES (?,?,?,?,?,?,?)""", (drive_id, "EMPTY", drive_id/2, 0, 0, 0, attached))
+
+    #     self.db.commit()
+    #     self.logger.info("Committing DB")
+    #     self.logger.debug ("DB state :\n%s"%self.print_state())
+
+
     def print_state(self, table = None):
+        """Get the state of the TapeMachineInterface from the DB.
+        Can choose which table to check by using the table argument.
+        The options are "TAPE", "SLOT", "DRIVE", "MAGAZINE". If no table is selected, all tables states are returned.
+        Returns a formatted string of the state."""
         self.logger.info("Getting state for table = %s"%str(table))
         ret = ""
 
@@ -186,13 +274,13 @@ class TapeMachineInterface:
         return ret
 
 
-    """Load a tape a drive.
-    The drive can be specified with driveid.
-    The tape to load can be specified by tapeid or the slotid.
-    If there is already a tape in the provided drive, it will be unloaded.
-    In the case none or some of these values are not provided, they will be chosen for the user.
-    Returns a tuple of the drive which has been loaded"""
     def load_tape(self,  driveid=None, tapeid = None, slotid = None):
+        """Load a tape a drive.
+        The drive can be specified with driveid.
+        The tape to load can be specified by tapeid or the slotid.
+        If there is already a tape in the provided drive, it will be unloaded.
+        In the case none or some of these values are not provided, they will be chosen for the user.
+        Returns a tuple of the drive which has been loaded"""
         drive = [None,None]
         slot = None
 
@@ -240,8 +328,8 @@ class TapeMachineInterface:
 
         return slotid, driveid
 
-    """Get the slot and drive that a tape is loaded in."""
     def get_location_of_tape(self, tape):
+        """Get the slot and drive that a tape is loaded in."""
         self.logger.info("Getting location for tape %s"%tape)
         self.cur.execute(
             """SELECT tape.slot_id, drive.id
@@ -252,8 +340,8 @@ class TapeMachineInterface:
         self.db.commit()
         return res
 
-        """Get drive info"""
     def get_drive (self, drive):
+        """Get drive info"""
         self.logger.info("Getting drive %d info")
         self.cur.execute(
             """SELECT * FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id
@@ -261,7 +349,7 @@ class TapeMachineInterface:
                 drive,))
         names = list(map(lambda x: x[0], self.cur.description))
         # print names
-        res = self.cur.fetchone ()
+        res = self.cur.fetchone()
         return [names,res]
 
     def write_buffer_to_tape(self, buffer_dir, drive):
@@ -280,10 +368,9 @@ class TapeMachineInterface:
 
         return tape
 
-
-    """Get free drives.
-    returns a list of free drives, each drive will have a tuple (id, state)"""
     def get_free_drives(self, magazine = None):
+        """Get free drives.
+        returns a list of free drives, each drive will have a tuple (id, state)"""
         self.logger.info("Getting free drives")
         if magazine == None:
             self.cur.execute(
@@ -465,8 +552,8 @@ class TapeMachineInterface:
         else:
             print "ERROR while writing to drive. Attached = %d, tape = %s"%res
 
-    """Rewind drive"""
     def rewind_drive(self, drive):
+        """Rewind drive"""
         self.logger.info("Rewinding tape in drive %d"%drive)
         self.cur.execute(
                 """UPDATE drive
@@ -487,9 +574,9 @@ class TapeMachineInterface:
         self.db.commit()
         self.logger.info("Committed changes to DB")
 
-    """Take in a drive number and return the files stored on each of the tars on the file.
-    Returns a list of strings, string contains all the files in the corresponding tar"""
     def get_file_list (self, drive):
+        """Take in a drive number and return the files stored on each of the tars on the file.
+        Returns a list of strings, string contains all the files in the corresponding tar"""
         self.rewind_drive(drive)
         self.cur.execute(
                 """UPDATE drive
@@ -561,9 +648,9 @@ class TapeMachineInterface:
 
 
 # Add as a test at some point
-#if __name__ == "__main__":
-    # ta = TapeMachineInterface()
-    # ta.get_state()
+if __name__ == "__main__":
+    ta = TapeMachineInterface()
+    ta.get_state()
     # print ta.write_buffer_to_tape('/var/kat/data/tape_buffer2',1)
     # ta.unload(1)
     # ta.load_tape()
@@ -578,4 +665,4 @@ class TapeMachineInterface:
     # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
 
     # print ta.print_state()
-    # ta.close()
+    ta.close()
