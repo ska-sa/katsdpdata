@@ -1,5 +1,5 @@
-from distutils.core import setup, Extension
-import os, sys, glob
+#!/usr/bin/env python
+from setuptools import setup, find_packages
 
 __version__ = '0.0.1'
 
@@ -22,6 +22,7 @@ setup(name = 'katsdptape',
         'Topic :: Scientific/Engineering :: Astronomy',
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
-    provides=['katsdptape'],
-    package_dir = {'katsdptape':'src'},
-    packages = ['katsdptape'])
+    platforms = [ "Linux" ],
+    keywords="kat ska",
+    zip_safe = False
+)
