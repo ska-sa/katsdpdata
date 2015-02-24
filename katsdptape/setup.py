@@ -1,28 +1,26 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
 
-__version__ = '0.0.1'
-
-setup(name = 'katsdptape',
-    version = __version__,
-    description = 'Interface to the Oracle SL150 tape library',
-    long_description = 'Exposes tape functionality to katcp',
-    license = 'GPL',
-    author = 'Christopher Schollar',
-    author_email = 'cschollar@ska.ac.za',
+setup(
+    name = "katsdptape",
+    description = "Tape Library interface for the MeerKAT project",
+    author = "Chris Schollar",
+    author_email = "cschollar@ska.ac.za",
+    packages = find_packages(),
     url = 'http://ska.ac.za/',
     scripts = [
-       "scripts/vis_store_controller.py"
+        "scripts/vis_store_controller.py"
     ],
-     classifiers=[
-        'Development Status :: 1 - Alpha',
-        'Intended Audience :: Developers',
-        'Operating System :: OS Independent',
-        'License :: OSI Approved :: GNU General Public License (GPL)',
-        'Topic :: Scientific/Engineering :: Astronomy',
-        'Topic :: Software Development :: Libraries :: Python Modules',
-        ],
-    platforms = [ "Linux" ],
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "License :: Other/Proprietary License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Scientific/Engineering :: Astronomy",
+    ],
+    platforms = [ "OS Independent" ],
     keywords="kat ska",
     zip_safe = False
 )
