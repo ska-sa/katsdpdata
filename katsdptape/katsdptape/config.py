@@ -1,6 +1,7 @@
 config = {"DB_location":'tape_archive.db',
         "web_interface":"192.168.6.161",
         "username":"admin",
+        "buffer_dir":"/var/kat/data",
         "password":"passw1rd",
         "tape_size_limit":2.5*1024*1024*1024,
         "soft_tape_limit":2.3*1024*1024*1024,
