@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from katcp import DeviceServer, Sensor, ProtocolFlags, AsyncReply
 from katcp.kattypes import (Str, Float, Timestamp, Discrete, Int, request, return_reply)
 
