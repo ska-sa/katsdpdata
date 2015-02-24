@@ -11,18 +11,17 @@ storage_element_regex = re.compile(" Storage Element \d{1,3}.+\n")
 data_transfer_regex = re.compile("Data Transfer Element \d{1}:.+\n")
 os_drives_regex = re.compile('\d{4}L6')
 
-
-class tape_archive:
+class TapeMachineInterface:
 
     def __init__(self, dbLocation = cnf["DB_location"]):
         # frmt = logging.Formatter()
         logging.basicConfig(format = '%(asctime)s - %(name)s - %(funcName)s -%(levelname)s - %(message)s', level = logging.DEBUG)
-        
-        self.logger = logging.getLogger("tape_archive")
-        
+
+        self.logger = logging.getLogger("TapeMachineInterface")
+
         # self.logger.setFormatter(frmt)
         self.logger.setLevel(logging.DEBUG)
-        self.logger.info('Initialising tape_archive with state database at %s'%dbLocation)
+        self.logger.info('Initialising TapeMachineInterface with state database at %s'%dbLocation)
         self.db = sql.connect(dbLocation)
         self.cur = self.db.cursor()
         self.create_tables()
@@ -149,7 +148,7 @@ class tape_archive:
         self.logger.debug ("DB state :\n%s"%self.print_state())
 
 
-    """Get the state of the tape_archive from the DB.
+    """Get the state of the TapeMachineInterface from the DB.
     Can choose which table to check by using the table argument.
     The options are "TAPE", "SLOT", "DRIVE", "MAGAZINE". If no table is selected, all tables states are returned.
     Returns a formatted string of the state."""
@@ -561,14 +560,13 @@ class tape_archive:
             cmd.wait()
 
 
-
-if __name__ == "__main__":
-    ta = tape_archive()
+# Add as a test at some point
+#if __name__ == "__main__":
+    # ta = TapeMachineInterface()
     # ta.get_state()
-    print ta.write_buffer_to_tape('/var/kat/data/tape_buffer2',1)
+    # print ta.write_buffer_to_tape('/var/kat/data/tape_buffer2',1)
     # ta.unload(1)
     # ta.load_tape()
-    # 
     # ta.rewind_drive(1)
     # print ta.get_file_list(1)
     # ta.end_of_last_tar(1)
@@ -578,6 +576,6 @@ if __name__ == "__main__":
     # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
     # ta.tar_folder_to_tape('/home/kat/test_dir', 1)
     # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
-    
+
     # print ta.print_state()
-    ta.close()
+    # ta.close()

@@ -1,16 +1,20 @@
-from distutils.core import setup, Extension
-import os, sys, glob
+#!/usr/bin/env python
+from setuptools import setup, find_packages
 
 __version__ = '0.0.1'
 
-setup(name = 'tape_interface',
+setup(name = 'katsdptape',
     version = __version__,
-    description = 'Interface to the Oracle SL150 tape store web manager',
-    long_description = 'Exposes functionality available to the web manager to python and katcp',
+    description = 'Interface to the Oracle SL150 tape library',
+    long_description = 'Exposes tape functionality to katcp',
     license = 'GPL',
     author = 'Christopher Schollar',
-    author_email = 'ctgschollar at gmail.com',
-    classifiers=[
+    author_email = 'cschollar@ska.ac.za',
+    url = 'http://ska.ac.za/',
+    scripts = [
+       "scripts/vis_store_controller.py"
+    ],
+     classifiers=[
         'Development Status :: 1 - Alpha',
         'Intended Audience :: Developers',
         'Operating System :: OS Independent',
@@ -18,6 +22,7 @@ setup(name = 'tape_interface',
         'Topic :: Scientific/Engineering :: Astronomy',
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
-    provides=['tape_interface'],
-    package_dir = {'tape_interface':'src'},
-    packages = ['tape_interface'])
+    platforms = [ "Linux" ],
+    keywords="kat ska",
+    zip_safe = False
+)

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from katcp import DeviceServer, Sensor, ProtocolFlags, AsyncReply
 from katcp.kattypes import (Str, Float, Timestamp, Discrete, Int, request, return_reply)
 
@@ -23,7 +24,7 @@ class tape_katcp_server(DeviceServer):
 
     VERSION_INFO = ("tape_katcp_interface", 1, 0)
     BUILD_INFO = ("tape_katcp_interface", 0, 1, "")
-    
+
 
     def setup_sensors(self):
         """Setup some server sensors."""
@@ -44,7 +45,7 @@ class tape_katcp_server(DeviceServer):
 
     def __init__(self, server_host, server_port):
         DeviceServer.__init__(self, server_host, server_port)
-        # self.ta = tape_archive.tape_archive()
+        # self.ta = tape_archive.TapeArchive()
         self.set_concurrency_options(False, False)
         signal.signal(signal.SIGINT, signal_handler)
 
@@ -85,7 +86,7 @@ class tape_katcp_server(DeviceServer):
         Display only slots states with 'SLOT'.
         Display only magazine states with 'MAGAZINE'
         """
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         # ta.get_state()
         ret = ""
         if table == "ALL":
@@ -104,7 +105,7 @@ class tape_katcp_server(DeviceServer):
     @return_reply(Str())
     def request_create_tables (self, req):
         """Create tables"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         ta.create_tables()
         ta.close()
         return ('ok', 'Tables created')
@@ -113,7 +114,7 @@ class tape_katcp_server(DeviceServer):
     @return_reply(Str())
     def request_get_state(self, req):
         """Get state of tape"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         ta.get_state()
         ta.close()
         return ('ok', 'Retrieved state, tables updated')
@@ -137,7 +138,7 @@ class tape_katcp_server(DeviceServer):
             slotid = None
         else:
             slotid=int(slotid)
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         print (driveid, tapeid, slotid)
         try:
             slot, drive = ta.load_tape(driveid, tapeid, slotid)
@@ -154,7 +155,7 @@ class tape_katcp_server(DeviceServer):
     @return_reply(Str())
     def request_get_location_of_tape(self, req, tape):
         """Get the slot and drive that a tape is loaded in."""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         res = ta.get_location_of_tape(tape)
         ta.close()
         return ("ok", "%s is in slot %d and drive %d"%(tape, res[0], res[1] or -1))
@@ -164,7 +165,7 @@ class tape_katcp_server(DeviceServer):
     def request_get_free_drives(self, req):
         """Get free drives.
         returns a list of free drives, each drive will have a tuple (id, state)"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         ret = ta.get_free_drives()
         for line in ret:
             req.inform(("drive %d"%line[0]).replace(" ", "_"))
@@ -179,7 +180,7 @@ class tape_katcp_server(DeviceServer):
     def request_get_empty_tapes(self, req):
         """Get list of empty tapes and the slots they belong to.
         Returns a list of tuples (tapeid,slotid)"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         ret = ta.get_empty_tapes()
         for line in ret:
             req.inform(("tape %s"%line[0]).replace(" ", "_"))
@@ -192,7 +193,7 @@ class tape_katcp_server(DeviceServer):
     @return_reply(Str())
     def request_load (self, req, slot, drive):
         """Load tape from slot to drive"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         ta.load(slot,drive)
         ta.close()
         return ('ok', "drive %d loaded with tape from slot %d"%(drive, slot))
@@ -201,7 +202,7 @@ class tape_katcp_server(DeviceServer):
     @return_reply(Str())
     def request_unload(self, req, drive):
         """Remove tape from drive"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         try:
             ta.unload(drive)
         except:
@@ -213,7 +214,7 @@ class tape_katcp_server(DeviceServer):
     @return_reply(Str())
     def request_get_free_slots(self, req):
         """Get free slots"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         ret = ta.get_free_slots()
         for line in ret:
             req.inform("slot %d"%line[0])
@@ -224,7 +225,7 @@ class tape_katcp_server(DeviceServer):
     @return_reply(Str())
     def request_write_buffer_to_tape(self, req, buffer_dir, drive):
         """Write the buffer to a empty tape"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         try:
             tape = ta.write_buffer_to_tape(buffer_dir, drive)
         except Exception, e:
@@ -240,7 +241,7 @@ class tape_katcp_server(DeviceServer):
     @return_reply(Str())
     def request_tar_folder_to_tape(self, req, folder, drive):
         """Tar folder to tap"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         ta.tar_folder_to_tape(folder, drive)
         ta.close()
         return ('ok', "Folder %s tarred to drive %d", folder, drive)
@@ -259,7 +260,7 @@ class tape_katcp_server(DeviceServer):
     def request_get_file_list (self, req, drive):
         """Take in a drive number and return the files stored on each of the tars on the file.
         Returns a list of strings, string contains all the files in the corresponding tar"""
-        ta = tape_archive.tape_archive()
+        ta = tape_archive.TapeArchive()
         ret = ta.get_file_list(drive)
         for line in ret.split("\n"):
             req.inform(line)
@@ -292,14 +293,10 @@ class tape_katcp_server(DeviceServer):
         # pdb.set_trace()
         self.stop()
         return('ok',)
-        
 
     def signal_handler(signal, frame):
         print('You pressed Ctrl+C!')
         sys.exit(0)
-
-    
-
 
 if __name__ == "__main__":
     server = tape_katcp_server(server_host, server_port)
