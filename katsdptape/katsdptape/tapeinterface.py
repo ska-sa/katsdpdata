@@ -11,9 +11,10 @@ storage_element_regex = re.compile(" Storage Element \d{1,3}.+\n")
 data_transfer_regex = re.compile("Data Transfer Element \d{1}:.+\n")
 os_drives_regex = re.compile('\d{4}L6')
 
-class TapeMachineInterface:
-
+class TapeMachineInterface(object):
+    """docstring for TapeMachineInterface"""
     def __init__(self, dbLocation = cnf["DB_location"]):
+        super(ClassName, self).__init__()
         # frmt = logging.Formatter()
         logging.basicConfig(format = '%(asctime)s - %(name)s - %(funcName)s -%(levelname)s - %(message)s', level = logging.DEBUG)
 
