@@ -614,6 +614,8 @@ class TapeMachineInterface(object):
 
 class TapeDeviceServer(DeviceServer):
 
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
     VERSION_INFO = ("tape_katcp_interface", 1, 0)
     BUILD_INFO = ("tape_katcp_interface", 0, 1, "")
 
@@ -621,6 +623,7 @@ class TapeDeviceServer(DeviceServer):
         self.ta = TapeMachineInterface(dbLocation, buffer_dir)
         DeviceServer.__init__(self, server_host, server_port)
         self.set_concurrency_options(False, False)
+        self.futures = []
         
 
     def setup_sensors(self):
@@ -791,7 +794,14 @@ class TapeDeviceServer(DeviceServer):
     def request_write_buffer_to_tape(self, req, buffer_dir, drive):
         """Write the buffer to a empty tape"""
         try:
-            tape = self.ta.write_buffer_to_tape(buffer_dir, drive)
+            self.futures.append(\
+                ProcessPoolExecutor().submit(\
+                    TapeMachineInterface.write_buffer_to_tape,\
+                    self.ta, buffer_dir, drive))
+            for f in as_completed(self.futures):
+                tape = f.result()
+                print "Written to buffer %s"%(str(tape))
+            # tape = self.ta.write_buffer_to_tape(buffer_dir, drive)
         except Exception, e:
             return ('fail', str(e).replace(' ', '_'))
         return('ok', 'Wrote  to tape')
