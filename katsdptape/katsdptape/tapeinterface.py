@@ -97,7 +97,7 @@ class TapeMachineInterface(object):
             if "IMPORT" in s_e:
                 t = "MAIL"
             if (slot_id-1) % 30 == 0:
-                self.logger.debug('Adding magazine %d'%(slot_id-1/30))
+                logger.debug('Adding magazine %d'%(slot_id-1/30))
                 self.cur.execute("""
                         INSERT IGNORE INTO magazine (id, state)
                         VALUES (%s,%s)""", ((slot_id-1)/30, "LOCKED"))
