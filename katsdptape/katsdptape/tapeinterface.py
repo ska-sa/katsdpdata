@@ -51,8 +51,8 @@ class TapeMachineInterface(object):
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS tape (
                 id VARCHAR(10) PRIMARY KEY,
-                bytes_written INTEGER,
-                size INTEGER,
+                bytes_written BIGINT,
+                size BIGINT,
                 slot_id INTEGER,
                 FOREIGN KEY (slot_id) REFERENCES slot(id))''')
         logger.info('Creating drive table')
@@ -77,8 +77,8 @@ class TapeMachineInterface(object):
     def get_state(self):
         """Queries the tape machine to find the state of the tapes, slots and drives.
         Updates the DB accordingly. This will update the location of tapes"""
-        logger.info('Querying tape machine with command [sudo mtx-f/dev/%s status]'%cnf["controller"])
-        cmd = subprocess.Popen(["sudo","mtx", "-f", "/dev/%s"%cnf["controller"], "status"], stdout=subprocess.PIPE)
+        logger.info('Querying tape machine with command [mtx -f /dev/%s status]'%cnf["controller"])
+        cmd = subprocess.Popen(["mtx", "-f", "/dev/%s"%cnf["controller"], "status"], stdout=subprocess.PIPE)
         cmd.wait()
         out, err = cmd.communicate()
         logger.debug('Response %s\n Err %s'%(out, str(err)))
@@ -389,8 +389,8 @@ class TapeMachineInterface(object):
             WHERE id = %d"""%(
                 res[0], drive))
         self.db.commit()
-        logger.debug("Running command sudo mtx -f /dev/%s load %d %d"%(cnf["controller"], slot, drive))
-        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/%s"%cnf["controller"],"load", str(slot), str(drive)], stdout=subprocess.PIPE)
+        logger.debug("Running command mtx -f /dev/%s load %d %d"%(cnf["controller"], slot, drive))
+        cmd=subprocess.Popen(["mtx","-f","/dev/%s"%cnf["controller"],"load", str(slot), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
         logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
@@ -427,9 +427,9 @@ class TapeMachineInterface(object):
 
         self.db.commit()
 
-        logger.debug("Running command sudo mtx -f /dev/%s unload %d %d"%(cnf["controller"], res[0], drive))
+        logger.debug("Running command mtx -f /dev/%s unload %d %d"%(cnf["controller"], res[0], drive))
         
-        cmd=subprocess.Popen(["sudo","mtx","-f","/dev/%s"%cnf["controller"],"unload", str(res[0]), str(drive)], stdout=subprocess.PIPE)
+        cmd=subprocess.Popen(["mtx","-f","/dev/%s"%cnf["controller"],"unload", str(res[0]), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
         logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
@@ -484,7 +484,7 @@ class TapeMachineInterface(object):
             logger.debug("Taring folder %s with size %d bytes to tape %s in drive %d with :\n tar cvf /dev/%s %s"%(
                 folder, size, res[1], drive, cnf["drive%s"%drive][0], path[-1]))
 
-            cmd=subprocess.Popen(["sudo", "tar","cvf","/dev/%s"%cnf["drive%s"%drive][0], path[-1]], stdout=subprocess.PIPE)
+            cmd=subprocess.Popen(["tar","cvf","/dev/%s"%cnf["drive%s"%drive][0], path[-1]], stdout=subprocess.PIPE)
             cmd.wait()
             comm=cmd.communicate()
             logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
@@ -518,7 +518,7 @@ class TapeMachineInterface(object):
                     drive,))
         self.db.commit()
         logger.debug("Rewinding with command mt -f /dev/%s rewind"%cnf["drive%s"%drive][0] )
-        cmd=subprocess.Popen(["sudo", "mt","-f", "/dev/%s"%cnf["drive%s"%drive][0], "rewind"], stdout=subprocess.PIPE)
+        cmd=subprocess.Popen(["mt","-f", "/dev/%s"%cnf["drive%s"%drive][0], "rewind"], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
         logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
@@ -552,14 +552,14 @@ class TapeMachineInterface(object):
             print "----------------"
             print out
             ret.append(out)
-            cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+            cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
             cmd.wait()
-            cmd=subprocess.Popen(["sudo", "tar","-tf","/dev/n%s"%cnf["drive%s"%drive][0]], stdout=subprocess.PIPE)
+            cmd=subprocess.Popen(["tar","-tf","/dev/n%s"%cnf["drive%s"%drive][0]], stdout=subprocess.PIPE)
             cmd.wait()
             out = cmd.communicate()[0]
             count += 1
 
-        cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "bsfm", "1"], stdout=subprocess.PIPE)
+        cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "bsfm", "1"], stdout=subprocess.PIPE)
         cmd.wait()
 
         self.cur.execute(
@@ -587,10 +587,10 @@ class TapeMachineInterface(object):
 
         for i in range(tar_num):
             print "FORWARD"
-            cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+            cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
             cmd.wait()
 
-        cmd=subprocess.Popen(["sudo", "tar","-xvf","/dev/n%s"%cnf["drive%s"%drive][0], filenames], stdout=subprocess.PIPE)
+        cmd=subprocess.Popen(["tar","-xvf","/dev/n%s"%cnf["drive%s"%drive][0], filenames], stdout=subprocess.PIPE)
         cmd.wait()
         print cmd.communicate()
 
@@ -605,10 +605,10 @@ class TapeMachineInterface(object):
     def end_of_last_tar (self, drive):
         self.get_state()
 
-        cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+        cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
         cmd.wait()
         while cmd.returncode == 0:
-            cmd = subprocess.Popen(["sudo", "mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+            cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
             cmd.wait()
 
 
