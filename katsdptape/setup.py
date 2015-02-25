@@ -7,6 +7,9 @@ setup(
     author = "Chris Schollar",
     author_email = "cschollar@ska.ac.za",
     packages = find_packages(),
+    #install_requires = [
+    #            "MySQL-python"
+    #                ],
     url = 'http://ska.ac.za/',
     scripts = [
         "scripts/vis_store_controller.py"

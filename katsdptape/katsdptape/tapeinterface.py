@@ -2,10 +2,8 @@
 import logging
 import os
 import re
-import signal
 import MySQLdb as sql
 import subprocess
-import sys
 
 #from katcp import DeviceServer, Sensor, ProtocolFlags, AsyncReply
 #from katcp.kattypes import (Str, Float, Timestamp, Discrete, Int, request, return_reply)
@@ -17,27 +15,17 @@ storage_element_regex = re.compile(" Storage Element \d{1,3}.+\n")
 data_transfer_regex = re.compile("Data Transfer Element \d{1}:.+\n")
 os_drives_regex = re.compile('\d{4}L6')
 
-def signal_handler(signal, frame):
-        print('You pressed Ctrl+C!')
-        sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
+logger = logging.getLogger("katsdptape.katsdptapeinterface")
 
 class TapeMachineInterface(object):
     """docstring for TapeMachineInterface"""
     def __init__(self, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"], loglevel = logging.INFO):
         super(TapeMachineInterface, self).__init__()
-        # frmt = logging.Formatter()
-        logging.basicConfig(format = '%(asctime)s - %(name)s - %(funcName)s -%(levelname)s - %(message)s', level = loglevel)
-
-        self.logger = logging.getLogger("TapeMachineInterface")
 
         self.buffer_dirs=["%s/buffer1"%buffer_dir, "%s/buffer2"%buffer_dir]
         self.buffer_index = 0
 
-        # self.logger.setFormatter(frmt)
-        self.logger.setLevel(loglevel)
-        self.logger.info('Initialising TapeMachineInterface with state database at %s'%dbLocation)
+        logger.info('Initialising TapeMachineInterface with state database at %s'%dbLocation)
         self.db = sql.connect('localhost', 'kat', 'kat', 'tape_db')
         self.cur = self.db.cursor()
         self.create_tables()
@@ -47,19 +35,19 @@ class TapeMachineInterface(object):
         self.buffer_index = (self.buffer_index + 1) % 2
 
     def create_tables (self):
-        self.logger.info('Creating magazine table')
+        logger.info('Creating magazine table')
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS magazine (
                 id INTEGER PRIMARY KEY,
                 state TEXT)''')
-        self.logger.info('Creating slot table')
+        logger.info('Creating slot table')
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS slot (
                 id INTEGER PRIMARY KEY,
                 type TEXT,
                 magazine_id INTEGER,
                 FOREIGN KEY (magazine_id) REFERENCES magazine(id))''')
-        self.logger.info('Creating tape table')
+        logger.info('Creating tape table')
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS tape (
                 id VARCHAR(10) PRIMARY KEY,
@@ -67,7 +55,7 @@ class TapeMachineInterface(object):
                 size INTEGER,
                 slot_id INTEGER,
                 FOREIGN KEY (slot_id) REFERENCES slot(id))''')
-        self.logger.info('Creating drive table')
+        logger.info('Creating drive table')
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS drive (
                 id INTEGER PRIMARY KEY,
@@ -81,7 +69,7 @@ class TapeMachineInterface(object):
                 FOREIGN KEY (magazine_id) REFERENCES magazine(id),
                 FOREIGN KEY (tape_id) REFERENCES tape(id))''')
         self.db.commit()
-        self.logger.info('Committed changes')
+        logger.info('Committed changes')
 
     def close(self):
         self.db.close()
@@ -89,18 +77,18 @@ class TapeMachineInterface(object):
     def get_state(self):
         """Queries the tape machine to find the state of the tapes, slots and drives.
         Updates the DB accordingly. This will update the location of tapes"""
-        self.logger.info('Querying tape machine with command [sudo mtx-f/dev/%s status]'%cnf["controller"])
+        logger.info('Querying tape machine with command [sudo mtx-f/dev/%s status]'%cnf["controller"])
         cmd = subprocess.Popen(["sudo","mtx", "-f", "/dev/%s"%cnf["controller"], "status"], stdout=subprocess.PIPE)
         cmd.wait()
         out, err = cmd.communicate()
-        self.logger.debug('Response %s\n Err %s'%(out, str(err)))
+        logger.debug('Response %s\n Err %s'%(out, str(err)))
         storage_elements = storage_element_regex.findall(out)
         num_regex = re.compile ("\d{1,3}")
 
         count = 0
 
-        self.logger.debug('Storage elements returned by regex of %s :\n%s'%(storage_element_regex.pattern, "\n".join(storage_elements)))
-        self.logger.info("Adding tapes, slots and magazines")
+        logger.debug('Storage elements returned by regex of %s :\n%s'%(storage_element_regex.pattern, "\n".join(storage_elements)))
+        logger.info("Adding tapes, slots and magazines")
 
         for s_e in storage_elements:
             slot_id = int(num_regex.findall(s_e)[0])
@@ -113,7 +101,7 @@ class TapeMachineInterface(object):
                 if "Full" in tape_id:
                     tape_id = "NO LABEL - %03d"%count
                     count+=1
-                self.logger.debug('Adding tape %s in slot %d in magazine %d'%(tape_id, slot_id, slot_id/30))
+                logger.debug('Adding tape %s in slot %d in magazine %d'%(tape_id, slot_id, slot_id/30))
                 self.cur.execute("""
                     INSERT OR REPLACE INTO tape(id, slot_id, bytes_written, size)
                     VALUES (%s,%s,COALESCE((SELECT bytes_written FROM tape WHERE id = %s),%s),%s)""", (tape_id, slot_id, tape_id, 0, cnf["tape_size_limit"]))
@@ -121,13 +109,13 @@ class TapeMachineInterface(object):
                     INSERT OR REPLACE INTO slot (id, type, magazine_id)
                     VALUES (%s,%s,%s)""", (slot_id, t,(slot_id-1)/30))
             else:
-                self.logger.debug('Adding empty slot %d in magazine %d'%(slot_id, (slot_id-1)/30))
+                logger.debug('Adding empty slot %d in magazine %d'%(slot_id, (slot_id-1)/30))
                 self.cur.execute("""
                     INSERT OR REPLACE INTO slot (id, type, magazine_id)
                     VALUES (%s,%s,%s)""", (slot_id, t,(slot_id-1)/30))
 
             if (slot_id-1) % 30 == 0:
-                self.logger.debug('Adding magazine %d'%(slot_id-1/30))
+                logger.debug('Adding magazine %d'%(slot_id-1/30))
                 self.cur.execute("""
                         INSERT OR REPLACE INTO magazine (id, state)
                         VALUES (%s,%s)""", ((slot_id-1)/30, "LOCKED"))
@@ -140,7 +128,7 @@ class TapeMachineInterface(object):
         cmd.wait()
         out, err = cmd.communicate()
 
-        self.logger.info("Adding drives")
+        logger.info("Adding drives")
 
         for d_t in data_transfer:
             attached = 0
@@ -148,7 +136,7 @@ class TapeMachineInterface(object):
             if any(s in out for s in cnf['drive%d'%drive_id]):
                 attached = 1
             if "Full" in d_t:
-                self.logger.debug('Adding tape %s in drive %d and slot %d in magazine %d'%(d_t[-7:-1], drive_id, slot_id, drive_id/2))
+                logger.debug('Adding tape %s in drive %d and slot %d in magazine %d'%(d_t[-7:-1], drive_id, slot_id, drive_id/2))
                 self.cur.execute("""
                     INSERT IGNORE INTO tape(id, bytes_written, size, slot_id, size)
                     VALUES (%s, %s, %s, %s, %s)""", (d_t[-7:-1], 0, cnf["tape_size_limit"], free_slots.pop()[0], cnf['tape_size_limit']))
@@ -167,8 +155,8 @@ class TapeMachineInterface(object):
                                     drive_id, "IDLE", drive_id/2, drive_id, 0, drive_id, 0, drive_id, 0, drive_id, attached))
 
         self.db.commit()
-        self.logger.info("Committing DB")
-        self.logger.debug ("DB state :\n%s"%self.print_state())
+        logger.info("Committing DB")
+        logger.debug ("DB state :\n%s"%self.print_state())
 
     def print_state(self, table = None):
         """Get the state of the TapeMachineInterface from the DB.
@@ -176,7 +164,7 @@ class TapeMachineInterface(object):
         The options are "TAPE", "SLOT", "DRIVE", "MAGAZINE". If no table is selected, all tables states are returned.
         Returns a formatted string of the state."""
         # self.get_state()
-        self.logger.info("Getting state for table = %s"%str(table))
+        logger.info("Getting state for table = %s"%str(table))
         ret = ""
 
         if table == None or table == "TAPE":
@@ -221,21 +209,21 @@ class TapeMachineInterface(object):
         drive = [None,None]
         slot = None
 
-        self.logger.info("Load_tape with driveid = %s, tapeid = %s, slotid=%s"%(str(driveid or "na"), str(tapeid or "na"), str(slotid or "na")))
+        logger.info("Load_tape with driveid = %s, tapeid = %s, slotid=%s"%(str(driveid or "na"), str(tapeid or "na"), str(slotid or "na")))
 
         if driveid == None:
-            self.logger.info("No drive provided, choosing a free drive")
+            logger.info("No drive provided, choosing a free drive")
             free_drives = self.get_free_drives()
             if len(free_drives) == 0:
-                self.logger.error("No Free Drives")
+                logger.error("No Free Drives")
                 raise Exception("No Free Drives")
             else:
                 drive=free_drives[0]
                 driveid = drive[0]
-                self.logger.info("Using drive %d"%driveid)
+                logger.info("Using drive %d"%driveid)
 
         if drive[1] == 'FULL':
-            self.logger.info("Drive %d is full"%driveid)
+            logger.info("Drive %d is full"%driveid)
             self.unload(driveid)
 
         if (tapeid != None):
@@ -244,7 +232,7 @@ class TapeMachineInterface(object):
                 slot = self.get_location_of_tape(tapeid)
                 slotid=slot[0]
             except:
-                self.logger.error("%s is not a valid tape id"%tapeid, exc_info=True)
+                logger.error("%s is not a valid tape id"%tapeid, exc_info=True)
                 raise
             if tape[1] != None:
                 loc = self.get_location_of_tape(tapeid)
@@ -252,13 +240,13 @@ class TapeMachineInterface(object):
                 return loc[1]
 
         if (tapeid == None and slotid == None):
-            self.logger.info("No tape or slot provided")
+            logger.info("No tape or slot provided")
             tapes = self.get_empty_tapes()
             if len(tapes) == 0:
-                self.logger.error("No empty tapes")
+                logger.error("No empty tapes")
                 raise Exception("No empty tapes")
             else:
-                self.logger.info("Chose tape %s from slot %d"%(tapes[0][0], tapes[0][1]))
+                logger.info("Chose tape %s from slot %d"%(tapes[0][0], tapes[0][1]))
                 slotid = tapes[0][1]
         
         self.load(slotid, driveid)
@@ -269,7 +257,7 @@ class TapeMachineInterface(object):
         """Get the slot and drive that a tape is loaded in."""
         self.get_state()
 
-        self.logger.info("Getting location for tape %s"%tape)
+        logger.info("Getting location for tape %s"%tape)
         self.cur.execute(
             """SELECT tape.slot_id, drive.id
             FROM tape LEFT OUTER JOIN drive ON drive.tape_id = tape.id
@@ -283,7 +271,7 @@ class TapeMachineInterface(object):
         """Get drive info"""
         self.get_state()
 
-        self.logger.info("Getting drive %d info")
+        logger.info("Getting drive %d info")
         self.cur.execute(
             """SELECT * FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id
             WHERE drive.id = %d"""%(
@@ -316,7 +304,7 @@ class TapeMachineInterface(object):
         returns a list of free drives, each drive will have a tuple (id, state)"""
         self.get_state()
 
-        self.logger.info("Getting free drives")
+        logger.info("Getting free drives")
         if magazine == None:
             self.cur.execute(
                 """SELECT drive.id, drive.state 
@@ -340,7 +328,7 @@ class TapeMachineInterface(object):
     def get_empty_tapes(self, magazine = None):
         self.get_state()
 
-        self.logger.info("Getting empty tapes")
+        logger.info("Getting empty tapes")
         if magazine == None:
             self.cur.execute(
                 """SELECT tape.id, slot.id
@@ -362,13 +350,13 @@ class TapeMachineInterface(object):
     def load_empty_tape (self, drive):
         self.get_state()
 
-        # self.logger.info("Loading empty tape to drive %d"%drive)
+        # logger.info("Loading empty tape to drive %d"%drive)
         res = self.get_empty_tapes()
-        self.logger.info ("%d empty tapes"%len(res))
+        logger.info ("%d empty tapes"%len(res))
         if len(res) < 1:
             raise Exception("No empty tapes")
         else:
-            self.logger.info("Loading empty tape %s to drive %d from slot %d"%(res[0][0], drive, res[0][1]))
+            logger.info("Loading empty tape %s to drive %d from slot %d"%(res[0][0], drive, res[0][1]))
             self.load(res[0][1], drive)
 
         return [['tape_id','drive_id'],res[0]]
@@ -378,40 +366,40 @@ class TapeMachineInterface(object):
     def load (self, slot, drive):
         self.get_state()
 
-        self.logger.info("Loading tape from slot %d to drive %d"%(slot, drive))
+        logger.info("Loading tape from slot %d to drive %d"%(slot, drive))
         self.cur.execute(
             """SELECT tape.id
             FROM tape
             WHERE slot_id = %d"""%(
                 slot))
         res = self.cur.fetchone ()
-        self.logger.debug("Updating drive table for loading")
+        logger.debug("Updating drive table for loading")
         self.cur.execute(
             """UPDATE drive
             SET state = 'LOADING', tape_id = '%s'
             WHERE id = %d"""%(
                 res[0], drive))
         self.db.commit()
-        self.logger.debug("Running command sudo mtx -f /dev/%s load %d %d"%(cnf["controller"], slot, drive))
+        logger.debug("Running command sudo mtx -f /dev/%s load %d %d"%(cnf["controller"], slot, drive))
         cmd=subprocess.Popen(["sudo","mtx","-f","/dev/%s"%cnf["controller"],"load", str(slot), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
-        self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
+        logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
 
-        self.logger.debug("Updating drive table to IDLE")
+        logger.debug("Updating drive table to IDLE")
         self.cur.execute(
             """UPDATE drive
             set state='IDLE'
             where id=%d"""%(
                 drive))
         self.db.commit()
-        self.logger.info("Tape loaded, DB updated")
+        logger.info("Tape loaded, DB updated")
 
     """Remove tape from drive"""
     def unload(self, drive):
         self.get_state()
 
-        self.logger.info("Unloading drive %d"%drive)
+        logger.info("Unloading drive %d"%drive)
         self.cur.execute(
             """SELECT tape.slot_id 
             FROM drive INNER JOIN tape ON drive.tape_id == tape.id 
@@ -430,12 +418,12 @@ class TapeMachineInterface(object):
 
         self.db.commit()
 
-        self.logger.debug("Running command sudo mtx -f /dev/%s unload %d %d"%(cnf["controller"], res[0], drive))
+        logger.debug("Running command sudo mtx -f /dev/%s unload %d %d"%(cnf["controller"], res[0], drive))
         
         cmd=subprocess.Popen(["sudo","mtx","-f","/dev/%s"%cnf["controller"],"unload", str(res[0]), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
-        self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
+        logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
 
         self.cur.execute (
             """UPDATE drive
@@ -444,13 +432,13 @@ class TapeMachineInterface(object):
                 drive,))
 
         self.db.commit()
-        self.logger.info ("Drive unloaded, DB updated")
+        logger.info ("Drive unloaded, DB updated")
 
     """Get free slots"""
     def get_free_slots(self):
         # self.get_state()
 
-        self.logger.info("Getting free slots")
+        logger.info("Getting free slots")
         self.cur.execute(
             """SELECT slot.id
             FROM slot LEFT OUTER JOIN tape ON slot.id = tape.slot_id
@@ -463,7 +451,7 @@ class TapeMachineInterface(object):
     def tar_folder_to_tape(self, folder, drive):
         self.get_state()
 
-        self.logger.info("Taring folder %s to tape in drive %d"%(folder, drive))
+        logger.info("Taring folder %s to tape in drive %d"%(folder, drive))
         self.cur.execute(
             """SELECT attached, tape_id
             FROM drive
@@ -484,15 +472,15 @@ class TapeMachineInterface(object):
             print "/".join(path[:-1])
 
             os.chdir("/".join(path[:-1]))
-            self.logger.debug("Taring folder %s with size %d bytes to tape %s in drive %d with :\n tar cvf /dev/%s %s"%(
+            logger.debug("Taring folder %s with size %d bytes to tape %s in drive %d with :\n tar cvf /dev/%s %s"%(
                 folder, size, res[1], drive, cnf["drive%s"%drive][0], path[-1]))
 
             cmd=subprocess.Popen(["sudo", "tar","cvf","/dev/%s"%cnf["drive%s"%drive][0], path[-1]], stdout=subprocess.PIPE)
             cmd.wait()
             comm=cmd.communicate()
-            self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
+            logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
 
-            self.logger.info("Updating  DB")
+            logger.info("Updating  DB")
             
             self.cur.execute(
                 """UPDATE drive
@@ -505,7 +493,7 @@ class TapeMachineInterface(object):
                 WHERE id = \'%s\'"""%(
                     size, res[1]))
             self.db.commit()
-            self.logger.info("Committed changes to DB")
+            logger.info("Committed changes to DB")
         else:
             print "ERROR while writing to drive. Attached = %d, tape = %s"%res
 
@@ -513,25 +501,25 @@ class TapeMachineInterface(object):
         self.get_state()
 
         """Rewind drive"""
-        self.logger.info("Rewinding tape in drive %d"%drive)
+        logger.info("Rewinding tape in drive %d"%drive)
         self.cur.execute(
                 """UPDATE drive
                 SET state = 'REWINDING'
                 WHERE id = %d"""%(
                     drive,))
         self.db.commit()
-        self.logger.debug("Rewinding with command mt -f /dev/%s rewind"%cnf["drive%s"%drive][0] )
+        logger.debug("Rewinding with command mt -f /dev/%s rewind"%cnf["drive%s"%drive][0] )
         cmd=subprocess.Popen(["sudo", "mt","-f", "/dev/%s"%cnf["drive%s"%drive][0], "rewind"], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
-        self.logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
+        logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
         self.cur.execute(
                 """UPDATE drive
                 SET state = 'IDLE'
                 WHERE id = %s"""%(
                     drive,))
         self.db.commit()
-        self.logger.info("Committed changes to DB")
+        logger.info("Committed changes to DB")
 
     def get_file_list (self, drive):
         """Take in a drive number and return the files stored on each of the tars on the file.
@@ -623,9 +611,7 @@ class TapeDeviceServer(DeviceServer):
     def __init__(self, server_host, server_port, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"]):
         self.ta = TapeMachineInterface(dbLocation, buffer_dir)
         DeviceServer.__init__(self, server_host, server_port)
-        # self.ta = TapeMachineInterface()
         self.set_concurrency_options(False, False)
-        signal.signal(signal.SIGINT, signal_handler)
         
 
     def setup_sensors(self):
@@ -723,7 +709,6 @@ class TapeDeviceServer(DeviceServer):
             slotid = None
         else:
             slotid=int(slotid)
-        ta = TapeMachineInterface()
         print (driveid, tapeid, slotid)
         try:
             slot, drive = self.ta.load_tape(driveid, tapeid, slotid)
@@ -802,8 +787,6 @@ class TapeDeviceServer(DeviceServer):
             return ('fail', str(e).replace(' ', '_'))
         return('ok', 'Wrote  to tape')
 
-
-
     @request(Str(), Int())
     @return_reply(Str())
     def request_tar_folder_to_tape(self, req, folder, drive):
@@ -844,35 +827,6 @@ class TapeDeviceServer(DeviceServer):
         self.ta.end_of_last_tar(drive)
         return ('ok', "At end of last tar on drive %d", drive)
 
-    @request()
-    @return_reply()
-    def request_close(self, req):
-        """DO the thing"""
-        self.ta.close()
-        self.stop()
-        return('ok',)
-
-    def signal_handler(signal, frame):
-        print('You pressed Ctrl+C!')
-        self.ta.close()
-        sys.exit(0)
-
-# Add as a test at some point
-#if __name__ == "__main__":
-    # ta = TapeMachineInterface()
-    # ta.get_state()
-    # print ta.write_buffer_to_tape('/var/kat/data/tape_buffer2',1)
-    # ta.unload(1)
-    # ta.load_tape()
-    # ta.rewind_drive(1)
-    # print ta.get_file_list(1)
-    # ta.end_of_last_tar(1)
-    # ta.tar_folder_to_tape('/home/kat/test_dir', 1)
-    # print ta.get_file_list(1)
-    # ta.read_file (1,'test_dir/', '/home/kat/katsdpdata/tape_interface/src/dir', tar_num = 1)
-    # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
-    # ta.tar_folder_to_tape('/home/kat/test_dir', 1)
-    # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
-
-    # print ta.print_state()
-    # ta.close()
+    def handle_exit(self):
+        """Try to shutdown as gracefully as possible when interrupted."""
+        logger.warning("SDP Vis Store Controller interrupted.")
