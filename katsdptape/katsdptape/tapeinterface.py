@@ -25,7 +25,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 class TapeMachineInterface(object):
     """docstring for TapeMachineInterface"""
-    def __init__(self, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"], loglevel = logging.INFO):
+    def __init__(self, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"], loglevel = logging.DEBUG):
         super(TapeMachineInterface, self).__init__()
         # frmt = logging.Formatter()
         logging.basicConfig(format = '%(asctime)s - %(name)s - %(funcName)s -%(levelname)s - %(message)s', level = loglevel)
@@ -108,6 +108,11 @@ class TapeMachineInterface(object):
             t = "MAGAZINE"
             if "IMPORT" in s_e:
                 t = "MAIL"
+            if (slot_id-1) % 30 == 0:
+                self.logger.debug('Adding magazine %d'%(slot_id-1/30))
+                self.cur.execute("""
+                        INSERT IGNORE INTO magazine (id, state)
+                        VALUES (%s,%s)""", ((slot_id-1)/30, "LOCKED"))
             if "Full" in s_e:
                 tape_id = s_e[-7:-1]
                 if "Full" in tape_id:
@@ -115,32 +120,29 @@ class TapeMachineInterface(object):
                     count+=1
                 self.logger.debug('Adding tape %s in slot %d in magazine %d'%(tape_id, slot_id, slot_id/30))
                 self.cur.execute("""
-                    INSERT OR REPLACE INTO tape(id, slot_id, bytes_written, size)
-                    VALUES (%s,%s,COALESCE((SELECT bytes_written FROM tape WHERE id = %s),%s),%s)""", (tape_id, slot_id, tape_id, 0, cnf["tape_size_limit"]))
-                self.cur.execute("""
-                    INSERT OR REPLACE INTO slot (id, type, magazine_id)
+                    INSERT IGNORE INTO slot (id, type, magazine_id)
                     VALUES (%s,%s,%s)""", (slot_id, t,(slot_id-1)/30))
+                self.cur.execute("""
+                    INSERT IGNORE INTO tape(id, slot_id, bytes_written, size)
+                    VALUES (%s,%s,%s,%s)""", (tape_id, slot_id, 0, cnf["tape_size_limit"]))
             else:
                 self.logger.debug('Adding empty slot %d in magazine %d'%(slot_id, (slot_id-1)/30))
                 self.cur.execute("""
-                    INSERT OR REPLACE INTO slot (id, type, magazine_id)
+                    INSERT IGNORE INTO slot (id, type, magazine_id)
                     VALUES (%s,%s,%s)""", (slot_id, t,(slot_id-1)/30))
-
-            if (slot_id-1) % 30 == 0:
-                self.logger.debug('Adding magazine %d'%(slot_id-1/30))
-                self.cur.execute("""
-                        INSERT OR REPLACE INTO magazine (id, state)
-                        VALUES (%s,%s)""", ((slot_id-1)/30, "LOCKED"))
 
         data_transfer = data_transfer_regex.findall(out)
 
         free_slots = self.get_free_slots()
+        print free_slots
 
         cmd = subprocess.Popen(["lsscsi"], stdout=subprocess.PIPE)
         cmd.wait()
         out, err = cmd.communicate()
 
         self.logger.info("Adding drives")
+
+        count = 0
 
         for d_t in data_transfer:
             attached = 0
@@ -150,21 +152,22 @@ class TapeMachineInterface(object):
             if "Full" in d_t:
                 self.logger.debug('Adding tape %s in drive %d and slot %d in magazine %d'%(d_t[-7:-1], drive_id, slot_id, drive_id/2))
                 self.cur.execute("""
-                    INSERT IGNORE INTO tape(id, bytes_written, size, slot_id, size)
-                    VALUES (%s, %s, %s, %s, %s)""", (d_t[-7:-1], 0, cnf["tape_size_limit"], free_slots.pop()[0], cnf['tape_size_limit']))
+                    INSERT IGNORE INTO tape(id, bytes_written, size, slot_id)
+                    VALUES (%s, %s, %s, %s)""", (d_t[-7:-1], 0, cnf["tape_size_limit"], free_slots[count][0]))
+                count +=1
                 self.cur.execute("""
                     INSERT INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, tape_id, attached)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON DUPLICATE UPDATE""", (
-                                    drive_id, "IDLE", drive_id/2, 0, 0, 0, d_t[-7:-1], attached))
+                    ON DUPLICATE KEY UPDATE tape_id=%s, attached=%s, state=%s""", (
+                                    drive_id, "IDLE", drive_id/2, 0, 0, 0, d_t[-7:-1], attached,
+                                    d_t[-7:-1], attached, "IDLE"))
             else:
                 self.cur.execute("""
-                    INSERT OR REPLACE INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, attached)
-                    VALUES (%s,%s,%s,COALESCE((SELECT num_writes FROM drive WHERE id = %s),%s)
-                        ,COALESCE((SELECT num_reads FROM drive WHERE id = %s),%s)
-                            ,COALESCE((SELECT num_cleans FROM drive WHERE id = %s),%s)
-                                ,COALESCE((SELECT attached FROM drive WHERE id = %s),%s))""", (
-                                    drive_id, "IDLE", drive_id/2, drive_id, 0, drive_id, 0, drive_id, 0, drive_id, attached))
+                    INSERT INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, attached)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s)
+                    ON DUPLICATE KEY UPDATE tape_id=NULL, attached=%s, state=%s""", (
+                                    drive_id, "IDLE", drive_id/2, 0, 0, 0, attached,
+                                    attached, "IDLE"))
 
         self.db.commit()
         self.logger.info("Committing DB")
@@ -858,9 +861,10 @@ class TapeDeviceServer(DeviceServer):
         sys.exit(0)
 
 # Add as a test at some point
-#if __name__ == "__main__":
-    # ta = TapeMachineInterface()
-    # ta.get_state()
+if __name__ == "__main__":
+    ta = TapeMachineInterface()
+    # print ta.print_state()
+    ta.get_state()
     # print ta.write_buffer_to_tape('/var/kat/data/tape_buffer2',1)
     # ta.unload(1)
     # ta.load_tape()
@@ -874,5 +878,5 @@ class TapeDeviceServer(DeviceServer):
     # ta.tar_folder_to_tape('/home/kat/test_dir', 1)
     # ta.tar_folder_to_tape('/home/kat/test_tape_write', 1)
 
-    # print ta.print_state()
+    
     # ta.close()
