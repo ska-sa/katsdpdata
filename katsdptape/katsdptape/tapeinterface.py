@@ -122,7 +122,7 @@ class TapeMachineInterface(object):
             if (slot_id-1) % 30 == 0:
                 logger.debug('Adding magazine %d'%(slot_id-1/30))
                 self.cur.execute("""
-                        INSERT OR REPLACE INTO magazine (id, state)
+                        INSERT IGNORE INTO magazine (id, state)
                         VALUES (%s,%s)""", ((slot_id-1)/30, "LOCKED"))
 
         data_transfer = data_transfer_regex.findall(out)
