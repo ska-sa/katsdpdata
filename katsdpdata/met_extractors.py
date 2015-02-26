@@ -2,7 +2,7 @@ import os
 import subprocess
 import time
 
-from xml.etree import ElementTree
+import xml.etree.ElementTree as ET
 
 class MetExtractorException(object):
     """Raises a MetExtractor exception."""
@@ -25,20 +25,20 @@ class MetExtractor(object):
         raise NotImplementedError
 
     def get_metadata(self):
-        xml_tree = ElementTree.Element('cas:metadata')
+        xml_tree = ET.Element('cas:metadata')
         xml_tree.set('xmlns:cas', 'http://oodt.jpl.nasa.gov/1.0/cas')
         for k in self.metadata.keys():
-            keyval = ElementTree.SubElement(xml_tree, 'keyval')
-            key = ElementTree.SubElement(keyval, 'key')
+            keyval = ET.SubElement(xml_tree, 'keyval')
+            key = ET.SubElement(keyval, 'key')
             key.text = str(k)
             if isinstance(self.metadata[k], list):
                 for text in self.metadata[k]:
-                    val = ElementTree.SubElement(keyval, 'val')
+                    val = ET.SubElement(keyval, 'val')
                     val.text = text
             else:
-                val = ElementTree.SubElement(keyval, 'val')
+                val = ET.SubElement(keyval, 'val')
                 val.text = self.metadata[k]
-        return ElementTree.tostring(xml_tree, 'utf-8')
+        return ET.tostring(xml_tree, 'utf-8')
 
 class KAT7MetExtractor(MetExtractor):
     """Used for extracting metdata from an HDF5 KAT File.
@@ -104,3 +104,41 @@ class RTSMetExtractor(KAT7MetExtractor):
         """Populate self.metadata with information scraped from self.katdata"""
         self.metadata['ReductionName'] = self.katdata.obs_params.get('reduction_name', '')
         super(RTSMetExtractor, self).set_metadata()
+
+class KATContPipeExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    votable : ElementTree
+        An xml string
+
+    Attributes
+    ----------
+    """
+    def __init__(self, project):
+        super(KAT7MetExtractor, self).__init__()
+        self.votable = votable
+        self.metadata['ProductType'] = 'KATContPipeReductionProduct'
+
+    def set_metadata(self):
+        """Populate self.metadata with information scraped from a votable xml file"""
+        self.metadata['aipsVer'] = project['aipsVer']
+        self.metadata['AmpCals'] = project['AmpCals'].split()
+        self.metadata['anNames'] = project['anNames'].split()
+        self.metadata['archFileID'] = project['archFileID']
+        self.metadata['BPCals'] = project['BPCals'].split()
+        self.metadata['dataSet'] = project['dataSet']
+        self.metadata['DlyCals'] = project['DlyCals'].split()
+        self.metadata['fileSetID'] = project['fileSetID']
+        self.metadata['freqCov'] = project[float(f) for f in project['freqCov'].split()]
+        self.metadata['minFringe'] = float(project['minFringe'])
+        self.metadata['obitVer'] = project['obitVer']
+        self.metadata['PhsCals'] = project['PhsCals'].split()
+        self.metadata['pipeVer'] = project['pipeVer']
+        self.metadata['procDate'] = project['procDate']
+        self.metadata['project'] = project['project']
+        self.metadata['pyVer'] = project['pyVer']
+        self.metadata['session'] = project['sessioin']
+        self.metadata['sysInfo'] = project['sysInfo']
+
