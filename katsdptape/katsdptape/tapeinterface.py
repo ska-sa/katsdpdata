@@ -26,7 +26,7 @@ class TapeMachineInterface(object):
         self.buffer_index = 0
 
         logger.info('Initialising TapeMachineInterface with state database at %s'%dbLocation)
-        self.db = sql.connect('localhost', 'kat', 'kat', 'tape_db')
+        self.db = sql.connect('localhost', 'root', 'kat', 'tape_db')
         self.cur = self.db.cursor()
         self.create_tables()
         self.get_state()
@@ -88,7 +88,7 @@ class TapeMachineInterface(object):
         count = 0
 
         logger.debug('Storage elements returned by regex of %s :\n%s'%(storage_element_regex.pattern, "\n".join(storage_elements)))
-        logger.info("Adding tapes, slots and magazines")
+        logger.debug("Adding tapes, slots and magazines")
 
         for s_e in storage_elements:
             slot_id = int(num_regex.findall(s_e)[0])
@@ -128,13 +128,13 @@ class TapeMachineInterface(object):
         data_transfer = data_transfer_regex.findall(out)
 
         free_slots = self.get_free_slots()
-        print free_slots
+        # print free_slots
 
         cmd = subprocess.Popen(["lsscsi"], stdout=subprocess.PIPE)
         cmd.wait()
         out, err = cmd.communicate()
 
-        logger.info("Adding drives")
+        logger.debug("Adding drives")
 
         count = 0
 
@@ -160,8 +160,8 @@ class TapeMachineInterface(object):
                     INSERT INTO drive (id, state, magazine_id, num_writes, num_reads, num_cleans, attached)
                     VALUES (%s,%s,%s,%s,%s,%s,%s)
                     ON DUPLICATE KEY UPDATE tape_id=NULL, attached=%s, state=%s""", (
-                                    drive_id, "IDLE", drive_id/2, 0, 0, 0, attached,
-                                    attached, "IDLE"))
+                                    drive_id, "EMPTY", drive_id/2, 0, 0, 0, attached,
+                                    attached, "EMPTY"))
 
         self.db.commit()
         logger.info("Committing DB")
@@ -175,6 +175,8 @@ class TapeMachineInterface(object):
         # self.get_state()
         logger.info("Getting state for table = %s"%str(table))
         ret = ""
+
+        self.cur.execute("FLUSH TABLES")
 
         if table == None or table == "TAPE":
             ret += "#############\n# TAPES     #\n#############\n"
@@ -213,7 +215,7 @@ class TapeMachineInterface(object):
         If there is already a tape in the provided drive, it will be unloaded.
         In the case none or some of these values are not provided, they will be chosen for the user.
         Returns a tuple of the drive which has been loaded"""
-        self.get_state()
+        # self.get_state()
 
         drive = [None,None]
         slot = None
@@ -264,7 +266,7 @@ class TapeMachineInterface(object):
 
     def get_location_of_tape(self, tape):
         """Get the slot and drive that a tape is loaded in."""
-        self.get_state()
+        # self.get_state()
 
         logger.info("Getting location for tape %s"%tape)
         self.cur.execute(
@@ -278,9 +280,9 @@ class TapeMachineInterface(object):
 
     def get_drive (self, drive):
         """Get drive info"""
-        self.get_state()
+        # self.get_state()
 
-        logger.info("Getting drive %d info")
+        logger.info("Getting drive %d info"%drive)
         self.cur.execute(
             """SELECT * FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id
             WHERE drive.id = %d"""%(
@@ -290,28 +292,49 @@ class TapeMachineInterface(object):
         res = self.cur.fetchone()
         return [names,res]
 
+    def set_idle(self, drive):
+        self.cur.execute(
+            """UPDATE drive
+            SET state = 'IDLE'
+            WHERE id = %d"""%(
+                drive,))
+        self.db.commit()
+
+    def set_writing(self, drive):
+        self.cur.execute(
+            """UPDATE drive
+            SET state = 'WRITING'
+            WHERE id = %d"""%(
+                drive,))
+        self.db.commit()
+
     def write_buffer_to_tape(self, buffer_dir, drive):
-        self.get_state()
+        """Writes buffer at buffer_dir to tape
+        Returns the id of the tape written to"""
+        # self.get_state()
 
         res = self.get_drive(drive)
         tape = None
         if res[1][res[0].index("attached")] == 0:
             raise Exception ("Drive not attached for writing")
         if res[1][res[0].index("tape_id")] == None:
-            tape = self.load_empty_tape(drive)
+            tape = self.load_empty_tape(drive)[1][0]
         elif res[1][res[0].index("bytes_written")] > 0:
             self.unload(drive)
-            tape = self.load_empty_tape(drive)
+            tape = self.load_empty_tape(drive)[1][0]
+        else:
+            tape = res[1][res[0].index("tape_id")]
         self.rewind_drive(drive)
         self.tar_folder_to_tape(buffer_dir, drive)
         self.unload(drive)
+        self.load_empty_tape(drive)
 
         return tape
 
     def get_free_drives(self, magazine = None):
         """Get free drives.
         returns a list of free drives, each drive will have a tuple (id, state)"""
-        self.get_state()
+        # self.get_state()
 
         logger.info("Getting free drives")
         if magazine == None:
@@ -335,29 +358,28 @@ class TapeMachineInterface(object):
     """Get list of empty tapes and the slots they belong to.
     Returns a list of tuples (tapeid,slotid)"""
     def get_empty_tapes(self, magazine = None):
-        self.get_state()
+        # self.get_state()
 
         logger.info("Getting empty tapes")
         if magazine == None:
             self.cur.execute(
                 """SELECT tape.id, slot.id
-                FROM tape JOIN slot ON tape.slot_id = slot.id 
-                WHERE tape.bytes_written < %d 
-                ORDER BY slot.id"""%(
-                    cnf["tape_size_limit"],))
+                FROM (tape INNER JOIN slot ON tape.slot_id = slot.id) LEFT JOIN drive on tape.id = drive.tape_id 
+                WHERE tape.bytes_written = 0 AND drive.tape_id is NULL
+                ORDER BY slot.id""")
         else:
             self.cur.execute("""SELECT tape.id, slot.id
                 FROM tape JOIN slot ON tape.slot_id = slot.id  
-                WHERE tape.bytes_written < %d  AND slot.magazine_id = %d 
+                WHERE tape.bytes_written = 0  AND slot.magazine_id = %d 
                 ORDER BY drive.state"""%(
-                    cnf["tape_size_limit"], magazine))
+                    magazine,))
         self.db.commit()
 
         res = self.cur.fetchall()
         return res
 
     def load_empty_tape (self, drive):
-        self.get_state()
+        # self.get_state()
 
         # logger.info("Loading empty tape to drive %d"%drive)
         res = self.get_empty_tapes()
@@ -373,7 +395,7 @@ class TapeMachineInterface(object):
 
     """Load tape from slot to drive"""
     def load (self, slot, drive):
-        self.get_state()
+        # self.get_state()
 
         logger.info("Loading tape from slot %d to drive %d"%(slot, drive))
         self.cur.execute(
@@ -406,12 +428,12 @@ class TapeMachineInterface(object):
 
     """Remove tape from drive"""
     def unload(self, drive):
-        self.get_state()
+        # self.get_state()
 
         logger.info("Unloading drive %d"%drive)
         self.cur.execute(
             """SELECT tape.slot_id 
-            FROM drive INNER JOIN tape ON drive.tape_id == tape.id 
+            FROM drive INNER JOIN tape ON drive.tape_id = tape.id 
             WHERE drive.id = %d"""%(
                 drive,))
         res = self.cur.fetchone ()
@@ -458,7 +480,7 @@ class TapeMachineInterface(object):
     """Tar folder to tape in drive.
     Returns the id of the tape in that drive"""
     def tar_folder_to_tape(self, folder, drive):
-        self.get_state()
+        # self.get_state()
 
         logger.info("Taring folder %s to tape in drive %d"%(folder, drive))
         self.cur.execute(
@@ -507,7 +529,7 @@ class TapeMachineInterface(object):
             print "ERROR while writing to drive. Attached = %d, tape = %s"%res
 
     def rewind_drive(self, drive):
-        self.get_state()
+        # self.get_state()
 
         """Rewind drive"""
         logger.info("Rewinding tape in drive %d"%drive)
@@ -533,7 +555,7 @@ class TapeMachineInterface(object):
     def get_file_list (self, drive):
         """Take in a drive number and return the files stored on each of the tars on the file.
         Returns a list of strings, string contains all the files in the corresponding tar"""
-        self.get_state()
+        # self.get_state()
 
         self.rewind_drive(drive)
         self.cur.execute(
@@ -572,7 +594,7 @@ class TapeMachineInterface(object):
         return ret
 
     def read_file(self, drive, filenames, write_location, tar_num = 0):
-        self.get_state()
+        # self.get_state()
 
         self.rewind_drive(drive)
 
@@ -603,7 +625,7 @@ class TapeMachineInterface(object):
 
 
     def end_of_last_tar (self, drive):
-        self.get_state()
+        # self.get_state()
 
         cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
         cmd.wait()
@@ -611,10 +633,21 @@ class TapeMachineInterface(object):
             cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
             cmd.wait()
 
+def write_buffer_to_tape (buffer_dir, drive):
+        ta = TapeMachineInterface()
+        print "CREATED"
+        tape = ta.write_buffer_to_tape(buffer_dir, drive)
+        # print tape
+        ta.close()
+        return tape
+
+def callback(future):
+    print "It's called back"
+    print future.result()
+
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class TapeDeviceServer(DeviceServer):
-
-    from concurrent.futures import ProcessPoolExecutor, as_completed
 
     VERSION_INFO = ("tape_katcp_interface", 1, 0)
     BUILD_INFO = ("tape_katcp_interface", 0, 1, "")
@@ -623,7 +656,6 @@ class TapeDeviceServer(DeviceServer):
         self.ta = TapeMachineInterface(dbLocation, buffer_dir)
         DeviceServer.__init__(self, server_host, server_port)
         self.set_concurrency_options(False, False)
-        self.futures = []
         
 
     def setup_sensors(self):
@@ -676,7 +708,7 @@ class TapeDeviceServer(DeviceServer):
         Display only slots states with 'SLOT'.
         Display only magazine states with 'MAGAZINE'
         """
-        self.ta.get_state()
+        # self.ta.get_state()
         ret = ""
         if table == "ALL":
             ret = self.ta.print_state()
@@ -789,22 +821,30 @@ class TapeDeviceServer(DeviceServer):
             req.inform("slot %d"%line[0])
         return ('ok', "get-free-slots COMPLETE")
 
+    # def target(object, *args, **kw):
+    #     method_name = args[0]
+    #     return getattr(object, method_name)(*args[1:])
+    
+
     @request(Str(),Int())
     @return_reply(Str())
     def request_write_buffer_to_tape(self, req, buffer_dir, drive):
         """Write the buffer to a empty tape"""
         try:
-            self.futures.append(\
-                ProcessPoolExecutor().submit(\
-                    TapeMachineInterface.write_buffer_to_tape,\
-                    self.ta, buffer_dir, drive))
-            for f in as_completed(self.futures):
-                tape = f.result()
-                print "Written to buffer %s"%(str(tape))
-            # tape = self.ta.write_buffer_to_tape(buffer_dir, drive)
+            drive_info = self.ta.get_drive(drive)
+
+            if drive_info[1][drive_info[0].index("state")] != "IDLE" and drive_info[1][drive_info[0].index("state")] != "EMPTY":
+                return ("fail","drive_%d_busy"%drive)
+
+            self.ta.set_writing(drive)
+            
+            ProcessPoolExecutor(max_workers = 10).submit(write_buffer_to_tape, buffer_dir, drive).add_done_callback(callback)
+            print "WRITE STARTED"
         except Exception, e:
-            return ('fail', str(e).replace(' ', '_'))
-        return('ok', 'Wrote  to tape')
+            # return ('fail', str(e).replace(' ', '_'))
+            raise
+        return('ok', 'Writing to tape')
+    
 
     @request(Str(), Int())
     @return_reply(Str())
