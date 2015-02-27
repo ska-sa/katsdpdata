@@ -1,4 +1,5 @@
-"""Interface for the tape interface"""
+"""Tape library automation class and katcp device class for integration into the MeerKAT M&C framework."""
+
 import logging
 import os
 import re
@@ -18,7 +19,23 @@ os_drives_regex = re.compile('\d{4}L6')
 logger = logging.getLogger("katsdptape.katsdptapeinterface")
 
 class TapeLibraryAutomate(object):
-    """docstring for TapeLibraryAutomate"""
+    """Tape library automation class.
+
+    This creates an object that provides methods to automate a tape library and persist
+    tape library usage in a database.
+
+    Parameters
+    ----------
+    parameter : type
+        description
+
+    Attributes
+    ----------
+    bufffer_dirs : list of strings
+        List of buffer locations for buffer switching
+    buffer_index : int
+        Index of current buffer that will be written to
+    """
     def __init__(self, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"], loglevel = logging.DEBUG):
         super(TapeLibraryAutomate, self).__init__()
 
@@ -32,9 +49,11 @@ class TapeLibraryAutomate(object):
         self.get_state()
 
     def swap_buffer(self):
+        """Update the buffer index."""
         self.buffer_index = (self.buffer_index + 1) % 2
 
     def create_tables (self):
+        """Create database tables for persisting tape library information."""
         logger.info('Creating magazine table')
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS magazine (
@@ -72,6 +91,7 @@ class TapeLibraryAutomate(object):
         logger.info('Committed changes')
 
     def close(self):
+        """Close database access."""
         self.db.close()
 
     def get_state(self):
@@ -214,6 +234,20 @@ class TapeLibraryAutomate(object):
         The tape to load can be specified by tapeid or the slotid.
         If there is already a tape in the provided drive, it will be unloaded.
         In the case none or some of these values are not provided, they will be chosen for the user.
+
+        Parameters
+        ----------
+        driveid : string
+            ID for the drive to load to
+        tapeid : string
+            ID for the tape to load
+        slotid : string
+            ID for the slot to load from
+
+        Returns
+        -------
+        slotid : 
+        driveid
         Returns a tuple of the drive which has been loaded"""
         # self.get_state()
 
