@@ -17,15 +17,15 @@ os_drives_regex = re.compile('\d{4}L6')
 
 logger = logging.getLogger("katsdptape.katsdptapeinterface")
 
-class TapeMachineInterface(object):
-    """docstring for TapeMachineInterface"""
+class TapeLibraryAutomate(object):
+    """docstring for TapeLibraryAutomate"""
     def __init__(self, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"], loglevel = logging.DEBUG):
-        super(TapeMachineInterface, self).__init__()
+        super(TapeLibraryAutomate, self).__init__()
 
         self.buffer_dirs=["%s/buffer1"%buffer_dir, "%s/buffer2"%buffer_dir]
         self.buffer_index = 0
 
-        logger.info('Initialising TapeMachineInterface with state database at %s'%dbLocation)
+        logger.info('Initialising TapeLibraryAutomate with state database at %s'%dbLocation)
         self.db = sql.connect('localhost', 'root', 'kat', 'tape_db')
         self.cur = self.db.cursor()
         self.create_tables()
@@ -168,7 +168,7 @@ class TapeMachineInterface(object):
         logger.debug ("DB state :\n%s"%self.print_state())
 
     def print_state(self, table = None):
-        """Get the state of the TapeMachineInterface from the DB.
+        """Get the state of the TapeLibraryAutomate from the DB.
         Can choose which table to check by using the table argument.
         The options are "TAPE", "SLOT", "DRIVE", "MAGAZINE". If no table is selected, all tables states are returned.
         Returns a formatted string of the state."""
@@ -634,7 +634,7 @@ class TapeMachineInterface(object):
             cmd.wait()
 
 def write_buffer_to_tape (buffer_dir, drive):
-        ta = TapeMachineInterface()
+        ta = TapeLibraryAutomate()
         print "CREATED"
         tape = ta.write_buffer_to_tape(buffer_dir, drive)
         # print tape
@@ -642,6 +642,7 @@ def write_buffer_to_tape (buffer_dir, drive):
         return tape
 
 def callback(future):
+    #TODO update solr
     print "It's called back"
     print future.result()
 
@@ -653,7 +654,7 @@ class TapeDeviceServer(DeviceServer):
     BUILD_INFO = ("tape_katcp_interface", 0, 1, "")
 
     def __init__(self, server_host, server_port, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"]):
-        self.ta = TapeMachineInterface(dbLocation, buffer_dir)
+        self.ta = TapeLibraryAutomate(dbLocation, buffer_dir)
         DeviceServer.__init__(self, server_host, server_port)
         self.set_concurrency_options(False, False)
         
@@ -831,6 +832,8 @@ class TapeDeviceServer(DeviceServer):
     def request_write_buffer_to_tape(self, req, buffer_dir, drive):
         """Write the buffer to a empty tape"""
         try:
+
+            #TODO move this check logic out of this method
             drive_info = self.ta.get_drive(drive)
 
             if drive_info[1][drive_info[0].index("state")] != "IDLE" and drive_info[1][drive_info[0].index("state")] != "EMPTY":
