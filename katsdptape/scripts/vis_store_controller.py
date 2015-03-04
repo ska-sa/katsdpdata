@@ -27,6 +27,8 @@ if __name__ == "__main__":
     parser.add_option('-l', '--loglevel', dest='loglevel', type="string",
                       default="info", metavar='LOGLEVEL',
                       help='set the Python logging level (default=%default)')
+    parser.add_option('-s', '--buffer-size-limit', type="int", default = 2.3*1024*1024*1024, dest="buffer_size",
+                      help = 'Soft size limit for buffer which triggers buffer to tape archival (default = %default)')
     (opts, args) = parser.parse_args()
 
     def die(msg=None):
@@ -54,7 +56,8 @@ if __name__ == "__main__":
     from katsdptape import tapeinterface
 
     logger.info("Starting SDP Vis Store Controller...")
-    server = tapeinterface.TapeDeviceServer(opts.host, opts.port)
+    print opts.buffer_size
+    server = tapeinterface.TapeDeviceServer(opts.host, opts.port, buffer_size=opts.buffer_size)
 
     restart_queue = Queue.Queue()
     server.set_restart_queue(restart_queue)

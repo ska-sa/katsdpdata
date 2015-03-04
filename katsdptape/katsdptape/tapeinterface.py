@@ -10,29 +10,46 @@ import subprocess
 from config import config as cnf
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import (Str, Int, request, return_reply)
+import shutil
 
 storage_element_regex = re.compile(" Storage Element \d{1,3}.+\n")
 data_transfer_regex = re.compile("Data Transfer Element \d{1}:.+\n")
 os_drives_regex = re.compile('\d{4}L6')
+controller_regex = re.compile('sg\d{1}')
 
 logger = logging.getLogger("katsdptape.katsdptapeinterface")
 
 class TapeLibraryAutomate(object):
     """docstring for TapeLibraryAutomate"""
-    def __init__(self, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"], loglevel = logging.DEBUG):
+    def __init__(self, buffer_dir = cnf["buffer_dir"], loglevel = logging.DEBUG, buffer_size = cnf["soft_tape_limit"]):
         super(TapeLibraryAutomate, self).__init__()
 
         self.buffer_dirs=["%s/buffer1"%buffer_dir, "%s/buffer2"%buffer_dir]
         self.buffer_index = 0
+        self.get_drive_handles()
 
-        logger.info('Initialising TapeLibraryAutomate with state database at %s'%dbLocation)
-        self.db = sql.connect('localhost', 'root', 'kat', 'tape_db')
+        logger.info('Initialising TapeLibraryAutomate')
+        self.db = sql.connect(cnf["db_host"], cnf["db_usr"], cnf["db_password"], cnf["db_name"])
         self.cur = self.db.cursor()
         self.create_tables()
         self.get_state()
 
     def swap_buffer(self):
         self.buffer_index = (self.buffer_index + 1) % 2
+
+    def get_drive_handles(self):
+        cmd = subprocess.Popen(["ls", "-lah", "/dev/tape/by-id"], stdout=subprocess.PIPE)
+        cmd.wait()
+        out, err = cmd.communicate()
+        controller = controller_regex.findall(out)
+        cnf["controller"] = controller[0]
+        for i in range(10):
+            drive_regex = re.compile("%s-nst.+\n"%cnf["drive%d_id"%i])
+            drive = drive_regex.findall(out)
+            if len(drive) > 0:
+                num = int(drive[0][-2:-1])
+                cnf["drive%d"%i] = ("st%d"%(num-1), "st%d"%num)
+
 
     def create_tables (self):
         logger.info('Creating magazine table')
@@ -329,7 +346,60 @@ class TapeLibraryAutomate(object):
         self.unload(drive)
         self.load_empty_tape(drive)
 
-        return tape
+        for file_object in os.listdir(buffer_dir):
+            file_object_path = os.path.join(buffer_dir, file_object)
+            if os.path.isfile(file_object_path):
+                os.unlink(file_object_path)
+            else:
+                shutil.rmtree(file_object_path)
+
+        logger.info("Deleted archived files in %s"%buffer_dir)
+        # logger.info("Deleting data in %s"%buffer_dir)
+        # folder = buffer_dir.split("/")[-1]
+        # print folder
+        # print "--------LS--------------"
+        # cmd = subprocess.Popen(["ls", folder], stdout=subprocess.PIPE)
+        # cmd.wait()
+        # out, err = cmd.communicate()
+        # print out
+        # print "---------------------"
+        # cmd.wait()
+        # out, err = cmd.communicate()
+        # print out
+
+        return tape, buffer_dir
+
+    def async_write_buffer_to_tape(self, buffer_dir, drive):
+        """Write the buffer to a empty tape"""
+        try:
+
+            drive_info = self.get_drive(drive)
+
+            if drive_info[1][drive_info[0].index("state")] != "IDLE" and drive_info[1][drive_info[0].index("state")] != "EMPTY":
+                raise Exception("drive_%d_busy"%drive)
+
+            self.set_writing(drive)
+            
+            ProcessPoolExecutor(max_workers = 10).submit(write_buffer_to_tape, buffer_dir, drive).add_done_callback(callback)
+            # print "WRITE STARTED"
+        except Exception, e:
+            # return ('fail', str(e).replace(' ', '_'))
+            raise
+        return True
+
+    def archive_to_tape(self):
+        """Check if buffer is ready to archive.
+        If ready, update the current buffer and tar the full buffer to tape and return True.
+        Else return False."""
+        buffer_dir = self.buffer_dirs[self.buffer_index]
+        size =int(subprocess.check_output(["du","-s", buffer_dir]).split()[0])
+        print "size = %d, limit = %d"%(size, cnf["soft_tape_limit"])
+        if size > cnf["soft_tape_limit"]:
+            self.swap_buffer()
+            return self.async_write_buffer_to_tape(buffer_dir, 0)
+        else:
+            return False
+
 
     def get_free_drives(self, magazine = None):
         """Get free drives.
@@ -341,15 +411,14 @@ class TapeLibraryAutomate(object):
             self.cur.execute(
                 """SELECT drive.id, drive.state 
                 FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id 
-                WHERE drive.state = 'EMPTY' OR tape.bytes_written > %d 
-                ORDER BY drive.state"""%(
-                    cnf["tape_size_limit"],))
+                WHERE drive.state = 'EMPTY' OR tape.bytes_written > 0 
+                ORDER BY drive.state""")
         else:
             self.cur.execute("""SELECT drive.id, drive.state 
                 FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id 
-                WHERE (drive.state = 'EMPTY' OR tape.bytes_written > %d) AND drive.magazine_id = %d 
+                WHERE (drive.state = 'EMPTY' OR tape.bytes_written > 0) AND drive.magazine_id = %d 
                 ORDER BY drive.state"""%(
-                    cnf["tape_size_limit"], magazine))
+                    magazine,))
         self.db.commit()
 
         res = self.cur.fetchall()
@@ -644,7 +713,9 @@ def write_buffer_to_tape (buffer_dir, drive):
 def callback(future):
     #TODO update solr
     print "It's called back"
-    print future.result()
+    tape, folder = future.result()
+
+
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -653,8 +724,10 @@ class TapeDeviceServer(DeviceServer):
     VERSION_INFO = ("tape_katcp_interface", 1, 0)
     BUILD_INFO = ("tape_katcp_interface", 0, 1, "")
 
-    def __init__(self, server_host, server_port, dbLocation = cnf["DB_location"], buffer_dir = cnf["buffer_dir"]):
-        self.ta = TapeLibraryAutomate(dbLocation, buffer_dir)
+    def __init__(self, server_host, server_port, buffer_dir = cnf["buffer_dir"], buffer_size = cnf["soft_tape_limit"]):
+        print "buffer size"
+        print buffer_size
+        self.ta = TapeLibraryAutomate(buffer_dir, buffer_size=buffer_size)
         DeviceServer.__init__(self, server_host, server_port)
         self.set_concurrency_options(False, False)
         
@@ -672,13 +745,13 @@ class TapeDeviceServer(DeviceServer):
 
         self._buffer_dir.set_value(self.ta.buffer_dirs[self.ta.buffer_index])
 
-    @request()
-    @return_reply(Str())
-    def request_swap_buffer(self, req):
-        """Set the buffer_dir sensor"""
-        self.ta.swap_buffer()
-        self._buffer_dir.set_value(self.ta.buffer_dirs[self.ta.buffer_index])
-        return ("ok", "buffer_dir_set_to_%s"%self.ta.buffer_dirs[self.ta.buffer_index])
+    # @request()
+    # @return_reply(Str())
+    # def request_swap_buffer(self, req):
+    #     """Set the buffer_dir sensor"""
+    #     self.ta.swap_buffer()
+    #     self._buffer_dir.set_value(self.ta.buffer_dirs[self.ta.buffer_index])
+    #     return ("ok", "buffer_dir_set_to_%s"%self.ta.buffer_dirs[self.ta.buffer_index])
 
     # @request(Str()) Don't need this
     # @return_reply(Str())
@@ -694,10 +767,13 @@ class TapeDeviceServer(DeviceServer):
         if bufnum == 1:
             self._buffer1_size.set_value(size)
         elif bufnum == 2:
-            self.buffer2_size.set_value(size)
+            self._buffer2_size.set_value(size)
         else:
             return ("fail", "no buffer %d" % (bufnum,))
         return ("ok", "buffer_dir_set_to_%s" % (size,))
+
+    def update_buffer(self):
+        self._buffer_dir.set_value(self.ta.buffer_dirs[self.ta.buffer_index])
 
     @request(Str())
     @return_reply(Str())
@@ -721,12 +797,12 @@ class TapeDeviceServer(DeviceServer):
             req.inform(line.replace(" ","_"))
         return ('ok', "print-state_COMPLETE")
 
-    @request()
-    @return_reply(Str())
-    def request_create_tables (self, req):
-        """Create tables"""
-        self.ta.create_tables()
-        return ('ok', 'Tables created')
+    # @request()
+    # @return_reply(Str())
+    # def request_create_tables (self, req):
+    #     """Create tables"""
+    #     self.ta.create_tables()
+    #     return ('ok', 'Tables created')
 
     @request()
     @return_reply(Str())
@@ -734,6 +810,22 @@ class TapeDeviceServer(DeviceServer):
         """Get state of tape"""
         self.ta.get_state()
         return ('ok', 'Retrieved state, tables updated')
+
+    @request()
+    @return_reply(Str())
+    def request_archive_to_tape(self, req):
+        """Check if buffer is ready to archive.
+        If ready, update the current buffer and tar the full buffer to tape."""
+        try:
+            ret = self.ta.archive_to_tape()
+        except Exception, e:
+            return ("fail", str(e))
+        self.update_buffer()
+        if ret :
+            return ("ok", "Archiving buffer")
+        else:
+            return ("fail", "Buffer not full")
+
 
     @request(Str(), Str(), Str())
     @return_reply(Str())
@@ -832,36 +924,25 @@ class TapeDeviceServer(DeviceServer):
     def request_write_buffer_to_tape(self, req, buffer_dir, drive):
         """Write the buffer to a empty tape"""
         try:
-
-            #TODO move this check logic out of this method
-            drive_info = self.ta.get_drive(drive)
-
-            if drive_info[1][drive_info[0].index("state")] != "IDLE" and drive_info[1][drive_info[0].index("state")] != "EMPTY":
-                return ("fail","drive_%d_busy"%drive)
-
-            self.ta.set_writing(drive)
-            
-            ProcessPoolExecutor(max_workers = 10).submit(write_buffer_to_tape, buffer_dir, drive).add_done_callback(callback)
-            print "WRITE STARTED"
+            return self.ta.async_write_buffer_to_tape(buffer_dir, drive)
         except Exception, e:
             # return ('fail', str(e).replace(' ', '_'))
             raise
-        return('ok', 'Writing to tape')
     
 
-    @request(Str(), Int())
-    @return_reply(Str())
-    def request_tar_folder_to_tape(self, req, folder, drive):
-        """Tar folder to tap"""
-        self.ta.tar_folder_to_tape(folder, drive)
-        return ('ok', "Folder %s tarred to drive %d", folder, drive)
+    # @request(Str(), Int())
+    # @return_reply(Str())
+    # def request_tar_folder_to_tape(self, req, folder, drive):
+    #     """Tar folder to tap"""
+    #     self.ta.tar_folder_to_tape(folder, drive)
+    #     return ('ok', "Folder %s tarred to drive %d", folder, drive)
 
-    @request(Int())
-    @return_reply(Str())
-    def request_rewind_drive(self, req, drive):
-        """Rewind drive"""
-        self.ta.rewind_drive(drive)
-        return ('ok', "Tape in drive %d rewound", drive)
+    # @request(Int())
+    # @return_reply(Str())
+    # def request_rewind_drive(self, req, drive):
+    #     """Rewind drive"""
+    #     self.ta.rewind_drive(drive)
+    #     return ('ok', "Tape in drive %d rewound", drive)
 
     @request(Int())
     @return_reply(Str())
@@ -881,13 +962,13 @@ class TapeDeviceServer(DeviceServer):
         self.ta.read_file(drive, filenames, write_location, tar_num)
         return ('ok', "Folder %s written to %s from drive %d", filenames, write_location, drive)
 
-    @request(Int())
-    @return_reply(Str())
-    def request_end_of_last_tar (self, req, drive):
-        """To end of tape in drive"""
-        self.ta.rewind_drive(drive)
-        self.ta.end_of_last_tar(drive)
-        return ('ok', "At end of last tar on drive %d", drive)
+    # @request(Int())
+    # @return_reply(Str())
+    # def request_end_of_last_tar (self, req, drive):
+    #     """To end of tape in drive"""
+    #     self.ta.rewind_drive(drive)
+    #     self.ta.end_of_last_tar(drive)
+    #     return ('ok', "At end of last tar on drive %d", drive)
 
     def handle_exit(self):
         """Try to shutdown as gracefully as possible when interrupted."""
