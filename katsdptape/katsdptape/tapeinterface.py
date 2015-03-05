@@ -123,7 +123,7 @@ class TapeLibraryAutomate(object):
             if "Full" in s_e:
                 tape_id = s_e[-7:-1]
                 if "Full" in tape_id:
-                    tape_id = "NO LABEL - %03d"%count
+                    tape_id = "NL%03d"%count
                     count+=1
                 logger.debug('Adding tape %s in slot %d in magazine %d'%(tape_id, slot_id, slot_id/30))
                 self.cur.execute("""
@@ -297,6 +297,33 @@ class TapeLibraryAutomate(object):
         self.db.commit()
         return res
 
+    def get_num_drive(self):
+        "Get number of drives"
+        logger.info("Getting number of drives")
+        self.cur.execute("SELECT COUNT(*) FROM drive")
+        res = self.cur.fetchone()[0]
+        print res
+        return res
+
+    def get_num_slot(self):
+        "Get number of slots"
+        logger.info("Getting number of slots")
+        self.cur.execute("SELECT COUNT(*) FROM slot")
+        return self.cur.fetchone()[0]
+
+    def get_tapes(self):
+        "Get tape names"
+        logger.info("Getting number of tapes")
+        self.cur.execute("SELECT id FROM tape")
+        return self.cur.fetchall()
+
+    def get_num_magazine(self):
+        "Get number of magazines"
+        logger.info("Getting number of magazines")
+        self.cur.execute("SELECT COUNT(*) FROM magazine")
+        return self.cur.fetchone()[0]
+
+
     def get_drive (self, drive):
         """Get drive info"""
         # self.get_state()
@@ -309,6 +336,50 @@ class TapeLibraryAutomate(object):
                 drive,))
         names = list(map(lambda x: x[0], self.cur.description))
         # print names
+        res = self.cur.fetchone()
+        return dict(zip(names,res))
+
+    def get_tape (self, tape):
+        """Get tape info"""
+        # self.get_state()
+        self.cur.execute("FLUSH TABLES")
+
+        logger.info("Getting tape ids")
+        self.cur.execute(
+            """SELECT * FROM tape LEFT OUTER JOIN drive ON drive.tape_id = tape.id
+            WHERE tape.id = \'%s\'"""%(
+                tape,))
+        names = list(map(lambda x: x[0], self.cur.description))
+        # print names
+        res = self.cur.fetchone()
+        return dict(zip(names,res))
+
+    def get_slot(self, slot):
+        """Get slot info"""
+        # self.get_state()
+        self.cur.execute("FLUSH TABLES")
+
+        logger.info("Getting slot %d info"%slot)
+        self.cur.execute(
+            """SELECT * FROM magazine
+            WHERE magazine.id = %d"""%(
+                magazine,))
+        names = list(map(lambda x: x[0], self.cur.description))
+        
+        res = self.cur.fetchone()
+        return dict(zip(names,res))
+
+    def get_magazine(self, slot):
+        """Get magazine info"""
+        self.cur.execute("FLUSH TABLES")
+
+        logger.info("Getting magazine %d info"%magazine)
+        self.cur.execute(
+            """SELECT * FROM slot LEFT OUTER JOIN tape ON slot.id = tape.slot_id
+            WHERE slot.id = %s"""%(
+                slot,))
+        names = list(map(lambda x: x[0], self.cur.description))
+        
         res = self.cur.fetchone()
         return dict(zip(names,res))
 
@@ -725,23 +796,34 @@ import tornado.ioloop as ioloop
 from katcp.core import Reading
 import time
 
-class DriveSensor(Sensor):
-    def __init__ (self, sensor_type, name, description=None, drive = None, tapelibraryautomate = None):
+class DBSensor(Sensor):
+    def __init__ (self, name, description=None, table = "drive", identifier = 0, parameter = "state", tapelibraryautomate = None):
         super(str, "string")
+        params = []
         self.name = name
-        self._sensor_type = sensor_type
+        self._sensor_type = 5
         self._observers = set()
+        self.table = table
+        self.description = description
+        self.units = ""
+        self.stype = "string"
+        self.formatted_params = [self._formatter(p, True) for p in params]
 
-        sensor_type = self.SENSOR_SHORTCUTS.get(sensor_type, sensor_type)
-        typeclass, default_value = self.SENSOR_TYPES[sensor_type]
+        sensor_type = self.SENSOR_SHORTCUTS.get(5, 5)
+        typeclass, default_value = self.SENSOR_TYPES[5]
         self._kattype = typeclass()
         self._formatter = self._kattype.pack
         self._parser = self._kattype.unpack
         self.tla = tapelibraryautomate
-        self.drive = drive
+        self.id = identifier
+        self.param = parameter
 
     def read(self):
-        return Reading(time.time(), 1, self.tla.get_drive(self.drive)["state"])
+        func = getattr(self.tla, "get_%s"%self.table)
+        val = func(self.id)[self.param]
+        if val == None:
+            return Reading(time.time(), 1, "None")
+        return Reading(time.time(), 1, val)
 
     # def read_formatted
 
@@ -769,32 +851,29 @@ class TapeDeviceServer(DeviceServer):
         self._buffer_dir = Sensor.string("buffer_dir",
             "Last ?buffer_dir result.", "")
         self.drive_sensors = []
-        for i in range (10):
-            self.drive_sensors.append(DriveSensor(5, "drive%d_status"%i,
-            "Last ?drive%d_status result."%i, drive = i, tapelibraryautomate = self.ta))
-            self.add_sensor(self.drive_sensors[i])
+        keys = ["attached", "magazine_id", "num_cleans", "num_reads", "num_writes", "state", "tape_id"]
+        n_k = len(keys)
+        for i in range (self.ta.get_num_drive()):
+            for k in range(n_k):
+                self.drive_sensors.append(DBSensor("drive%d_%s"%(i, keys[k]),
+                "Last ?drive%d_%s result."%(i, keys[k]), table = "drive", identifier = i, parameter = keys[k], tapelibraryautomate = self.ta))
+                self.add_sensor(self.drive_sensors[i* n_k + k])
+
+        self.tape_sensors = []
+        tapes = self.ta.get_tapes()
+        n_t = len(tapes)
+        keys = ["bytes_written","size","slot_id","state"]  #self.ta.get_tape(tapes[0][0]).keys()
+        n_k = len(keys)
+        for i in range (n_t):
+            for k in range(n_k):
+                self.tape_sensors.append(DBSensor("tape%s_%s"%(tapes[i][0], keys[k]),
+                "Last ?tape%s_%s result."%(tapes[i][0], keys[k]), table = "tape", identifier = tapes[i], parameter = keys[k], tapelibraryautomate = self.ta))
+                self.add_sensor(self.tape_sensors[i* n_k + k])
 
         self.add_sensor(self._buffer_dir)
         
-        
-
         self._buffer_dir.set_value(self.ta.buffer_dirs[self.ta.buffer_index])
         
-
-    # @request()
-    # @return_reply(Str())
-    # def request_swap_buffer(self, req):
-    #     """Set the buffer_dir sensor"""
-    #     self.ta.swap_buffer()
-    #     self._buffer_dir.set_value(self.ta.buffer_dirs[self.ta.buffer_index])
-    #     return ("ok", "buffer_dir_set_to_%s"%self.ta.buffer_dirs[self.ta.buffer_index])
-
-    # @request(Str()) Don't need this
-    # @return_reply(Str())
-    # def request_set_buffer_dir(self, req, buffer_dir):
-    #     """Set the buffer_dir sensor"""
-    #     self._buffer_dir.set_value(buffer_dir)
-    #     return ("ok", "buffer_dir_set_to_%s" % buffer_dir)
 
     @request(Int(), Int())
     @return_reply(Str())
