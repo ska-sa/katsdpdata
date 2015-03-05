@@ -10,6 +10,7 @@ import subprocess
 from config import config as cnf
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import (Str, Int, request, return_reply)
+from katcp.sampling import SamplePeriod
 import shutil
 
 storage_element_regex = re.compile(" Storage Element \d{1,3}.+\n")
@@ -27,6 +28,7 @@ class TapeLibraryAutomate(object):
         self.buffer_dirs=["%s/buffer1"%buffer_dir, "%s/buffer2"%buffer_dir]
         self.buffer_index = 0
         self.get_drive_handles()
+        cnf["soft_tape_limit"] = buffer_size
 
         logger.info('Initialising TapeLibraryAutomate')
         self.db = sql.connect(cnf["db_host"], cnf["db_usr"], cnf["db_password"], cnf["db_name"])
@@ -298,6 +300,7 @@ class TapeLibraryAutomate(object):
     def get_drive (self, drive):
         """Get drive info"""
         # self.get_state()
+        self.cur.execute("FLUSH TABLES")
 
         logger.info("Getting drive %d info"%drive)
         self.cur.execute(
@@ -307,7 +310,7 @@ class TapeLibraryAutomate(object):
         names = list(map(lambda x: x[0], self.cur.description))
         # print names
         res = self.cur.fetchone()
-        return [names,res]
+        return dict(zip(names,res))
 
     def set_idle(self, drive):
         self.cur.execute(
@@ -332,15 +335,15 @@ class TapeLibraryAutomate(object):
 
         res = self.get_drive(drive)
         tape = None
-        if res[1][res[0].index("attached")] == 0:
+        if res["attached"] == 0:
             raise Exception ("Drive not attached for writing")
-        if res[1][res[0].index("tape_id")] == None:
+        if res["tape_id"] == None:
             tape = self.load_empty_tape(drive)[1][0]
-        elif res[1][res[0].index("bytes_written")] > 0:
+        elif res["bytes_written"] > 0:
             self.unload(drive)
             tape = self.load_empty_tape(drive)[1][0]
         else:
-            tape = res[1][res[0].index("tape_id")]
+            tape = res["tape_id"]
         self.rewind_drive(drive)
         self.tar_folder_to_tape(buffer_dir, drive)
         self.unload(drive)
@@ -375,7 +378,7 @@ class TapeLibraryAutomate(object):
 
             drive_info = self.get_drive(drive)
 
-            if drive_info[1][drive_info[0].index("state")] != "IDLE" and drive_info[1][drive_info[0].index("state")] != "EMPTY":
+            if drive_info["state"] != "IDLE" and drive_info[1][drive_info[0].index("state")] != "EMPTY":
                 raise Exception("drive_%d_busy"%drive)
 
             self.set_writing(drive)
@@ -718,6 +721,29 @@ def callback(future):
 
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import tornado.ioloop as ioloop
+from katcp.core import Reading
+import time
+
+class DriveSensor(Sensor):
+    def __init__ (self, sensor_type, name, description=None, drive = None, tapelibraryautomate = None):
+        super(str, "string")
+        self.name = name
+        self._sensor_type = sensor_type
+        self._observers = set()
+
+        sensor_type = self.SENSOR_SHORTCUTS.get(sensor_type, sensor_type)
+        typeclass, default_value = self.SENSOR_TYPES[sensor_type]
+        self._kattype = typeclass()
+        self._formatter = self._kattype.pack
+        self._parser = self._kattype.unpack
+        self.tla = tapelibraryautomate
+        self.drive = drive
+
+    def read(self):
+        return Reading(time.time(), 1, self.tla.get_drive(self.drive)["state"])
+
+    # def read_formatted
 
 class TapeDeviceServer(DeviceServer):
 
@@ -728,22 +754,32 @@ class TapeDeviceServer(DeviceServer):
         print "buffer size"
         print buffer_size
         self.ta = TapeLibraryAutomate(buffer_dir, buffer_size=buffer_size)
+
         DeviceServer.__init__(self, server_host, server_port)
         self.set_concurrency_options(False, False)
-        
+
+    
+    def update_sensors(self):
+        print "updating sensors"
+        # self._drive0_status.set_value(self.ta.get_drive(0)["state"])
+        self._drive0_status.set_value("YOLO")
 
     def setup_sensors(self):
         """Setup some server sensors."""
         self._buffer_dir = Sensor.string("buffer_dir",
             "Last ?buffer_dir result.", "")
-        self._buffer1_size = Sensor.integer("buffer1_size",
-            "Last ?buffer1_size result.", "")
-        self._buffer2_size = Sensor.integer("buffer2_size",
-            "Last ?buffer_size result.", "")
+        self.drive_sensors = []
+        for i in range (10):
+            self.drive_sensors.append(DriveSensor(5, "drive%d_status"%i,
+            "Last ?drive%d_status result."%i, drive = i, tapelibraryautomate = self.ta))
+            self.add_sensor(self.drive_sensors[i])
 
         self.add_sensor(self._buffer_dir)
+        
+        
 
         self._buffer_dir.set_value(self.ta.buffer_dirs[self.ta.buffer_index])
+        
 
     # @request()
     # @return_reply(Str())
