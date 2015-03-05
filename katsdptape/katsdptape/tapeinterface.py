@@ -867,7 +867,7 @@ class TapeDeviceServer(DeviceServer):
         for i in range (n_t):
             for k in range(n_k):
                 self.tape_sensors.append(DBSensor("tape%s_%s"%(tapes[i][0], keys[k]),
-                "Last ?tape%s_%s result."%(tapes[i][0], keys[k]), table = "tape", identifier = tapes[i], parameter = keys[k], tapelibraryautomate = self.ta))
+                "Last ?tape%s_%s result."%(tapes[i][0], keys[k]), table = "tape", identifier = tapes[i][0], parameter = keys[k], tapelibraryautomate = self.ta))
                 self.add_sensor(self.tape_sensors[i* n_k + k])
 
         self.add_sensor(self._buffer_dir)
