@@ -126,24 +126,30 @@ class File(object):
                 c_group = self._h5_file[comp_base]
                 logger.warning("Failed to create group %s (likely to already exist)", comp_base)
             for attribute in component.attributes:
-                value = model_data.get_attribute_value(attribute)
-                if value is not None:
-                    c_group.attrs[attribute.name] = value
+                try:
+                    value = model_data.get_attribute_value(attribute)
+                    if value is not None:
+                        c_group.attrs[attribute.name] = value
+                except Exception:
+                    logger.warning("Exception thrown while storing attribute %s", attribute.name, exc_info=True)
             for sensor in sorted(component.sensors, key=lambda sensor: sensor.name):
-                data = model_data.get_sensor_values(sensor)
-                if data is not None:
-                    try:
-                        dset = np.rec.fromrecords(data, names='timestamp, value, status')
-                        dset.sort(axis=0)
-                        c_group.create_dataset(sensor.name, data=dset)
-                        if sensor.description is not None:
-                            c_group[sensor.name].attrs['description'] = sensor.description
-                    except IndexError:
-                        logger.warning("Failed to create dataset %s/%s as the model has no values",
-                                       comp_base, sensor.name)
-                    except RuntimeError:
-                        logger.warning("Failed to insert dataset %s/%s as it already exists",
-                                       comp_base, sensor.name)
+                try:
+                    data = model_data.get_sensor_values(sensor)
+                    if data is not None:
+                        try:
+                            dset = np.rec.fromrecords(data, names='timestamp, value, status')
+                            dset.sort(axis=0)
+                            c_group.create_dataset(sensor.name, data=dset)
+                            if sensor.description is not None:
+                                c_group[sensor.name].attrs['description'] = sensor.description
+                        except IndexError:
+                            logger.warning("Failed to create dataset %s/%s as the model has no values",
+                                           comp_base, sensor.name)
+                        except RuntimeError:
+                            logger.warning("Failed to insert dataset %s/%s as it already exists",
+                                           comp_base, sensor.name)
+                except Exception:
+                    logger.warning("Exception thrown while storing sensor %s", sensor.name, exc_info=True)
         self._h5_file.flush()
 
     def close(self):
