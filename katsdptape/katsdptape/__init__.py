@@ -1,1 +1,1 @@
-from .tapeinterface import TapeMachineInterface
+from .tapeinterface import TapeLibraryAutomate
