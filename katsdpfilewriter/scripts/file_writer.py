@@ -52,7 +52,9 @@ class TelstateModelData(telescope_model.TelescopeModelData):
 
     def get_sensor_values(self, sensor):
         try:
-            values = self._telstate.get_range(sensor.full_name, self._start_timestamp, np.inf)
+            values = self._telstate.get_range(sensor.full_name,
+                                              self._start_timestamp, np.inf,
+                                              include_previous=True)
         except KeyError:
             return None
         if values is None:
