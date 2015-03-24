@@ -15,16 +15,27 @@ class MetExtractor(object):
     """Base class for handling metadata extraction. This class can be used to
     create an empty met file that complies with OODT ingest"
 
+    Parameters
+    ----------
+    metadata_filename : string : name of the metadata output file to use.
+        Filename for access handler to CAS metadata file.
+
     Attributes
     ----------
-    metadata : dict
-        Holds key-value pairs for metadata.
+    product_type : string : Specify product type for OODT Filemananger ingest
+        set to None
+
+    Hidden Attributes
+    -----------------
+    _metadata_extracted : boolean : keep track of metadata extraction.
+        The access handler to a katfile.
     """
+
     def __init__(self, metadata_filename):
         super(MetExtractor, self).__init__()
+        self.metadata_filename = metadata_filename
         self.metadata = {}
         self.product_type = None
-        self.metadata_filename = metadata_filename
         self._metadata_extracted = False
 
     def extract_metadata(self):
@@ -54,22 +65,30 @@ class MetExtractor(object):
             raise MetExtractorException('No metadata extracted.')
 
 class Kat7TelescopeProductMetExtractor(MetExtractor):
-    """Used for extracting metdata from an HDF5 KAT File.
+    """Used for extracting metdata for a Katfile. As well as extracting data from a 
+    katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise 
+    empty string.
 
     Parameters
     ----------
-    katdata : class : DataSet
-        The access handler to a HDF5 katdata.
+    katfile : string : name of the katfile to open.
+        Filename for access handler to a HDF5 katdata.
 
     Attributes
     ----------
-    katdata : class : DataSet
-        The access handler to a HDF5 katdata.
+    product_type : string : Specify product type for OODT Filemananger ingest
+        set to 'Katfile'
+
+    Hidden Attributes
+    -----------------
+    _katdata : class : katdal
+        The access handler to a katfile.
     """
-    def __init__(self, filename):
-        self.filename = os.path.abspath(filename)
-        super(Kat7TelescopeProductMetExtractor, self).__init__('%s.%s' % (self.filename, 'met',))
-        self._katdata = katdal.open(os.path.abspath(filename))
+
+    def __init__(self, katfile):
+        self.katfile = os.path.abspath(katfile)
+        super(Kat7TelescopeProductMetExtractor, self).__init__('%s.%s' % (self.katfile, 'met',))
+        self._katdata = katdal.open(os.path.abspath(katfile))
         self.product_type = 'Katfile' #TODO - modify to 'Kat7TelescopeProduct'
 
     def _extract_metadata_product_type(self):
@@ -96,60 +115,93 @@ class Kat7TelescopeProductMetExtractor(MetExtractor):
         self.metadata['Targets'] = list(set([i.name for i in self._katdata.catalogue.targets if i.name not in ['None', 'Nothing', 'azel', 'radec']]))
 
     def _extract_metadata_file_digest(self):
-        print 'Calculating the md5 checksum for %s. This may take a while.' % (self.filename)
-        p = subprocess.Popen(['md5sum', self.filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+        print 'Calculating the md5 checksum for %s. This may take a while.' % (self.katfile)
+        p = subprocess.Popen(['md5sum', self.katfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
         if not p[1]:
             self.metadata['FileDigest'] = p[0].split()[0]
         print 'md5 checksum complete. Digest is %s.' % self.metadata['FileDigest']
     
     def extract_metadata(self):
-        self._extract_metadata_product_type()
-        self._extract_metadata_from_katdata()
-        self._extract_metadata_file_digest()
-        self._metadata_extracted = True
+        if not self._metadata_extracted:
+            self._extract_metadata_product_type()
+            self._extract_metadata_from_katdata()
+            self._extract_metadata_file_digest()
+            self._metadata_extracted = True
+        else:
+            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
 class RTSTelescopeProductMetExtractor(Kat7TelescopeProductMetExtractor):
-    """Used for extracting metdata from an HDF5 KAT File that has been captured by the RTS.
+    """Used for extracting metdata for a RTSTelescopeProduct. As well as extracting data from a 
+    katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise 
+    empty string.
+
     Parameters
     ----------
-    katdata : class : DataSet
-        The access handler to a HDF5 katdata.
+    katfile : string : name of the katfile to open.
+        Filename for access handler to a HDF5 katdata.
 
     Attributes
     ----------
-    katdata : class : DataSet
-        The access handler to a HDF5 katdata.
+    product_type : string : Specify product type for OODT Filemananger ingest
+        set to 'RTSTelescopeProduct'
+
+    Hidden Attributes
+    -----------------
+    _sensor_host : string : ip address of the vis-store-tape
+        set to '192.168.6.233'
+    _katcp_port : integer : katcp port
+        set to 5001
+    _metadata_key_to_map : string : The extra key to map
+        set to 'ReductionName'
+    _sensor_name_to_get : string : katcp sensor name
+        'buffer_dir'
     """
-    def __init__(self, katfile, metadata_key = 'ReductionName', obs_param = 'reduction_name'):
+
+    def __init__(self, katfile):
         super(RTSTelescopeProductMetExtractor, self).__init__(katfile)
-        self._metadata_key = 'ReductionName'
-        self._obs_param = 'reduction_name'
+        self._metadata_key_to_map = 'ReductionName'
+        self._obs_param_to_get = 'reduction_name'
         #always set product_type after call to super
         self.product_type = 'RTSTelescopeProduct'
 
     def _extract_metadata_from_katdata(self):
         """Populate self.metadata with information scraped from self._katdata"""
         super(RTSTelescopeProductMetExtractor, self)._extract_metadata_from_katdata()
-        self.metadata[self._metadata_key] = self._katdata.obs_params.get(self._obs_param, '')
+        self.metadata[self._metadata_key_to_map] = self._katdata.obs_params.get(self._obs_param, '')
 
 class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
-    """Used for extracting metdata from a katcp sensor.
+    """Used for extracting metdata for a MeerkatTelescopeTapeProduct. As well as extracting data 
+    from a katfile, a further metadata key 'TapeBufferDirectory' must be gotten from a katcp server 
+    sensor.
+
     Parameters
     ----------
     katfile : string : name of the katfile to open.
-        Fileame for access handler to a HDF5 katdata.
+        Filename for access handler to a HDF5 katdata.
 
     Attributes
     ----------
-    katdata : class : DataSet
-        The access handler to a HDF5 katdata.
+    product_type : string : Specify product type for OODT Filemananger ingest
+        set to 'MeerkatTelescopeTapeProduct'
+
+    Hidden Attributes
+    -----------------
+    _sensor_host : string : ip address of the vis-store-tape
+        set to '192.168.6.233'
+    _katcp_port : integer : katcp port
+        set to 5001
+    _metadata_key_to_map : string : The extra key to map
+        set to 'TapeBufferDirectory'
+    _sensor_name_to_get : string : katcp sensor name
+        'buffer_dir'
     """
-    def __init__(self, katfile, server_host='192.168.6.233', server_port=5001):
+
+    def __init__(self, katfile):
         super(MeerkatTelescopeTapeProductMetExtractor, self).__init__(katfile)
-        self.server_host = server_host
-        self.server_port = server_port
-        self.metadata_key = 'TapeBufferDirectory'
-        self.sensor_name = 'buffer_dir'
+        self._sensor_host = '192.168.6.233'
+        self._katcp_port = 5001
+        self._metadata_key_to_map = 'TapeBufferDirectory'
+        self._sensor_name_to_get = 'buffer_dir'
         #always set product_type after call to super
         self.product_type = 'MeerkatTelescopeTapeProduct'
 
@@ -158,11 +210,15 @@ class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         client = BlockingClient(self.server_host, self.server_port)
         client.start()
         client.wait_protocol()
-        reply, informs = client.blocking_request(Message.request("sensor-value", self.sensor_name))
+        reply, informs = client.blocking_request(Message.request("sensor-value", self._sensor_name_to_get))
         client.stop()
         client.join()
-        self.metadata[self.metadata_key] = informs[0].arguments[-1]
+        self.metadata[self._metadata_key_to_map] = informs[0].arguments[-1]
 
     def extract_metadata(self):
-        self._extract_metadata_from_katsensor()
-        super(MeerkatTelescopeTapeProductMetExtractor, self).extract_metadata()
+        if not self._metadata_extracted:
+            self._extract_metadata_from_katsensor()
+            super(MeerkatTelescopeTapeProductMetExtractor, self).extract_metadata()
+        else:
+            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+
