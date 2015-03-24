@@ -14,6 +14,7 @@ setup(
     scripts = [
         "scripts/katfile_met_extractor.py",
         "scripts/rts_met_extractor.py",
+        "scripts/mkat_tape_met_extractor.py",
         "scripts/workflowmgr-client.py",
         "scripts/celery-workflowmgr.py",
         "bin/cas-crawler-client.sh",

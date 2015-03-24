@@ -1,15 +1,11 @@
 #!/usr/bin/env python
-import katdal
 import os
 import sys
-import subprocess
-import time
 
-from katsdpdata.met_extractors import RTSMetExtractor
+from katsdpdata.met_extractors import RTSTelescopeProductMetExtractor
 from optparse import OptionParser
-from xml.etree import ElementTree
 
-usage = 'Usage: %prog filename'
+usage = 'Usage: %prog katfile'
 parser = OptionParser(usage=usage)
 (options, args) = parser.parse_args()
 
@@ -25,11 +21,6 @@ if os.path.isfile(metfilename):
     sys.exit(0)
 
 #met extractor specific
-katdata = katdal.open(os.path.abspath(filename))
-major_version = int(float(katdata.version))
-met_extractor = RTSMetExtractor(katdata)
-met_extractor.set_metadata()
-
-with open(metfilename, 'w') as metfile:
-   metfile.write(met_extractor.get_metadata())
-
+met_extractor = RTSTelescopeProductMetExtractor(filename)
+met_extractor.extract_metadata()
+met_extractor.write_metadatafile()

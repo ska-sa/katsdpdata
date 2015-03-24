@@ -2,7 +2,7 @@
 import os
 import sys
 
-from katsdpdata.met_extractors import Kat7TelescopeProductMetExtractor
+from katsdpdata.met_extractors import MeerkatTelescopeTapeProductMetExtractor
 from optparse import OptionParser
 
 usage = 'Usage: %prog katfile'
@@ -21,6 +21,6 @@ if os.path.isfile(metfilename):
     sys.exit(0)
 
 #met extractor specific
-met_extractor = Kat7TelescopeProductMetExtractor(filename)
+met_extractor = MeerkatTelescopeTapeProductMetExtractor(filename)
 met_extractor.extract_metadata()
 met_extractor.write_metadatafile()
