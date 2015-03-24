@@ -167,7 +167,7 @@ class RTSTelescopeProductMetExtractor(Kat7TelescopeProductMetExtractor):
     def _extract_metadata_from_katdata(self):
         """Populate self.metadata with information scraped from self._katdata"""
         super(RTSTelescopeProductMetExtractor, self)._extract_metadata_from_katdata()
-        self.metadata[self._metadata_key_to_map] = self._katdata.obs_params.get(self._obs_param, '')
+        self.metadata[self._metadata_key_to_map] = self._katdata.obs_params.get(self._obs_param_to_get, '')
 
 class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
     """Used for extracting metdata for a MeerkatTelescopeTapeProduct. As well as extracting data 
