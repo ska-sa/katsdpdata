@@ -207,7 +207,7 @@ class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
 
     def _extract_metadata_from_katsensor(self):
         """Populate self.metadata with information from a katcp request"""
-        client = BlockingClient(self.server_host, self.server_port)
+        client = BlockingClient(self._sensor_host, self._katcp_port)
         client.start()
         client.wait_protocol()
         reply, informs = client.blocking_request(Message.request("sensor-value", self._sensor_name_to_get))
