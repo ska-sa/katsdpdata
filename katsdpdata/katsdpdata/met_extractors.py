@@ -120,7 +120,7 @@ class Kat7TelescopeProductMetExtractor(MetExtractor):
         if not p[1]:
             self.metadata['FileDigest'] = p[0].split()[0]
         print 'md5 checksum complete. Digest is %s.' % self.metadata['FileDigest']
-    
+
     def extract_metadata(self):
         if not self._metadata_extracted:
             self._extract_metadata_product_type()
@@ -131,8 +131,8 @@ class Kat7TelescopeProductMetExtractor(MetExtractor):
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
 class RTSTelescopeProductMetExtractor(Kat7TelescopeProductMetExtractor):
-    """Used for extracting metdata for a RTSTelescopeProduct. As well as extracting data from a 
-    katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise 
+    """Used for extracting metdata for a RTSTelescopeProduct. As well as extracting data from a
+    katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise
     empty string.
 
     Parameters
@@ -170,8 +170,8 @@ class RTSTelescopeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         self.metadata[self._metadata_key_to_map] = self._katdata.obs_params.get(self._obs_param_to_get, '')
 
 class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
-    """Used for extracting metdata for a MeerkatTelescopeTapeProduct. As well as extracting data 
-    from a katfile, a further metadata key 'TapeBufferDirectory' must be gotten from a katcp server 
+    """Used for extracting metdata for a MeerkatTelescopeTapeProduct. As well as extracting data
+    from a katfile, a further metadata key 'TapeBufferDirectory' must be gotten from a katcp server
     sensor.
 
     Parameters
