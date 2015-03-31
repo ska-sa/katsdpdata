@@ -194,6 +194,8 @@ class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         set to 'TapeBufferDirectory'
     _sensor_name_to_get : string : katcp sensor name
         'buffer_dir'
+    _repository_path : string : the repository path
+        The OODT product repository path. Default is '/var/kat/data'
     """
 
     def __init__(self, katfile):
@@ -202,6 +204,7 @@ class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         self._katcp_port = 5001
         self._metadata_key_to_map = 'TapeBufferDirectory'
         self._sensor_name_to_get = 'buffer_dir'
+        self._repository_path='/var/kat/data'
         #always set product_type after call to super
         self.product_type = 'MeerkatTelescopeTapeProduct'
 
@@ -213,11 +216,16 @@ class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         reply, informs = client.blocking_request(Message.request("sensor-value", self._sensor_name_to_get))
         client.stop()
         client.join()
-        self.metadata[self._metadata_key_to_map] = informs[0].arguments[-1]
+        return informs[0].arguments[-1]
+
+    def _set_metadata_key_to_map(self):
+        katsensor_value  = self._extract_metadata_from_katsensor()
+        metadata_key_value = os.path.relpath(katsensor_value, self._repository_path)
+        self.metadata[self._metadata_key_to_map] = metadata_key_value
 
     def extract_metadata(self):
         if not self._metadata_extracted:
-            self._extract_metadata_from_katsensor()
+            self._set_metadata_key_to_map()
             super(MeerkatTelescopeTapeProductMetExtractor, self).extract_metadata()
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
