@@ -829,10 +829,10 @@ class TapeDeviceServer(DeviceServer):
     VERSION_INFO = ("tape_katcp_interface", 1, 0)
     BUILD_INFO = ("tape_katcp_interface", 0, 1, "")
 
-    def __init__(self, server_host, server_port, buffer_dir = cnf["buffer_dir"], buffer_size = cnf["soft_tape_limit"]):
+    def __init__(self, server_host, server_port, repository_path = cnf["repository_path"], buffer_size = cnf["soft_tape_limit"]):
         print "buffer size"
         print buffer_size
-        self.ta = TapeLibraryAutomate(buffer_dir, buffer_size=buffer_size)
+        self.ta = TapeLibraryAutomate(repository_path, buffer_size=buffer_size)
 
         DeviceServer.__init__(self, server_host, server_port)
         self.set_concurrency_options(False, False)
