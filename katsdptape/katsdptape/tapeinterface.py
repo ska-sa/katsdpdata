@@ -74,6 +74,7 @@ class TapeLibraryAutomate(object):
                 bytes_written BIGINT,
                 size BIGINT,
                 slot_id INTEGER,
+                file_list TEXT,
                 FOREIGN KEY (slot_id) REFERENCES slot(id))''')
         logger.info('Creating drive table')
         self.cur.execute('''
@@ -417,11 +418,10 @@ class TapeLibraryAutomate(object):
         else:
             tape = res["tape_id"]
         self.rewind_drive(drive)
-        self.tar_folder_to_tape(buffer_dir, drive)
+        products = self.tar_folder_to_tape(buffer_dir, drive)
         self.unload(drive)
         self.load_empty_tape(drive)
 
-        products = os.listdir(buffer_dir)
         for file_object in products:
             file_object_path = os.path.join(buffer_dir, file_object)
             if os.path.isfile(file_object_path):
@@ -657,6 +657,8 @@ class TapeLibraryAutomate(object):
             logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
 
             logger.info("Updating  DB")
+            
+            products = os.listdir(folder)
 
             self.cur.execute(
                 """UPDATE drive
@@ -665,13 +667,14 @@ class TapeLibraryAutomate(object):
                     drive,))
             self.cur.execute(
                 """UPDATE tape
-                SET bytes_written = bytes_written + %d
+                SET bytes_written = bytes_written + %d, file_list='%s'
                 WHERE id = \'%s\'"""%(
-                    size, res[1]))
+                    size, ', '.join(products), res[1]))
             self.db.commit()
             logger.info("Committed changes to DB")
         else:
             print "ERROR while writing to drive. Attached = %d, tape = %s"%res
+        return products
 
     def rewind_drive(self, drive):
         # self.get_state()
@@ -862,7 +865,7 @@ class TapeDeviceServer(DeviceServer):
         self.tape_sensors = []
         tapes = self.ta.get_tapes()
         n_t = len(tapes)
-        keys = ["bytes_written","size","slot_id","state"]  #self.ta.get_tape(tapes[0][0]).keys()
+        keys = ["bytes_written","size","slot_id","state","file_list"]  #self.ta.get_tape(tapes[0][0]).keys()
         n_k = len(keys)
         for i in range (n_t):
             for k in range(n_k):
