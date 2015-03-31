@@ -4,13 +4,14 @@ import os
 import re
 import MySQLdb as sql
 import subprocess
+import shutil
+import time
 
-#from katcp import DeviceServer, Sensor, ProtocolFlags, AsyncReply
-#from katcp.kattypes import (Str, Float, Timestamp, Discrete, Int, request, return_reply)
 from config import config as cnf
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import (Str, Int, request, return_reply)
-import shutil
+from concurrent.futures import ProcessPoolExecutor
+from katcp.core import Reading
 
 storage_element_regex = re.compile(" Storage Element \d{1,3}.+\n")
 data_transfer_regex = re.compile("Data Transfer Element \d{1}:.+\n")
@@ -420,7 +421,8 @@ class TapeLibraryAutomate(object):
         self.unload(drive)
         self.load_empty_tape(drive)
 
-        for file_object in os.listdir(buffer_dir):
+        products = os.listdir(buffer_dir)
+        for file_object in products:
             file_object_path = os.path.join(buffer_dir, file_object)
             if os.path.isfile(file_object_path):
                 os.unlink(file_object_path)
@@ -441,7 +443,7 @@ class TapeLibraryAutomate(object):
         # out, err = cmd.communicate()
         # print out
 
-        return tape, buffer_dir
+        return tape, products 
 
     def async_write_buffer_to_tape(self, buffer_dir, drive):
         """Write the buffer to a empty tape"""
@@ -707,25 +709,28 @@ class TapeLibraryAutomate(object):
                 WHERE id = %d"""%(
                     drive,))
         self.db.commit()
-        cmd=subprocess.Popen(["tar","-tf","/dev/n%s"%cnf["drive%s"%drive][0]], stdout=subprocess.PIPE)
+        cmd=subprocess.Popen(["tar","-tf","/dev/%s"%cnf["drive%s"%drive][0]], stdout=subprocess.PIPE)
         cmd.wait()
-        ret = []
-        count = 0
+        #ret = []
+        #count = 0
         out = cmd.communicate()[0]
+        ret = []
+        if out.returncode == 0:
+            ret = out.splitlines()
+        #incase of multiple tars. Do this...
+        #while cmd.returncode == 0:
+        #    print "----------------"
+        #    print out
+        #    ret.append(out)
+        #    cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
+        #    cmd.wait()
+        #    cmd=subprocess.Popen(["tar","-tf","/dev/n%s"%cnf["drive%s"%drive][0]], stdout=subprocess.PIPE)
+        #    cmd.wait()
+        #    out = cmd.communicate()[0]
+        #    count += 1
 
-        while cmd.returncode == 0:
-            print "----------------"
-            print out
-            ret.append(out)
-            cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
-            cmd.wait()
-            cmd=subprocess.Popen(["tar","-tf","/dev/n%s"%cnf["drive%s"%drive][0]], stdout=subprocess.PIPE)
-            cmd.wait()
-            out = cmd.communicate()[0]
-            count += 1
-
-        cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "bsfm", "1"], stdout=subprocess.PIPE)
-        cmd.wait()
+        #cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "bsfm", "1"], stdout=subprocess.PIPE)
+        #cmd.wait()
 
         self.cur.execute(
                 """UPDATE drive
@@ -733,7 +738,8 @@ class TapeLibraryAutomate(object):
                 WHERE id = %d"""%(
                     drive,))
         self.db.commit()
-
+        
+        #ret = ret.split('/n')
         return ret
 
     def read_file(self, drive, filenames, write_location, tar_num = 0):
@@ -779,20 +785,17 @@ class TapeLibraryAutomate(object):
 def write_buffer_to_tape (buffer_dir, drive):
         ta = TapeLibraryAutomate()
         print "CREATED"
-        tape = ta.write_buffer_to_tape(buffer_dir, drive)
+        tape, products = ta.write_buffer_to_tape(buffer_dir, drive)
         # print tape
         ta.close()
-        return tape
+        return tape, products
 
 def callback(future):
     #TODO update solr
     print "It's called back"
-    tape, folder = future.result()
-
-#@todo: as_completed call back on future
-from concurrent.futures import ProcessPoolExecutor#, as_completed
-from katcp.core import Reading
-import time
+    tape, products = future.result()
+    print 'tape = %s' % (tape,)
+    print 'products = %s' % (products,)
 
 class DBSensor(Sensor):
     def __init__ (self, name, description=None, table = "drive", identifier = 0, parameter = "state", tapelibraryautomate = None):
@@ -1034,8 +1037,7 @@ class TapeDeviceServer(DeviceServer):
     def request_get_file_list (self, req, drive):
         """Take in a drive number and return the files stored on each of the tars on the file.
         Returns a list of strings, string contains all the files in the corresponding tar"""
-        ret = self.ta.get_file_list(drive)
-        for line in ret.split("\n"):
+        for line in self.ta.get_file_list(drive):
             req.inform(line)
         return ('ok', "get-file-list COMPLETE")
 
