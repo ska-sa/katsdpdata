@@ -10,7 +10,6 @@ import subprocess
 from config import config as cnf
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import (Str, Int, request, return_reply)
-from katcp.sampling import SamplePeriod
 import shutil
 
 storage_element_regex = re.compile(" Storage Element \d{1,3}.+\n")
@@ -22,10 +21,11 @@ logger = logging.getLogger("katsdptape.katsdptapeinterface")
 
 class TapeLibraryAutomate(object):
     """docstring for TapeLibraryAutomate"""
-    def __init__(self, buffer_dir = cnf["buffer_dir"], loglevel = logging.DEBUG, buffer_size = cnf["soft_tape_limit"]):
+    def __init__(self, repository_path = cnf["repository_path"], loglevel = logging.DEBUG, buffer_size = cnf["soft_tape_limit"]):
         super(TapeLibraryAutomate, self).__init__()
 
-        self.buffer_dirs=["%s/buffer1"%buffer_dir, "%s/buffer2"%buffer_dir]
+        self.repository_path = repository_path
+        self.buffer_dirs=[os.path.join(repository_path, 'buffer1'), os.path.join(repository_path, 'buffer2')]
         self.buffer_index = 0
         self.get_drive_handles()
         cnf["soft_tape_limit"] = buffer_size
@@ -354,12 +354,12 @@ class TapeLibraryAutomate(object):
         res = self.cur.fetchone()
         return dict(zip(names,res))
 
-    def get_slot(self, slot):
-        """Get slot info"""
+    def get_magazine(self, magazine):
+        """Get magazine info"""
         # self.get_state()
         self.cur.execute("FLUSH TABLES")
 
-        logger.info("Getting slot %d info"%slot)
+        logger.info("Getting magazine %d info"%magazine)
         self.cur.execute(
             """SELECT * FROM magazine
             WHERE magazine.id = %d"""%(
@@ -369,11 +369,11 @@ class TapeLibraryAutomate(object):
         res = self.cur.fetchone()
         return dict(zip(names,res))
 
-    def get_magazine(self, slot):
-        """Get magazine info"""
+    def get_slot(self, slot):
+        """Get slot info"""
         self.cur.execute("FLUSH TABLES")
 
-        logger.info("Getting magazine %d info"%magazine)
+        logger.info("Getting slot %d info"%slot)
         self.cur.execute(
             """SELECT * FROM slot LEFT OUTER JOIN tape ON slot.id = tape.slot_id
             WHERE slot.id = %s"""%(
@@ -458,7 +458,7 @@ class TapeLibraryAutomate(object):
             # print "WRITE STARTED"
         except Exception, e:
             # return ('fail', str(e).replace(' ', '_'))
-            raise
+            raise e
         return True
 
     def archive_to_tape(self):
@@ -789,10 +789,8 @@ def callback(future):
     print "It's called back"
     tape, folder = future.result()
 
-
-
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import tornado.ioloop as ioloop
+#@todo: as_completed call back on future
+from concurrent.futures import ProcessPoolExecutor#, as_completed
 from katcp.core import Reading
 import time
 
@@ -809,7 +807,6 @@ class DBSensor(Sensor):
         self.stype = "string"
         self.formatted_params = [self._formatter(p, True) for p in params]
 
-        sensor_type = self.SENSOR_SHORTCUTS.get(5, 5)
         typeclass, default_value = self.SENSOR_TYPES[5]
         self._kattype = typeclass()
         self._formatter = self._kattype.pack
@@ -911,13 +908,6 @@ class TapeDeviceServer(DeviceServer):
         for line in ret.split("\n"):
             req.inform(line.replace(" ","_"))
         return ('ok', "print-state_COMPLETE")
-
-    # @request()
-    # @return_reply(Str())
-    # def request_create_tables (self, req):
-    #     """Create tables"""
-    #     self.ta.create_tables()
-    #     return ('ok', 'Tables created')
 
     @request()
     @return_reply(Str())
@@ -1029,11 +1019,6 @@ class TapeDeviceServer(DeviceServer):
             req.inform("slot %d"%line[0])
         return ('ok', "get-free-slots COMPLETE")
 
-    # def target(object, *args, **kw):
-    #     method_name = args[0]
-    #     return getattr(object, method_name)(*args[1:])
-
-
     @request(Str(),Int())
     @return_reply(Str())
     def request_write_buffer_to_tape(self, req, buffer_dir, drive):
@@ -1042,22 +1027,7 @@ class TapeDeviceServer(DeviceServer):
             return self.ta.async_write_buffer_to_tape(buffer_dir, drive)
         except Exception, e:
             # return ('fail', str(e).replace(' ', '_'))
-            raise
-
-
-    # @request(Str(), Int())
-    # @return_reply(Str())
-    # def request_tar_folder_to_tape(self, req, folder, drive):
-    #     """Tar folder to tap"""
-    #     self.ta.tar_folder_to_tape(folder, drive)
-    #     return ('ok', "Folder %s tarred to drive %d", folder, drive)
-
-    # @request(Int())
-    # @return_reply(Str())
-    # def request_rewind_drive(self, req, drive):
-    #     """Rewind drive"""
-    #     self.ta.rewind_drive(drive)
-    #     return ('ok', "Tape in drive %d rewound", drive)
+            raise e
 
     @request(Int())
     @return_reply(Str())
@@ -1076,14 +1046,6 @@ class TapeDeviceServer(DeviceServer):
         self.ta.rewind_drive(drive)
         self.ta.read_file(drive, filenames, write_location, tar_num)
         return ('ok', "Folder %s written to %s from drive %d", filenames, write_location, drive)
-
-    # @request(Int())
-    # @return_reply(Str())
-    # def request_end_of_last_tar (self, req, drive):
-    #     """To end of tape in drive"""
-    #     self.ta.rewind_drive(drive)
-    #     self.ta.end_of_last_tar(drive)
-    #     return ('ok', "At end of last tar on drive %d", drive)
 
     def handle_exit(self):
         """Try to shutdown as gracefully as possible when interrupted."""
