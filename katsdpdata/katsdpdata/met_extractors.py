@@ -65,8 +65,8 @@ class MetExtractor(object):
             raise MetExtractorException('No metadata extracted.')
 
 class Kat7TelescopeProductMetExtractor(MetExtractor):
-    """Used for extracting metdata for a Katfile. As well as extracting data from a 
-    katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise 
+    """Used for extracting metdata for a KatFile. As well as extracting data from a
+    katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise
     empty string.
 
     Parameters
@@ -77,7 +77,7 @@ class Kat7TelescopeProductMetExtractor(MetExtractor):
     Attributes
     ----------
     product_type : string : Specify product type for OODT Filemananger ingest
-        set to 'Katfile'
+        set to 'KatFile'
 
     Hidden Attributes
     -----------------
@@ -89,7 +89,7 @@ class Kat7TelescopeProductMetExtractor(MetExtractor):
         self.katfile = os.path.abspath(katfile)
         super(Kat7TelescopeProductMetExtractor, self).__init__('%s.%s' % (self.katfile, 'met',))
         self._katdata = katdal.open(os.path.abspath(katfile))
-        self.product_type = 'Katfile' #TODO - modify to 'Kat7TelescopeProduct'
+        self.product_type = 'KatFile' #TODO - modify to 'Kat7TelescopeProduct'
 
     def _extract_metadata_product_type(self):
         self.metadata['ProductType'] = self.product_type
@@ -222,40 +222,40 @@ class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
-class KATContPipeExtractor(MetExtractor):
-    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
-
-    Parameters
-    ----------
-    votable : ElementTree
-        An xml string
-
-    Attributes
-    ----------
-    """
-    def __init__(self, project):
-        super(KAT7MetExtractor, self).__init__()
-        self.votable = votable
-        self.metadata['ProductType'] = 'KATContPipeReductionProduct'
-
-    def extract_metadata(self):
-        """Populate self.metadata with information scraped from a votable xml file"""
-        self.metadata['aipsVer'] = project['aipsVer']
-        self.metadata['AmpCals'] = project['AmpCals'].split()
-        self.metadata['anNames'] = project['anNames'].split()
-        self.metadata['archFileID'] = project['archFileID']
-        self.metadata['BPCals'] = project['BPCals'].split()
-        self.metadata['dataSet'] = project['dataSet']
-        self.metadata['DlyCals'] = project['DlyCals'].split()
-        self.metadata['fileSetID'] = project['fileSetID']
-        self.metadata['freqCov'] = project[float(f) for f in project['freqCov'].split()]
-        self.metadata['minFringe'] = float(project['minFringe'])
-        self.metadata['obitVer'] = project['obitVer']
-        self.metadata['PhsCals'] = project['PhsCals'].split()
-        self.metadata['pipeVer'] = project['pipeVer']
-        self.metadata['procDate'] = project['procDate']
-        self.metadata['project'] = project['project']
-        self.metadata['pyVer'] = project['pyVer']
-        self.metadata['session'] = project['sessioin']
-        self.metadata['sysInfo'] = project['sysInfo']
-
+#class KATContPipeExtractor(MetExtractor):
+#    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+#
+#    Parameters
+#    ----------
+#    votable : ElementTree
+#        An xml string
+#
+#    Attributes
+#    ----------
+#    """
+#    def __init__(self, project):
+#        super(KAT7MetExtractor, self).__init__()
+#        self.votable = votable
+#        self.metadata['ProductType'] = 'KATContPipeReductionProduct'
+#
+#    def extract_metadata(self):
+#        """Populate self.metadata with information scraped from a votable xml file"""
+#        self.metadata['aipsVer'] = project['aipsVer']
+#        self.metadata['AmpCals'] = project['AmpCals'].split()
+#        self.metadata['anNames'] = project['anNames'].split()
+#        self.metadata['archFileID'] = project['archFileID']
+#        self.metadata['BPCals'] = project['BPCals'].split()
+#        self.metadata['dataSet'] = project['dataSet']
+#        self.metadata['DlyCals'] = project['DlyCals'].split()
+#        self.metadata['fileSetID'] = project['fileSetID']
+#        self.metadata['freqCov'] = project[float(f) for f in project['freqCov'].split()]
+#        self.metadata['minFringe'] = float(project['minFringe'])
+#        self.metadata['obitVer'] = project['obitVer']
+#        self.metadata['PhsCals'] = project['PhsCals'].split()
+#        self.metadata['pipeVer'] = project['pipeVer']
+#        self.metadata['procDate'] = project['procDate']
+#        self.metadata['project'] = project['project']
+#        self.metadata['pyVer'] = project['pyVer']
+#        self.metadata['session'] = project['sessioin']
+#        self.metadata['sysInfo'] = project['sysInfo']
+#
