@@ -278,7 +278,7 @@ class TapeLibraryAutomate(object):
             else:
                 logger.info("Chose tape %s from slot %d"%(tapes[0][0], tapes[0][1]))
                 slotid = tapes[0][1]
-        
+
         self.load(slotid, driveid)
 
         return slotid, driveid
@@ -365,7 +365,7 @@ class TapeLibraryAutomate(object):
             WHERE magazine.id = %d"""%(
                 magazine,))
         names = list(map(lambda x: x[0], self.cur.description))
-        
+
         res = self.cur.fetchone()
         return dict(zip(names,res))
 
@@ -379,7 +379,7 @@ class TapeLibraryAutomate(object):
             WHERE slot.id = %s"""%(
                 slot,))
         names = list(map(lambda x: x[0], self.cur.description))
-        
+
         res = self.cur.fetchone()
         return dict(zip(names,res))
 
@@ -453,7 +453,7 @@ class TapeLibraryAutomate(object):
                 raise Exception("drive_%d_busy"%drive)
 
             self.set_writing(drive)
-            
+
             ProcessPoolExecutor(max_workers = 10).submit(write_buffer_to_tape, buffer_dir, drive).add_done_callback(callback)
             # print "WRITE STARTED"
         except Exception, e:
@@ -483,14 +483,14 @@ class TapeLibraryAutomate(object):
         logger.info("Getting free drives")
         if magazine == None:
             self.cur.execute(
-                """SELECT drive.id, drive.state 
-                FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id 
-                WHERE drive.state = 'EMPTY' OR tape.bytes_written > 0 
+                """SELECT drive.id, drive.state
+                FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id
+                WHERE drive.state = 'EMPTY' OR tape.bytes_written > 0
                 ORDER BY drive.state""")
         else:
-            self.cur.execute("""SELECT drive.id, drive.state 
-                FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id 
-                WHERE (drive.state = 'EMPTY' OR tape.bytes_written > 0) AND drive.magazine_id = %d 
+            self.cur.execute("""SELECT drive.id, drive.state
+                FROM drive LEFT OUTER JOIN tape ON drive.tape_id = tape.id
+                WHERE (drive.state = 'EMPTY' OR tape.bytes_written > 0) AND drive.magazine_id = %d
                 ORDER BY drive.state"""%(
                     magazine,))
         self.db.commit()
@@ -507,13 +507,13 @@ class TapeLibraryAutomate(object):
         if magazine == None:
             self.cur.execute(
                 """SELECT tape.id, slot.id
-                FROM (tape INNER JOIN slot ON tape.slot_id = slot.id) LEFT JOIN drive on tape.id = drive.tape_id 
+                FROM (tape INNER JOIN slot ON tape.slot_id = slot.id) LEFT JOIN drive on tape.id = drive.tape_id
                 WHERE tape.bytes_written = 0 AND drive.tape_id is NULL
                 ORDER BY slot.id""")
         else:
             self.cur.execute("""SELECT tape.id, slot.id
-                FROM tape JOIN slot ON tape.slot_id = slot.id  
-                WHERE tape.bytes_written = 0  AND slot.magazine_id = %d 
+                FROM tape JOIN slot ON tape.slot_id = slot.id
+                WHERE tape.bytes_written = 0  AND slot.magazine_id = %d
                 ORDER BY drive.state"""%(
                     magazine,))
         self.db.commit()
@@ -575,8 +575,8 @@ class TapeLibraryAutomate(object):
 
         logger.info("Unloading drive %d"%drive)
         self.cur.execute(
-            """SELECT tape.slot_id 
-            FROM drive INNER JOIN tape ON drive.tape_id = tape.id 
+            """SELECT tape.slot_id
+            FROM drive INNER JOIN tape ON drive.tape_id = tape.id
             WHERE drive.id = %d"""%(
                 drive,))
         res = self.cur.fetchone ()
@@ -585,7 +585,7 @@ class TapeLibraryAutomate(object):
             SET state = 'UNLOADING'
             WHERE id = %d"""%(
                 drive,))
-        
+
 
         if (len(res) < 1):
             raise Exception("No tape in drive")
@@ -593,7 +593,7 @@ class TapeLibraryAutomate(object):
         self.db.commit()
 
         logger.debug("Running command mtx -f /dev/%s unload %d %d"%(cnf["controller"], res[0], drive))
-        
+
         cmd=subprocess.Popen(["mtx","-f","/dev/%s"%cnf["controller"],"unload", str(res[0]), str(drive)], stdout=subprocess.PIPE)
         cmd.wait()
         comm=cmd.communicate()
@@ -655,7 +655,7 @@ class TapeLibraryAutomate(object):
             logger.debug("The command returned:\n%s\nerror = %s"%(comm[0], str(comm[1])))
 
             logger.info("Updating  DB")
-            
+
             self.cur.execute(
                 """UPDATE drive
                 SET state = 'IDLE'
@@ -840,7 +840,7 @@ class TapeDeviceServer(DeviceServer):
         DeviceServer.__init__(self, server_host, server_port)
         self.set_concurrency_options(False, False)
 
-    
+
     def update_sensors(self):
         print "updating sensors"
         # self._drive0_status.set_value(self.ta.get_drive(0)["state"])
@@ -871,9 +871,9 @@ class TapeDeviceServer(DeviceServer):
                 self.add_sensor(self.tape_sensors[i* n_k + k])
 
         self.add_sensor(self._buffer_dir)
-        
+
         self._buffer_dir.set_value(self.ta.buffer_dirs[self.ta.buffer_index])
-        
+
 
     @request(Int(), Int())
     @return_reply(Str())
@@ -1032,7 +1032,7 @@ class TapeDeviceServer(DeviceServer):
     # def target(object, *args, **kw):
     #     method_name = args[0]
     #     return getattr(object, method_name)(*args[1:])
-    
+
 
     @request(Str(),Int())
     @return_reply(Str())
@@ -1043,7 +1043,7 @@ class TapeDeviceServer(DeviceServer):
         except Exception, e:
             # return ('fail', str(e).replace(' ', '_'))
             raise
-    
+
 
     # @request(Str(), Int())
     # @return_reply(Str())
@@ -1088,3 +1088,4 @@ class TapeDeviceServer(DeviceServer):
     def handle_exit(self):
         """Try to shutdown as gracefully as possible when interrupted."""
         logger.warning("SDP Vis Store Controller interrupted.")
+
