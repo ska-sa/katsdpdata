@@ -466,7 +466,7 @@ class TapeLibraryAutomate(object):
         If ready, update the current buffer and tar the full buffer to tape and return True.
         Else return False."""
         buffer_dir = self.buffer_dirs[self.buffer_index]
-        size =int(subprocess.check_output(["du","-s", buffer_dir]).split()[0])
+        size =int(subprocess.check_output(["du","-s", buffer_dir]).split()[0])*1024 #kilobyte -> bytes
         print "size = %d, limit = %d"%(size, cnf["soft_tape_limit"])
         if size > cnf["soft_tape_limit"]:
             self.swap_buffer()

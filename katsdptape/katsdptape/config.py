@@ -3,8 +3,8 @@ config = {"db_host":"localhost",
         "db_password":"kat",
         "db_name":"tape_db",
         "repository_path":"/var/kat/data",
-        "tape_size_limit":2.5*1024*1024*1024,
-        "soft_tape_limit":2.3*1024*1024*1024,
+        "tape_size_limit":2.5*1024*1024*1024*1024, #2.5TB in bytes
+        "soft_tape_limit":2.3*1024*1024*1024, #2.3GB in bytes
         "drive0":("st2","st3"),
         "drive1":("st0","st1"),
         "drive2":("st6","st7"),
