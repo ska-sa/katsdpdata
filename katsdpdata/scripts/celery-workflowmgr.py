@@ -3,8 +3,6 @@ import os
 import logging
 from katsdpdata import FileMgrClient
 
-from katsdpworkflow.RTS import qualification_tests
-from katsdpworkflow.KAT7 import pipelines
 from urlparse import urlparse
 
 from optparse import OptionParser
@@ -114,7 +112,22 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         else:
             pipelines.generate_obs_report.delay(product_metadata)
 
+    def MeerkatTelescopeTapeProductCheckArchiveToTape(self, metadata):
+        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        logging.info('Filename: %s' % (metadata['Filename'][0]))
+        if self.disable_backend:
+            logging.info('Disabled backend: pipelines.check_archive_to_tape.delay()')
+        else:
+            pipelines.check_archive_to_tape.delay(product_metadata)
+
 options = get_options()
+
+if not options.DisableCeleryBackend:
+    #then import the backend
+    from katsdpworkflow.RTS import qualification_tests
+    from katsdpworkflow.KAT7 import pipelines
+    from katsdpworkflow.MEERKAT import tasks
+
 if options.Foreground:
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
     logging.info('Logging to console')
