@@ -113,12 +113,13 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
             pipelines.generate_obs_report.delay(product_metadata)
 
     def MeerkatTelescopeTapeProductCheckArchiveToTape(self, metadata):
-        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
-        logging.info('Filename: %s' % (metadata['Filename'][0]))
+        #data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        #logging.info('Filename: %s' % (metadata['Filename'][0]))
+        logging.info('The metadata passed into this method is not passed onto the called task.')
         if self.disable_backend:
             logging.info('Disabled backend: pipelines.check_archive_to_tape.delay()')
         else:
-            pipelines.check_archive_to_tape.delay(product_metadata)
+            tasks.check_archive_to_tape.delay()
 
 options = get_options()
 
@@ -126,7 +127,7 @@ if not options.DisableCeleryBackend:
     #then import the backend
     from katsdpworkflow.RTS import qualification_tests
     from katsdpworkflow.KAT7 import pipelines
-    from katsdpworkflow.MEERKAT import tasks
+    from katsdpworkflow.MKAT import tasks
 
 if options.Foreground:
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
