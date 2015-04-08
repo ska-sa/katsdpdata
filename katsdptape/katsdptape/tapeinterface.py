@@ -961,7 +961,7 @@ class TapeDeviceServer(DeviceServer):
             req.inform(i)
         ret = 'The buffer is %.1f full.' % (perc_full)
         if submitted_async:
-            ret = ret + 'Writting to tape device %s.' % (tape_drive_number,)
+            ret = ret + ' Writting to drive%s.' % (tape_drive_number,)
         return ('ok', ret)
 
     @request(Str(), Str(), Str())
