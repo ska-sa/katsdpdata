@@ -296,8 +296,17 @@ class TapeLibraryAutomate(object):
             FROM tape LEFT OUTER JOIN drive ON drive.tape_id = tape.id
             WHERE tape.id = \'%s\'"""%(
                 tape,))
-        res = self.cur.fetchone ()
-        self.db.commit()
+        res = self.cur.fetchone()
+        return res
+
+    def get_tape_info(self, tape):
+        """Get the slot and drive that a tape is loaded in."""
+        # self.get_state()
+        self.cur.execute(
+            """SELECT tape.file_list,tape.slot_id,tape.bytes_written,tape.size
+            FROM tape WHERE tape.id=\'%s\'"""%(
+                tape,))
+        res = self.cur.fetchone()
         return res
 
     def get_num_drive(self):
@@ -341,7 +350,7 @@ class TapeLibraryAutomate(object):
         res = self.cur.fetchone()
         return dict(zip(names,res))
 
-    def get_tape (self, tape):
+    def get_tape(self, tape):
         """Get tape info"""
         # self.get_state()
         self.cur.execute("FLUSH TABLES")
@@ -422,7 +431,15 @@ class TapeLibraryAutomate(object):
         self.unload(drive)
         self.load_empty_tape(drive)
 
-        return tape, products
+        for file_object in products:
+            file_object_path = os.path.join(buffer_dir, file_object)
+            if os.path.isfile(file_object_path):
+                os.unlink(file_object_path)
+            else:
+                shutil.rmtree(file_object_path)
+
+        logger.info("Deleted archived files in %s"%buffer_dir)
+        return tape, products 
 
     def async_write_buffer_to_tape(self, buffer_dir, drive):
         """Write the buffer to a empty tape"""
@@ -691,7 +708,7 @@ class TapeLibraryAutomate(object):
         self.db.commit()
         logger.info("Committed changes to DB")
 
-    def get_file_list (self, drive):
+    def examine_tar(self, drive):
         """Take in a drive number and return the files stored on each of the tars on the file.
         Returns a list of strings, string contains all the files in the corresponding tar"""
         # self.get_state()
@@ -1062,12 +1079,22 @@ class TapeDeviceServer(DeviceServer):
 
     @request(Int())
     @return_reply(Str())
-    def request_get_file_list (self, req, drive):
-        """Take in a drive number and return the files stored on each of the tars on the file.
-        Returns a list of strings, string contains all the files in the corresponding tar"""
-        for line in self.ta.get_file_list(drive):
+    def request_examine_tar(self, req, drive):
+        """Take in a drive number and return the files stored on the of drive.
+        Returns a list of strings, string contains all the files in the tar."""
+        for line in self.ta.examine_tar(drive):
             req.inform(line)
-        return ('ok', "get-file-list COMPLETE")
+        return ('ok', "examine-tar COMPLETE")
+
+    @request(Str())
+    @return_reply(Str())
+    def request_get_tape_info(self, req, tape):
+        """Take in a tapename and return the slot id, storage size, bytes written and file
+        list stored on the tape.
+        Returns a list of strings, string containing the tape information."""
+        for line in self.ta.get_tape_info(tape):
+            req.inform(line)
+        return ('ok', "get-tape-info COMPLETE")
 
     @request(Int(), Str(), Str(), Int())
     @return_reply(Str())
