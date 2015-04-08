@@ -28,6 +28,8 @@ def get_options():
          help='Call KatFileImagerPipeline on the xmlrpc interface.')
     parser.add_option('--KatFileRTSTesting', action='store_true', default=False,
          help='Call KatFileRTSTesting on the xmlrpc interface.')
+    parser.add_option('--MeerkatTelescopeTapeProductCheckArchiveToTape', action='store_true', default=False,
+         help='Call MeerkatTelescopeTapeProductCheckArchiveToTape on the xmlrpc interface.')
     parser.add_option('--RTSTelescopeProductReduce', action='store_true', default=False,
          help='Call RTSTelescopeProductReduce. Note you need to specify the reduction to perform.')
     parser.add_option('--ReductionName', type='str',
@@ -56,6 +58,9 @@ if opts.KatFileImagerPipeline and product_metadata:
 if opts.KatFileRTSTesting and product_metadata:
     product_metadata['ReductionName'] = product_metadata['Description']
     xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
+if opts.MeerkatTelescopeTapeProductCheckArchiveToTape and product_metadata:
+    product_metadata['ReductionName'] = product_metadata['Description']
+    xmlrpc_client.workflowmgr.handleEvent('MeerkatTelescopeTapeProductCheckArchiveToTape', product_metadata)
 if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
     product_metadata['ReductionName'] = [opts.ReductionName]
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductReduce', product_metadata)

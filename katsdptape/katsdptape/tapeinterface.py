@@ -6,6 +6,7 @@ import MySQLdb as sql
 import subprocess
 import shutil
 import time
+import pysolr
 
 from config import config as cnf
 from katcp import DeviceServer, Sensor
@@ -29,7 +30,8 @@ class TapeLibraryAutomate(object):
         self.buffer_dirs=[os.path.join(repository_path, 'buffer1'), os.path.join(repository_path, 'buffer2')]
         self.buffer_index = 0
         self.get_drive_handles()
-        cnf["soft_tape_limit"] = buffer_size
+        self.buffer_size = buffer_size
+        #cnf["soft_tape_limit"] = buffer_size
 
         logger.info('Initialising TapeLibraryAutomate')
         self.db = sql.connect(cnf["db_host"], cnf["db_usr"], cnf["db_password"], cnf["db_name"])
@@ -333,7 +335,6 @@ class TapeLibraryAutomate(object):
         self.cur.execute("SELECT COUNT(*) FROM magazine")
         return self.cur.fetchone()[0]
 
-
     def get_drive(self, drive):
         """Get drive info"""
         # self.get_state()
@@ -443,7 +444,6 @@ class TapeLibraryAutomate(object):
     def async_write_buffer_to_tape(self, buffer_dir, drive):
         """Write the buffer to a empty tape"""
         try:
-
             drive_info = self.get_drive(drive)
 
             if drive_info["state"] != "IDLE" and drive_info[1][drive_info[0].index("state")] != "EMPTY":
@@ -452,7 +452,7 @@ class TapeLibraryAutomate(object):
             self.set_writing(drive)
 
             ProcessPoolExecutor(max_workers = 10).submit(write_buffer_to_tape, buffer_dir, drive).add_done_callback(callback)
-            # print "WRITE STARTED"
+
         except Exception, e:
             # return ('fail', str(e).replace(' ', '_'))
             raise e
@@ -463,14 +463,27 @@ class TapeLibraryAutomate(object):
         If ready, update the current buffer and tar the full buffer to tape and return True.
         Else return False."""
         buffer_dir = self.buffer_dirs[self.buffer_index]
-        size =int(subprocess.check_output(["du","-s", buffer_dir]).split()[0])*1024 #kilobyte -> bytes
-        print "size = %d, limit = %d"%(size, cnf["soft_tape_limit"])
-        if size > cnf["soft_tape_limit"]:
+        file_list = os.listdir(buffer_dir)
+        size = sum([os.path.getsize(os.path.join(buffer_dir,f)) for f in file_list])
+        perc_full = float(size)/self.buffer_size*100.0
+        tape_drive_number = 0
+        submitted_async = False
+        print "size = %d, limit = %d"%(size, self.buffer_size)
+        if size >= self.buffer_size:
+            #update product information
+            solr_url = "http://192.168.1.50:8983/solr/test_core"
+            solr_client = pysolr.Solr(solr_url)
+            q = ' OR '.join(['CAS.ProductName:%s' % f for f in file_list])
+            res = solr_client.search(q=q)
+            solr_products = res.docs
+            for p in solr_products:
+                del(p['_version_'])
+                p['CAS.ProductTransferStatus'] = 'TRANSFERRING'
+            solr_client.add(solr_products)
+            self.async_write_buffer_to_tape(buffer_dir, tape_drive_number)
             self.swap_buffer()
-            return self.async_write_buffer_to_tape(buffer_dir, 0)
-        else:
-            return False
-
+            submitted_async = True
+        return buffer_dir, file_list, perc_full, tape_drive_number, submitted_async
 
     def get_free_drives(self, magazine = None):
         """Get free drives.
@@ -605,8 +618,8 @@ class TapeLibraryAutomate(object):
         self.db.commit()
         logger.info ("Drive unloaded, DB updated")
 
-    """Get free slots"""
     def get_free_slots(self):
+        """Get free slots"""
         # self.get_state()
 
         logger.info("Getting free slots")
@@ -617,9 +630,9 @@ class TapeLibraryAutomate(object):
         self.db.commit()
         return self.cur.fetchall()
 
-    """Tar folder to tape in drive.
-    Returns the id of the tape in that drive"""
     def tar_folder_to_tape(self, folder, drive):
+        """Tar folder to tape in drive.
+        Returns the id of the tape in that drive"""
         # self.get_state()
 
         logger.info("Taring folder %s to tape in drive %d"%(folder, drive))
@@ -780,20 +793,50 @@ class TapeLibraryAutomate(object):
             cmd = subprocess.Popen(["mt","-f", "/dev/n%s"%cnf["drive%s"%drive][0], "fsf", "1"], stdout=subprocess.PIPE)
             cmd.wait()
 
-def write_buffer_to_tape (buffer_dir, drive):
+def write_buffer_to_tape(buffer_dir, drive):
         ta = TapeLibraryAutomate()
         print "CREATED"
         tape, products = ta.write_buffer_to_tape(buffer_dir, drive)
         # print tape
         ta.close()
-        return tape, products
+        return tape, buffer_dir, products
 
 def callback(future):
-    #TODO update solr
-    print "It's called back"
-    tape, products = future.result()
-    print 'tape = %s' % (tape,)
-    print 'products = %s' % (products,)
+    logger.debug("Callback initiated.")
+    solr_url = "http://192.168.1.50:8983/solr/test_core"
+    solr_client = pysolr.Solr(solr_url)
+
+    tape, buffer_dir, file_list = future.result()
+    not_deleted = []
+
+    q = ' OR '.join(['CAS.ProductName:%s' % f for f in file_list])
+    res = solr_client.search(q=q)
+    solr_products = res.docs
+
+    logger.info('Updating solr backend product information.')
+    for p in solr_products:
+        del(p['_version_'])
+        if p['CAS.ProductTransferStatus'] != 'TRANSFERRING':
+            logger.info('Product status for %s is %s but should be TRANSFERRING', p['CAS.ProductName'], p['CAS.ProductTransferStatus'])
+            not_deleted.append(file_list.pop(file_list.index(p['CAS.ProductName'])))
+        else:
+            p['CAS.ProductTransferStatus'] = 'RECEIVED'
+            p['CAS.ReferenceOriginal'] = p['CAS.ReferenceDatastore']
+            p['CAS.ReferenceDatastore'] = 'tape://%s' % (tape)
+            p['FileLocation'] = 'tape://%s' % (tape)
+    logger.info("Calling solr client")
+    solr_client.add(solr_products)
+
+    for file_object in file_list:
+        file_object_path = os.path.join(buffer_dir, file_object)
+        if os.path.isfile(file_object_path):
+            os.unlink(file_object_path)
+        else:
+            shutil.rmtree(file_object_path)
+
+    if not_deleted:
+        logger.error("%s in %s where not deleted." % (', '.join(not_deleted), buffer_dir,))
+    logger.info("%s in %s where deleted." % (', '.join(file_list), buffer_dir,))
 
 class DBSensor(Sensor):
     def __init__ (self, name, description=None, table = "drive", identifier = 0, parameter = "state", tapelibraryautomate = None):
@@ -923,15 +966,20 @@ class TapeDeviceServer(DeviceServer):
         """Check if buffer is ready to archive.
         If ready, update the current buffer and tar the full buffer to tape."""
         try:
-            ret = self.ta.archive_to_tape()
+            buffer_dir, file_list, perc_full, tape_drive_number, submitted_async = self.ta.archive_to_tape()
         except Exception, e:
-            return ("fail", str(e))
+            return ('fail', str(e))
         self.update_buffer()
-        if ret :
-            return ("ok", "Archiving buffer")
-        else:
-            return ("fail", "Buffer not full")
-
+        #informs and return string
+        informs = []
+        informs.append('Buffer dir: %s' % (buffer_dir))
+        informs.append('File list: %s' % ', '.join(file_list))
+        for i in informs:
+            req.inform(i)
+        ret = 'The buffer is %.1f full.' % (perc_full)
+        if submitted_async:
+            ret = ret + ' Writting to drive%s.' % (tape_drive_number,)
+        return ('ok', ret)
 
     @request(Str(), Str(), Str())
     @return_reply(Str())
@@ -960,7 +1008,6 @@ class TapeDeviceServer(DeviceServer):
             # return ("fail", "no_free_drives")
 
         return ("ok", "drive_%d_loaded_from_slot_%d"%(slot, drive))
-
 
     @request(Str())
     @return_reply(Str())
