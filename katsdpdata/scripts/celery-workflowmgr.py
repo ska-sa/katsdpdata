@@ -10,6 +10,10 @@ from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 
 LOG_FILENAME='/var/log/celery_workflowmgr/celery_workflowmgr.log'
 
+
+class OODTWorkflowManagerException(Exception):
+    pass
+
 def get_options():
     """Sets options from the arguments passed to the script.
 
@@ -24,6 +28,8 @@ def get_options():
     parser = OptionParser(usage=usage)
     parser.add_option('-p', '--port', type='int',
          help='The port to listen on for XMLRPC requests')
+    parser.add_option('--FileMgrUrl', type='str', default='http://localhost:9101',
+         help='The URL for the workflow manager XMLRPC interface. Default is http://localhost:9101. Use http://192.186.1.50:9103 as remote file manager.')
     parser.add_option('--Foreground', action='store_true', default=False,
          help='For testing purposes. Log to console and not the file.')
     parser.add_option('--DisableCeleryBackend', action='store_true', default=False,
@@ -40,6 +46,7 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
     def serve_forever(self):
         self.finished = False
         self.register_function(self.handle_event, 'workflowmgr.handleEvent')
+        self.register_function(self.list_events, 'workflowmgr.listEvents')
         self.register_function(self.exit_event, 'exit')
         self.register_introspection_functions()
         while not self.finished:
@@ -48,9 +55,20 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
     def stubEvent(self, metadata):
         raise NotImplementedError
 
+    def list_events(self):
+        logging.info('List events called.')
+        prefixes = ['KatFile', 'RTSTelescopeProduct', 'MeerkatTelescopeTapeProduct']
+        events = [method for method in dir(self) if any([method.startswith(p) for p in prefixes])]
+        for e in events:
+            logging.debug('OODT Event: %s'% (e,))
+        return events
+
     def handle_event(self, event_name, metadata):
         logging.info('Event: %s' % (event_name))
-        getattr(self, event_name)(metadata)
+        if hasattr(self, event_name):
+            getattr(self, event_name)(metadata)
+        else:
+            raise OODTWorkflowManager('No such method: %s' % (event_name))
         return True
 
     def exit_event(self):
@@ -63,7 +81,13 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         self.filemgr_url = filemgr_url
         self.disable_backend = disable_backend
         self.filemgr = FileMgrClient(filemgr_url)
+        logging.debug('Try connect to: %s.' % (filemgr_url))
+        if not self.filemgr.is_alive():
+            raise OODTWorkflowManagerException('Unable to connect to %s' % (self.filemgr_url))
+        logging.debug('Connected to: %s.' % (filemgr_url))
         WorkflowManagerXMLRPCServer.__init__(self, *args, **kwargs)
+        logging.info("Starting workflow manager on port %d." % (options.port))
+        logging.info("Using file manager on %s." % (options.FileMgrUrl))
 
     def _get_product_info_from_filemgr(self, metadata):
         product = self.filemgr.get_product_by_name(metadata['ProductName'][0])
@@ -71,11 +95,12 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         if os.path.split(os.path.normpath(data_store_ref.path))[1] == 'null':
             data_store_ref = urlparse(product['references'][0]['origReference'])
         product_metadata = self.filemgr.get_product_metadata(product['name'])
+        logging.debug(data_store_ref)
         return data_store_ref, product_metadata
 
     def RTSTelescopeProductReduce(self, metadata):
         data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
-        #client call for this method already  contains a call to the file manager
+        #client call for this method already contains a call to the file manager
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
         if self.disable_backend:
@@ -86,6 +111,10 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
     def RTSTelescopeProductRTSIngest(self, metadata):
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
+        if self.disable_backend:
+            logging.info('Disabled backend: No call implemented.')
+        else:
+            logging.warning('No call implemented.')
 
     def KatFileRTSTesting(self, metadata):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
@@ -112,6 +141,9 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         else:
             pipelines.generate_obs_report.delay(product_metadata)
 
+    def RTSTelescopeProductObsReporter(self, metadata):
+        self.KatFileObsReporter(metadata)
+
     def MeerkatTelescopeTapeProductCheckArchiveToTape(self, metadata):
         #data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         #logging.info('Filename: %s' % (metadata['Filename'][0]))
@@ -131,14 +163,13 @@ if not options.DisableCeleryBackend:
 
 if options.Foreground:
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
-    logging.info('Logging to console')
+    logging.info('Logging to console.')
 else:
     logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
-    logging.info('Starting in daemon mode')
+    logging.info('Starting in daemon mode.')
+    logging.info('Logging to %s' % (LOG_FILENAME))
 
-server = OODTWorkflowManager('http://localhost:9101', options.DisableCeleryBackend, ("", options.port,))
-logging.info("Starting workflow manager on port %d" % (options.port))
-logging.info("Using file manager on http://localhost:9101")
+server = OODTWorkflowManager(options.FileMgrUrl, options.DisableCeleryBackend, ("", options.port,))
 if options.DisableCeleryBackend:
-    logging.info("No tasks will be pushed onto the celery backend")
+    logging.info("No tasks will be pushed onto the celery backend.")
 server.serve_forever()
