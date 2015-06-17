@@ -69,9 +69,9 @@ def create_model():
         ('static', 'predefined static flag list'),
         ('cam', 'flag based on live CAM information'),
         ('reserved3', 'reserved - bit 3'),
-        ('detected_rfi', 'RFI detected in the online system'),
+        ('ingest_rfi', 'RFI detected in ingest'),
         ('predicted_rfi', 'RFI predicted from space based pollutants'),
-        ('reserved6', 'reserved - bit 6'),
+        ('cal_rfi', 'RFI detected in calibration'),
         ('reserved7', 'reserved - bit 7')
     ])
     return model
