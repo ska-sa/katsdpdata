@@ -63,10 +63,10 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
             logging.debug('OODT Event: %s'% (e,))
         return events
 
-    def handle_event(self, event_name, metadata):
+    def handle_event(self, event_name, metadata, queue='celery'):
         logging.info('Event: %s' % (event_name))
         if hasattr(self, event_name):
-            getattr(self, event_name)(metadata)
+            getattr(self, event_name)(metadata,queue)
         else:
             raise OODTWorkflowManager('No such method: %s' % (event_name))
         return True
@@ -98,7 +98,7 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         logging.debug(data_store_ref)
         return data_store_ref, product_metadata
 
-    def RTSTelescopeProductReduce(self, metadata):
+    def RTSTelescopeProductReduce(self, metadata, queue):
         data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
         #client call for this method already contains a call to the file manager
         logging.info('Filename: %s' % (metadata['Filename'][0]))
@@ -106,9 +106,9 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         if self.disable_backend:
             logging.info('Disabled backend: qualification_tests.run_qualification_tests()')
         else:
-            qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url)
+            qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url, queue)
 
-    def RTSTelescopeProductRTSIngest(self, metadata):
+    def RTSTelescopeProductRTSIngest(self, metadata, queue):
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
         if self.disable_backend:
@@ -116,32 +116,32 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         else:
             logging.warning('No call implemented.')
 
-    def KatFileRTSTesting(self, metadata):
+    def KatFileRTSTesting(self, metadata, queue):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
         if self.disable_backend:
             logging.info('Disabled backend: qualification_tests.run_qualification_tests()')
         else:
-            qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url)
+            qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url, queue)
 
-    def KatFileImagerPipeline(self, metadata):
+    def KatFileImagerPipeline(self, metadata, queue):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         if self.disable_backend:
-            logging.info('Disabled backend: pipelines.run_kat_cont_pipe.delay()')
+            logging.info('Disabled backend: pipelines.run_kat_cont_pipe.apply_async(queue=%s)'%queue)
         else:
-            pipelines.run_kat_cont_pipe.delay(product_metadata)
+            pipelines.run_kat_cont_pipe.apply_async(product_metadata,queue=queue)
 
-    def KatFileObsReporter(self, metadata):
+    def KatFileObsReporter(self, metadata, queue):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         if self.disable_backend:
-            logging.info('Disabled backend: pipelines.generate_obs_report.delay()')
+            logging.info('Disabled backend: pipelines.generate_obs_report.apply_async(queue=%s)'%queue)
         else:
-            pipelines.generate_obs_report.delay(product_metadata)
+            pipelines.generate_obs_report.apply_async(product_metadata,queue=queue)
 
-    def RTSTelescopeProductObsReporter(self, metadata):
+    def RTSTelescopeProductObsReporter(self, metadata, queue):
         self.KatFileObsReporter(metadata)
 
     def MeerkatTelescopeTapeProductCheckArchiveToTape(self, metadata):
