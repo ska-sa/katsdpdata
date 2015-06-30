@@ -65,7 +65,7 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
 
     def handle_event(self, event_name, metadata):
         logging.info('Event: %s' % (event_name))
-        queue = metadata['CeleryQueue'] if 'CeleryQueue' in metadata else self._find_queue_from_event(event_name)
+        queue = metadata['CeleryQueue'][0] if 'CeleryQueue' in metadata else self._find_queue_from_event(event_name)
         if hasattr(self, event_name):
             getattr(self, event_name)(metadata, queue)
         else:
@@ -84,7 +84,7 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
             logging.info('Event: %s has no associated queue. Defaulting to Kat' % (event_name))
             queue = 'Kat'
         else:
-            queue = queue_lookup(event_name)
+            queue = queue_lookup[event_name]
         return queue
 
 
@@ -143,7 +143,7 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         if self.disable_backend:
             logging.info('Disabled backend: pipelines.run_kat_cont_pipe.apply_async(queue=%s)'%queue)
         else:
-            pipelines.run_kat_cont_pipe.apply_async(product_metadata,queue=queue)
+            pipelines.run_kat_cont_pipe.apply_async(args=(product_metadata,),queue=queue)
 
     def KatFileObsReporter(self, metadata, queue='Kat'):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
@@ -151,7 +151,7 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         if self.disable_backend:
             logging.info('Disabled backend: pipelines.generate_obs_report.apply_async(queue=%s)'%queue)
         else:
-            pipelines.generate_obs_report.apply_async(product_metadata,queue=queue)
+            pipelines.generate_obs_report.apply_async(args=(product_metadata,),queue=queue)
 
     def RTSTelescopeProductObsReporter(self, metadata, queue='RTS'):
         self.KatFileObsReporter(metadata)
@@ -163,7 +163,7 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         if self.disable_backend:
             logging.info('Disabled backend: pipelines.check_archive_to_tape.delay()')
         else:
-            tasks.check_archive_to_tape.delay()
+            tasks.check_archive_to_tape.apply_async(queue=queue)
 
 options = get_options()
 
