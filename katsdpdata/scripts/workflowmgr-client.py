@@ -54,39 +54,34 @@ product_metadata = None
 if opts.filename:
     fm = katsdpdata.FileMgrClient(opts.FileMgrUrl)
     product_metadata = fm.get_product_metadata(opts.filename)
+    product_metadata['CeleryQueue'] = ['manual']
 
 if not product_metadata:
     logging.warning('No product metadata specified.')
 
 if opts.KatFileObsReporter and product_metadata:
-    product_metadata['CeleryQueue'] = ['manual']
     logging.info('Calling handleEvent KatFileObsReporter with product %s' % (opts.filename))
     xmlrpc_client.workflowmgr.handleEvent('KatFileObsReporter', product_metadata)
 
 if opts.RTSTelescopeProductObsReporter and product_metadata:
-    product_metadata['CeleryQueue'] = ['manual']
     logging.info('Calling handleEvent RTSTelescopeProductObsReporter with product %s' % (opts.filename))
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductObsReporter', product_metadata)
 
 if opts.KatFileImagerPipeline and product_metadata:
-    product_metadata['CeleryQueue'] = ['manual']
     logging.info('Calling handleEvent KatFileImagerPipeline with product %s' % (opts.filename))
     xmlrpc_client.workflowmgr.handleEvent('KatFileImagerPipeline', product_metadata)
 
 if opts.KatFileRTSTesting and product_metadata:
-    product_metadata['CeleryQueue'] = ['manual']
     product_metadata['ReductionName'] = product_metadata['Description']
     logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (product_metadata['ReductionName'][0]))
     xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
 
 if opts.MeerkatTelescopeTapeProductCheckArchiveToTape and product_metadata:
-    product_metadata['CeleryQueue'] = ['manual']
     product_metadata['ReductionName'] = product_metadata['Description']
     logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (product_metadata['ReductionName'][0]))
     xmlrpc_client.workflowmgr.handleEvent('MeerkatTelescopeTapeProductCheckArchiveToTape', product_metadata)
 
 if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
-    product_metadata['CeleryQueue'] = ['manual']
     product_metadata['ReductionName'] = [opts.ReductionName]
     logging.info('Calling handleEvent RTSTelescopeProductReduce with product %s with reductions %s' % (product_metadata['ReductionName'][0]))
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductReduce', product_metadata)
