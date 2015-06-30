@@ -65,7 +65,7 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
 
     def handle_event(self, event_name, metadata):
         logging.info('Event: %s' % (event_name))
-        queue = metadata['celery_queue'] if 'celery_queue' in metadata else self._find_queue_from_event(event_name)
+        queue = metadata['CeleryQueue'] if 'CeleryQueue' in metadata else self._find_queue_from_event(event_name)
         if hasattr(self, event_name):
             getattr(self, event_name)(metadata, queue)
         else:
