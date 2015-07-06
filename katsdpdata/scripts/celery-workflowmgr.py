@@ -65,8 +65,9 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
 
     def handle_event(self, event_name, metadata):
         logging.info('Event: %s' % (event_name))
+        queue = metadata['CeleryQueue'][0] if 'CeleryQueue' in metadata else self._find_queue_from_event(event_name)
         if hasattr(self, event_name):
-            getattr(self, event_name)(metadata)
+            getattr(self, event_name)(metadata, queue)
         else:
             raise OODTWorkflowManager('No such method: %s' % (event_name))
         return True
@@ -75,6 +76,17 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
         logging.info("Exit event called. Exiting.")
         self.finished = True
         return True
+
+    def _find_queue_from_event(self, event_name):
+        queue_lookup = {'KatFile': 'Kat', 'RTSTelescopeProduct': 'RTS', 'MeerkatTelescopeTapeProduct': 'Meerkat'}
+        #Default queue is Kat if nothing there
+        if event_name not in queue_lookup:
+            logging.info('Event: %s has no associated queue. Defaulting to Kat' % (event_name))
+            queue = 'Kat'
+        else:
+            queue = queue_lookup[event_name]
+        return queue
+
 
 class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
     def __init__(self, filemgr_url, disable_backend, *args, **kwargs):
@@ -98,7 +110,7 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         logging.debug(data_store_ref)
         return data_store_ref, product_metadata
 
-    def RTSTelescopeProductReduce(self, metadata):
+    def RTSTelescopeProductReduce(self, metadata, queue='RTS'):
         data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
         #client call for this method already contains a call to the file manager
         logging.info('Filename: %s' % (metadata['Filename'][0]))
@@ -106,9 +118,9 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         if self.disable_backend:
             logging.info('Disabled backend: qualification_tests.run_qualification_tests()')
         else:
-            qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url)
+            qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url, queue)
 
-    def RTSTelescopeProductRTSIngest(self, metadata):
+    def RTSTelescopeProductRTSIngest(self, metadata, queue='RTS'):
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
         if self.disable_backend:
@@ -116,42 +128,42 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         else:
             logging.warning('No call implemented.')
 
-    def KatFileRTSTesting(self, metadata):
+    def KatFileRTSTesting(self, metadata, queue='Kat'):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
         if self.disable_backend:
             logging.info('Disabled backend: qualification_tests.run_qualification_tests()')
         else:
-            qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url)
+            qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url, queue)
 
-    def KatFileImagerPipeline(self, metadata):
+    def KatFileImagerPipeline(self, metadata, queue='Kat'):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         if self.disable_backend:
-            logging.info('Disabled backend: pipelines.run_kat_cont_pipe.delay()')
+            logging.info('Disabled backend: pipelines.run_kat_cont_pipe.apply_async(queue=%s)'%queue)
         else:
-            pipelines.run_kat_cont_pipe.delay(product_metadata)
+            pipelines.run_kat_cont_pipe.apply_async(args=(product_metadata,),queue=queue)
 
-    def KatFileObsReporter(self, metadata):
+    def KatFileObsReporter(self, metadata, queue='Kat'):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         if self.disable_backend:
-            logging.info('Disabled backend: pipelines.generate_obs_report.delay()')
+            logging.info('Disabled backend: pipelines.generate_obs_report.apply_async(queue=%s)'%queue)
         else:
-            pipelines.generate_obs_report.delay(product_metadata)
+            pipelines.generate_obs_report.apply_async(args=(product_metadata,),queue=queue)
 
-    def RTSTelescopeProductObsReporter(self, metadata):
+    def RTSTelescopeProductObsReporter(self, metadata, queue='RTS'):
         self.KatFileObsReporter(metadata)
 
-    def MeerkatTelescopeTapeProductCheckArchiveToTape(self, metadata):
+    def MeerkatTelescopeTapeProductCheckArchiveToTape(self, metadata, queue='Meerkat'):
         #data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
         #logging.info('Filename: %s' % (metadata['Filename'][0]))
         logging.info('The metadata passed into this method is not passed onto the called task.')
         if self.disable_backend:
             logging.info('Disabled backend: pipelines.check_archive_to_tape.delay()')
         else:
-            tasks.check_archive_to_tape.delay()
+            tasks.check_archive_to_tape.apply_async(queue=queue)
 
 options = get_options()
 

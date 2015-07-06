@@ -54,6 +54,7 @@ product_metadata = None
 if opts.filename:
     fm = katsdpdata.FileMgrClient(opts.FileMgrUrl)
     product_metadata = fm.get_product_metadata(opts.filename)
+    product_metadata['CeleryQueue'] = ['manual']
 
 if not product_metadata:
     logging.warning('No product metadata specified.')
