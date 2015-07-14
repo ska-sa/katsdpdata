@@ -64,7 +64,7 @@ def create_model():
     m062 = AntennaPositioner(name='m062')
     m001 = AntennaPositioner(name='m001')
     m000 = AntennaPositioner(name='m000')
-    cbf = CorrelatorBeamformer(name='data_1')
+    cbf = CorrelatorBeamformer(name='cbf')
     env = Enviro(name='anc')
     obs = Observation(name='obs')
     sdp = SDP(name='sdp')
