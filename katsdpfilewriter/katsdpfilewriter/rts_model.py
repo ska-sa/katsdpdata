@@ -12,16 +12,20 @@ class AntennaPositioner(TelescopeComponent):
     def __init__(self, *args, **kwargs):
         super(AntennaPositioner, self).__init__(*args, **kwargs)
         self.add_sensors(
-                ['activity', 'target', 'pos_actual_scan_elev', 'pos_request_scan_elev',
-                 'pos_actual_scan_azim', 'pos_request_scan_azim'], True)
+                ['activity', 'target',
+                 'pos_request_scan_azim', 'pos_request_scan_elev',
+                 'pos_actual_scan_azim', 'pos_actual_scan_elev',
+                 'dig_noise_diode', 'ap_indexer_position',
+                 'rsc_rxl_serial_number', 'rsc_rxs_serial_number',
+                 'rsc_rxu_serial_number', 'rsc_rxx_serial_number'], True)
         self.add_attributes(['description'], True)
 
 
 class CorrelatorBeamformer(TelescopeComponent):
     def __init__(self, *args, **kwargs):
         super(CorrelatorBeamformer, self).__init__(*args, **kwargs)
-        self.add_sensors(['dbe_mode', 'target'], True)
-        self.add_sensors(['auto_delay'], False)
+        self.add_sensors(['target'], True)
+        self.add_sensors(['auto_delay_enabled'], False)
         self.add_attributes(
                 ['n_chans', 'n_accs', 'n_bls', 'bls_ordering', 'bandwidth',
                  'sync_time', 'int_time', 'scale_factor_timestamp'], True)
@@ -33,7 +37,7 @@ class Enviro(TelescopeComponent):
         super(Enviro, self).__init__(*args, **kwargs)
         self.add_sensors(
                 ['air_pressure', 'air_relative_humidity', 'air_temperature',
-                 'wind_speed', 'wind_direction'])
+                 'mean_wind_speed', 'wind_direction'])
 
 
 class Digitiser(TelescopeComponent):
@@ -58,8 +62,10 @@ class SDP(TelescopeComponent):
 def create_model():
     m063 = AntennaPositioner(name='m063')
     m062 = AntennaPositioner(name='m062')
+    m001 = AntennaPositioner(name='m001')
+    m000 = AntennaPositioner(name='m000')
     cbf = CorrelatorBeamformer(name='cbf')
-    env = Enviro(name='anc_asc')
+    env = Enviro(name='anc')
     obs = Observation(name='obs')
     sdp = SDP(name='sdp')
     model = TelescopeModel()
