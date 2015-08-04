@@ -5,6 +5,7 @@ Writes L0 data plus metadata to an HDF5 file.
 import logging
 import h5py
 import numpy as np
+import redis
 
 # the version number is intrinsically linked to the telescope model, as this
 # is the arbiter of file structure and format
@@ -158,12 +159,17 @@ class File(object):
         tstate_keys = tstate.keys()
         logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), _TSTATE_DATASET))
 
-        for key in tstate_keys():
-            sensor_values = tstate.get_range(key, st=0)
-             # retrieve all values for a particular key
-            dset = np.rec.fromrecords(sensor_values, names='value, timestamp')
-            tstate_group.create_dataset(key, data=dset)
-            logger.debug("TelescopeState: Written {} values for key {} to file".format(len(dset), key))
+        for key in tstate_keys:
+            try:
+                sensor_values = tstate.get_range(key, st=0)
+                 # retrieve all values for a particular key
+                str_sensor_values = [(str(val),ts) for (val,ts) in sensor_values]
+                dset = np.rec.fromrecords(str_sensor_values, names='value, timestamp')
+                tstate_group.create_dataset(key, data=dset)
+                logger.debug("TelescopeState: Written {} values for key {} to file".format(len(dset), key))
+            except redis.ResponseError:
+                tstate_group.attrs[key] = str(tstate[key])
+            logger.debug("TelescopeState: Key {} written as an attribute".format(key))
 
         self._h5_file.flush()
 
