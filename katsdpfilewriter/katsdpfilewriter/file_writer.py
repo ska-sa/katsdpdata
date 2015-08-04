@@ -156,14 +156,14 @@ class File(object):
         tstate = model_data._telstate
         tstate_group = self._h5_file.create_group(_TSTATE_DATASET)
         tstate_keys = tstate.keys()
-        logger.info("Writing {} telescope state keys to {}".format(len(keys), _TSTATE_DATASET))
+        logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), _TSTATE_DATASET))
 
-        for key in keys():
+        for key in tstate_keys():
             sensor_values = tstate.get_range(key, st=0)
              # retrieve all values for a particular key
             dset = np.rec.fromrecords(sensor_values, names='value, timestamp')
             tstate_group.create_dataset(key, data=dset)
-            logger.debug("TelescopeState: Written {} values for key {} to file".format(key, len(dset)))
+            logger.debug("TelescopeState: Written {} values for key {} to file".format(len(dset), key))
 
         self._h5_file.flush()
 
