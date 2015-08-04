@@ -18,6 +18,7 @@ _TIMESTAMPS_DATASET = '/Data/timestamps'
 _FLAGS_DATASET = '/Data/flags'
 _FLAGS_DESCRIPTION_DATASET = '/Data/flags_description'
 _CBF_DATA_DATASET = '/Data/correlator_data'
+_TSTATE_DATASET = '/TelescopeState'
 
 
 def _split_array(array, dtype):
@@ -150,6 +151,25 @@ class File(object):
                                            comp_base, sensor.name)
                 except Exception:
                     logger.warning("Exception thrown while storing sensor %s", sensor.name, exc_info=True)
+
+         # write telescope state data out to file
+        tstate = model_data._telstate
+        tstate_group = self._h5_file.create_group(_TSTATE_DATASET)
+        tstate_keys = tstate.keys()
+        logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), _TSTATE_DATASET))
+
+        for key in tstate_keys:
+            if not tstate.is_immutable(key):
+                sensor_values = tstate.get_range(key, st=0)
+                 # retrieve all values for a particular key
+                str_sensor_values = [(str(val),ts) for (val,ts) in sensor_values]
+                dset = np.rec.fromrecords(str_sensor_values, names='value, timestamp')
+                tstate_group.create_dataset(key, data=dset)
+                logger.debug("TelescopeState: Written {} values for key {} to file".format(len(dset), key))
+            else:
+                tstate_group.attrs[key] = str(tstate[key])
+                logger.debug("TelescopeState: Key {} written as an attribute".format(key))
+
         self._h5_file.flush()
 
     def close(self):
