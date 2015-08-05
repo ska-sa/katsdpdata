@@ -159,7 +159,6 @@ class File(object):
 	 # include the subarray product id for use by the crawler to identify which system the file belongs to
         tstate_keys = tstate.keys()
         logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), _TSTATE_DATASET))
-	
 
         for key in tstate_keys:
             if not tstate.is_immutable(key):
