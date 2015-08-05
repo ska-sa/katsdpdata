@@ -155,6 +155,8 @@ class File(object):
          # write telescope state data out to file
         tstate = model_data._telstate
         tstate_group = self._h5_file.create_group(_TSTATE_DATASET)
+	tstate_group.attrs['subarray_product_id'] = tstate.get('subarray_product_id','none')
+	 # include the subarray product id for use by the crawler to identify which system the file belongs to
         tstate_keys = tstate.keys()
         logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), _TSTATE_DATASET))
 
