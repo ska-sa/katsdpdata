@@ -66,10 +66,12 @@ class MetExtractor(object):
             raise MetExtractorException('No metadata extracted.')
 
 class TelescopeProductMetExtractor(MetExtractor):
+    @staticmethod
     def factory(katfile):
         katdata = katdal.open(os.path.abspath(katfile))
-        if 'sub_array_product_id' in katdata.__dict__:
-            if katdata.sub_array_product_id == 'MeerKATAR1':
+        try:
+            telescope_id = katdata.file['TelescopeState'].attrs['subarray_product_id']
+            if telescope_id == 'rts_c856M4k':
                 return MeerKATAR1TelescopeProductMetExtractor(katdata)
             elif katdata.sub_array_product_id == 'RTS':
                 return RTSTelescopeProductMetExtractor(katdata)
@@ -77,10 +79,12 @@ class TelescopeProductMetExtractor(MetExtractor):
                 return KAT7TelescopeProductMetExtractor(katdata)
             else:
                 raise MetExtractorException('Bad met extractor creation.')
-        else:
+        except KeyError:
             if katdata.ants[0].name.startswith('ant'):
+                #must be KAT7
                 return KAT7TelescopeProductMetExtractor(katdata)
             else:
+                #must be RTS
                 return RTSTelescopeProductMetExtractor(katdata)
 
 class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
