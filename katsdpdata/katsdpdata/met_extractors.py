@@ -109,9 +109,9 @@ class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """
 
     def __init__(self, katdata):
-        self.katfile = os.path.abspath(katdata.file.filename)
+        self._katdata = katdata
+        self.katfile = os.path.abspath(self._katdata.file.filename)
         super(KAT7TelescopeProductMetExtractor, self).__init__('%s.%s' % (self.katfile, 'met',))
-        self._katdata = katdal
         self.product_type = 'KAT7TelescopeProduct' #TODO - modify to 'KAT7TelescopeProduct'
 
     def _extract_metadata_product_type(self):
