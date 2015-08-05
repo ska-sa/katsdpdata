@@ -159,6 +159,9 @@ class File(object):
         logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), _TSTATE_DATASET))
 
         for key in tstate_keys:
+            if key == 'config':
+                tstate_group.attrs['subarray_product_id'] = tstate['config'].get('subarray_product_id','none')
+                 # include the subarray product id for use by the crawler to identify which system the file belongs to
             if not tstate.is_immutable(key):
                 sensor_values = tstate.get_range(key, st=0)
                  # retrieve all values for a particular key
