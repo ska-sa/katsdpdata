@@ -176,7 +176,7 @@ if options.Foreground:
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
     logging.info('Logging to console.')
 else:
-    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
+    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO,format='%(asctime)s:%(levelname)s:%(message)s')
     logging.info('Starting in daemon mode.')
     logging.info('Logging to %s' % (LOG_FILENAME))
 
