@@ -11,6 +11,7 @@ class MetExtractorException(Exception):
     """Raises a MetExtractor exception."""
     pass
 
+
 class MetExtractor(object):
     """Base class for handling metadata extraction. This class can be used to
     create an empty met file that complies with OODT ingest"
@@ -64,7 +65,25 @@ class MetExtractor(object):
         else:
             raise MetExtractorException('No metadata extracted.')
 
-class Kat7TelescopeProductMetExtractor(MetExtractor):
+class TelescopeProductMetExtractor(MetExtractor):
+    def factory(katfile):
+        katdata = katdal.open(os.path.abspath(katfile))
+        if 'sub_array_product_id' in katdata.__dict__:
+            if katdata.sub_array_product_id == 'MeerKATAR1':
+                return MeerKATAR1TelescopeProductMetExtractor(katdata)
+            elif katdata.sub_array_product_id == 'RTS':
+                return RTSTelescopeProductMetExtractor(katdata)
+            elif katdata.sub_array_product_id == 'KAT7':
+                return KAT7TelescopeProductMetExtractor(katdata)
+            else:
+                raise MetExtractorException('Bad met extractor creation.')
+        else:
+            if katdata.ants[0].name.startswith('ant'):
+                return KAT7TelescopeProductMetExtractor(katdata)
+            else:
+                return RTSTelescopeProductMetExtractor(katdata)
+
+class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """Used for extracting metdata for a KatFile. As well as extracting data from a
     katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise
     empty string.
@@ -85,11 +104,11 @@ class Kat7TelescopeProductMetExtractor(MetExtractor):
         The access handler to a katfile.
     """
 
-    def __init__(self, katfile):
-        self.katfile = os.path.abspath(katfile)
-        super(Kat7TelescopeProductMetExtractor, self).__init__('%s.%s' % (self.katfile, 'met',))
-        self._katdata = katdal.open(os.path.abspath(katfile))
-        self.product_type = 'KatFile' #TODO - modify to 'Kat7TelescopeProduct'
+    def __init__(self, katdata):
+        self.katfile = os.path.abspath(katdata.file.filename)
+        super(KAT7TelescopeProductMetExtractor, self).__init__('%s.%s' % (self.katfile, 'met',))
+        self._katdata = katdal
+        self.product_type = 'KAT7TelescopeProduct' #TODO - modify to 'KAT7TelescopeProduct'
 
     def _extract_metadata_product_type(self):
         self.metadata['ProductType'] = self.product_type
@@ -130,7 +149,7 @@ class Kat7TelescopeProductMetExtractor(MetExtractor):
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
-class RTSTelescopeProductMetExtractor(Kat7TelescopeProductMetExtractor):
+class RTSTelescopeProductMetExtractor(KAT7TelescopeProductMetExtractor):
     """Used for extracting metdata for a RTSTelescopeProduct. As well as extracting data from a
     katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise
     empty string.
@@ -157,8 +176,8 @@ class RTSTelescopeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         'buffer_dir'
     """
 
-    def __init__(self, katfile):
-        super(RTSTelescopeProductMetExtractor, self).__init__(katfile)
+    def __init__(self, katdata):
+        super(RTSTelescopeProductMetExtractor, self).__init__(katdata)
         self._metadata_key_to_map = 'ReductionName'
         self._obs_param_to_get = 'reduction_name'
         #always set product_type after call to super
@@ -169,7 +188,12 @@ class RTSTelescopeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         super(RTSTelescopeProductMetExtractor, self)._extract_metadata_from_katdata()
         self.metadata[self._metadata_key_to_map] = self._katdata.obs_params.get(self._obs_param_to_get, '')
 
-class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
+class MeerKATAR1TelescopeProductMetExtractor(KAT7TelescopeProductMetExtractor):
+    def __init__(self, katdata):
+        super(MeerKATAR1TelescopeProductMetExtractor, self).__init__(katdata)
+        self.product_type = 'MeerKATAR1TelescopeProduct'
+
+class MeerkatTelescopeTapeProductMetExtractor(KAT7TelescopeProductMetExtractor):
     """Used for extracting metdata for a MeerkatTelescopeTapeProduct. As well as extracting data
     from a katfile, a further metadata key 'TapeBufferDirectory' must be gotten from a katcp server
     sensor.
@@ -198,8 +222,8 @@ class MeerkatTelescopeTapeProductMetExtractor(Kat7TelescopeProductMetExtractor):
         The OODT product repository path. Default is '/var/kat/data'
     """
 
-    def __init__(self, katfile):
-        super(MeerkatTelescopeTapeProductMetExtractor, self).__init__(katfile)
+    def __init__(self, katdata):
+        super(MeerkatTelescopeTapeProductMetExtractor, self).__init__(katdata)
         self._sensor_host = '192.168.6.233'
         self._katcp_port = 5001
         self._metadata_key_to_map = 'TapeBufferDirectory'
