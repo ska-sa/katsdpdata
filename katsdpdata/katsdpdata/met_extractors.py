@@ -277,16 +277,21 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
         #override product_type
         self.product_type = 'MeerKATAR1TelescopeProduct'
 
+    def _extract_sub_array_product_id(self):
+        self.metadata['SubarrayProductId'] = self._katdata.file['TelescopeState'].attrs['subarray_product_id']
+
     def extract_metadata(self):
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If 
         True, this method has already been run once. If False, extract metadata.
         This includes:
             * extracting the product type
             * extracting basic hdf5 information
+            * extracting the sub array product id
             * extracting an md5 checksum
         """
         if not self._metadata_extracted:
             self._extract_metadata_product_type()
+            self._extract_sub_array_product_id()
             self._extract_metadata_from_katdata()
             self._extract_metadata_file_digest()
             self._metadata_extracted = True
