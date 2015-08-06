@@ -12,6 +12,7 @@ setup(
     ],
     url = 'http://ska.ac.za/',
     scripts = [
+        "scripts/tel_prod_met_extractor.py",
         "scripts/katfile_met_extractor.py",
         "scripts/rts_met_extractor.py",
         "scripts/mkat_tape_met_extractor.py",
