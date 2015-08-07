@@ -3,7 +3,7 @@ import os
 import sys
 import katdal
 
-from katsdpdata.met_extractors import Kat7TelescopeProductMetExtractor
+from katsdpdata.met_extractors import KatFileProductMetExtractor
 from optparse import OptionParser
 
 usage = 'Usage: %prog katfile'
@@ -23,6 +23,6 @@ if os.path.isfile(metfilename):
 
 #met extractor specific
 katdata = katdal.open(filename)
-met_extractor = Kat7TelescopeProductMetExtractor(katdata)
+met_extractor = KatFileProductMetExtractor(katdata)
 met_extractor.extract_metadata()
 met_extractor.write_metadatafile()

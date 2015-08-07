@@ -207,6 +207,11 @@ class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
+class KatFileProductMetExtractor(KAT7TelescopeProductMetExtractor):
+    def __init__(self, katdata):
+        super(KatFileProductMetExtractor, self).__init__(katdata)
+        self.product_type = 'KatFile'
+
 class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """Used for extracting metdata for a RTSTelescopeProduct. As well as extracting data from a
     katdal, a further metadata key 'ReductionName' is created.
