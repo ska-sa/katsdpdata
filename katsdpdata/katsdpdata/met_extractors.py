@@ -117,8 +117,8 @@ class TelescopeProductMetExtractor(MetExtractor):
 
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
-        md5_filename = self.katfile + '.md5'
-        if md5_filename:
+        md5_filename = os.path.abspath(self.katfile + '.md5')
+        if os.path.isfile(md5_filename):
             with open(md5_filename, 'r') as md5:
                  md5.read().strip()
                  print 'Digest is %s.' % self.metadata['FileDigest']
