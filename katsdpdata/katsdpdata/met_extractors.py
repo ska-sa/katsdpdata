@@ -117,11 +117,18 @@ class TelescopeProductMetExtractor(MetExtractor):
 
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
-        print 'Calculating the md5 checksum for %s. This may take a while.' % (self.katfile)
-        p = subprocess.Popen(['md5sum', self.katfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-        if not p[1]:
-            self.metadata['FileDigest'] = p[0].split()[0]
-        print 'md5 checksum complete. Digest is %s.' % self.metadata['FileDigest']
+        md5_filename = self.katfile + '.md5'
+        if md5_filename:
+            with open(md5_filename, 'r') as md5:
+                 md5.read().strip()
+                 print 'Digest is %s.' % self.metadata['FileDigest']
+            os.remove(md5_filename)
+        else:
+            print 'Calculating the md5 checksum for %s. This may take a while.' % (self.katfile)
+            p = subprocess.Popen(['md5sum', self.katfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+            if not p[1]:
+                self.metadata['FileDigest'] = p[0].split()[0]
+                print 'md5 checksum complete. Digest is %s.' % self.metadata['FileDigest']
 
     @staticmethod
     def factory(katfile):
@@ -290,10 +297,10 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
             * extracting an md5 checksum
         """
         if not self._metadata_extracted:
+            self._extract_metadata_file_digest()
             self._extract_metadata_product_type()
             self._extract_sub_array_product_id()
             self._extract_metadata_from_katdata()
-            self._extract_metadata_file_digest()
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
