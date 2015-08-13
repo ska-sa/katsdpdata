@@ -120,7 +120,7 @@ class TelescopeProductMetExtractor(MetExtractor):
         md5_filename = os.path.abspath(self.katfile + '.md5')
         if os.path.isfile(md5_filename):
             with open(md5_filename, 'r') as md5:
-                 md5.read().strip()
+                 self.metadata['FileDigest']= md5.read().strip()
                  print 'Digest is %s.' % self.metadata['FileDigest']
             os.remove(md5_filename)
         else:
