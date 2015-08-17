@@ -1,6 +1,7 @@
 h5py
 numpy
 katcp
+manhole
 git+https://github.com/ska-sa/PySPEAD
 git+ssh://git@github.com/ska-sa/katsdptelstate
 redis

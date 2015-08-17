@@ -24,7 +24,8 @@ RUN apt-get -y update && apt-get -y install \
 RUN pip install --no-deps \
     katcp==0.5.5 \
     redis==2.10.3 \
-    six==1.9.0
+    six==1.9.0 \
+    manhole
 COPY requirements.txt /tmp/install/requirements.txt
 # Keep only dependent git repositories; everything else is installed explicitly
 # by this Dockerfile.

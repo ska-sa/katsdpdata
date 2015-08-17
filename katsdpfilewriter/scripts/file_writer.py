@@ -24,6 +24,8 @@ import threading
 import logging
 import Queue
 import numpy as np
+import signal
+import manhole
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import request, return_reply, Str
 from katsdpfilewriter import telescope_model, rts_model, file_writer
@@ -121,6 +123,8 @@ class FileWriterServer(DeviceServer):
                 timestamps.append(ig['timestamp'])
                 n_dumps += 1
                 self._dumps_sensor.set_value(n_dumps)
+	except Exception as err:
+		self._logger.error(err)
         finally:
             self._status_sensor.set_value("ready")
             sock.close()
@@ -220,6 +224,22 @@ def main():
     server.set_restart_queue(restart_queue)
     server.start()
     logger.info("Started file writer server.")
+
+
+    manhole.install(oneshot_on='USR1', locals={'server':server, 'args':args})
+     # allow remote debug connections and expose server and args
+
+    def graceful_exit(_signo=None, _stack_frame=None):
+        logger.info("Exiting ingest on SIGTERM")
+        os.kill(os.getpid(), signal.SIGINT)
+         # rely on the interrupt handler around the katcp device server
+         # to peform graceful shutdown. this preserves the command
+         # line Ctrl-C shutdown.
+
+    signal.signal(signal.SIGTERM, graceful_exit)
+     # mostly needed for Docker use since this process runs as PID 1
+     # and does not get passed sigterm unless it has a custom listener
+
     try:
         while True:
             try:
