@@ -230,7 +230,7 @@ def main():
      # allow remote debug connections and expose server and args
 
     def graceful_exit(_signo=None, _stack_frame=None):
-        logger.info("Exiting ingest on SIGTERM")
+        logger.info("Exiting filewriter on SIGTERM")
         os.kill(os.getpid(), signal.SIGINT)
          # rely on the interrupt handler around the katcp device server
          # to peform graceful shutdown. this preserves the command
