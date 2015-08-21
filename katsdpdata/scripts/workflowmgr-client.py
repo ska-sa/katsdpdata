@@ -73,17 +73,17 @@ if opts.KatFileImagerPipeline and product_metadata:
 
 if opts.KatFileRTSTesting and product_metadata:
     product_metadata['ReductionName'] = product_metadata['Description']
-    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (product_metadata['ReductionName'][0]))
+    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName'][0]))
     xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
 
 if opts.MeerkatTelescopeTapeProductCheckArchiveToTape and product_metadata:
     product_metadata['ReductionName'] = product_metadata['Description']
-    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (product_metadata['ReductionName'][0]))
+    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName'][0]))
     xmlrpc_client.workflowmgr.handleEvent('MeerkatTelescopeTapeProductCheckArchiveToTape', product_metadata)
 
 if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
     product_metadata['ReductionName'] = [opts.ReductionName]
-    logging.info('Calling handleEvent RTSTelescopeProductReduce with product %s with reductions %s' % (product_metadata['ReductionName'][0]))
+    logging.info('Calling handleEvent RTSTelescopeProductReduce with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName'][0]))
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductReduce', product_metadata)
 
 if opts.ListEvents:
