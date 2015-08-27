@@ -35,6 +35,8 @@ def get_options():
          help='Call MeerkatTelescopeTapeProductCheckArchiveToTape on the xmlrpc interface.')
     parser.add_option('--RTSTelescopeProductReduce', action='store_true', default=False,
          help='Call RTSTelescopeProductReduce. Note you need to specify the reduction to perform.')
+    parser.add_option('--RTSTelescopeProductRTSIngest', action='store_true', default=False,
+         help='Call RTSTelescopeProductRTSIngest.')
     parser.add_option('--ReductionName', type='str',
          help='String containing the data to set for ReductionName metadata')
     parser.add_option('--ListEvents', action='store_true', default=False,
@@ -73,18 +75,22 @@ if opts.KatFileImagerPipeline and product_metadata:
 
 if opts.KatFileRTSTesting and product_metadata:
     product_metadata['ReductionName'] = product_metadata['Description']
-    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName'][0]))
+    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName']))
     xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
 
 if opts.MeerkatTelescopeTapeProductCheckArchiveToTape and product_metadata:
     product_metadata['ReductionName'] = product_metadata['Description']
-    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName'][0]))
+    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName']))
     xmlrpc_client.workflowmgr.handleEvent('MeerkatTelescopeTapeProductCheckArchiveToTape', product_metadata)
 
 if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
     product_metadata['ReductionName'] = [opts.ReductionName]
-    logging.info('Calling handleEvent RTSTelescopeProductReduce with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName'][0]))
+    logging.info('Calling handleEvent RTSTelescopeProductReduce with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName']))
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductReduce', product_metadata)
+
+if opts.RTSTelescopeProductRTSIngest and product_metadata:
+    logging.info('Calling handleEvent RTSTelescopeProductRTSIngest with product %s ' % (opts.filename))
+    xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductRTSIngest', product_metadata)
 
 if opts.ListEvents:
     for e in xmlrpc_client.workflowmgr.listEvents():

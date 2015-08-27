@@ -121,11 +121,15 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
 
     def RTSTelescopeProductRTSIngest(self, metadata, queue='RTS'):
         logging.info('Filename: %s' % (metadata['Filename'][0]))
-        logging.info('Reduction Name: %s' % (metadata['ReductionName'][0]))
+        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
+        if product_metadata['ReductionName'][0] == '':
+            logging.info('No ReductionName. Description to ReductionName override.')
+            product_metadata['ReductionName']=product_metadata['Description']
+        logging.info('Reduction Name: %s' % (product_metadata['ReductionName'][0]))
         if self.disable_backend:
             logging.info('Disabled backend: No call implemented.')
         else:
-            logging.warning('No call implemented.')
+            qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url, queue)
 
     def KatFileRTSTesting(self, metadata, queue='Kat'):
         data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
