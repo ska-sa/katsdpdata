@@ -80,13 +80,12 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
     def _find_queue_from_event(self, event_name):
         queue_lookup = {'KatFile': 'Kat', 'RTSTelescopeProduct': 'RTS', 'MeerkatTelescopeTapeProduct': 'Meerkat'}
         #Default queue is Kat if nothing there
-        if event_name not in queue_lookup:
+        queue=[queue_lookup[prefix] for prefix in queue_lookup.keys() if event_name.startswith(prefix)]
+        if not queue:
             logging.info('Event: %s has no associated queue. Defaulting to Kat' % (event_name))
-            queue = 'Kat'
+            return 'Kat'
         else:
-            queue = queue_lookup[event_name]
-        return queue
-
+            return queue[0]
 
 class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
     def __init__(self, filemgr_url, disable_backend, *args, **kwargs):
@@ -177,7 +176,7 @@ if options.Foreground:
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
     logging.info('Logging to console.')
 else:
-    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
+    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO,format='%(asctime)s:%(levelname)s:%(message)s')
     logging.info('Starting in daemon mode.')
     logging.info('Logging to %s' % (LOG_FILENAME))
 
