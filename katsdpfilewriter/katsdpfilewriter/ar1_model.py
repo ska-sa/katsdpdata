@@ -60,9 +60,9 @@ class SDP(TelescopeComponent):
         self.add_attributes(['l0_int_time'], True)
 
 
-def create_model(antenna_mask=''):
+def create_model(antenna_mask=[]):
     components = []
-    for ant_name in antenna_mask.split(','):
+    for ant_name in antenna_mask:
         components.append(AntennaPositioner(name=ant_name))
     cbf = CorrelatorBeamformer(name='cbf')
     env = Enviro(name='anc')

@@ -203,6 +203,13 @@ class FileWriterServer(DeviceServer):
         self._status_sensor.set_value("idle")
         return result
 
+def comma_list(type_):
+    """Return a function which splits a string on commas and converts each element to
+    `type_`."""
+
+    def convert(arg):
+        return [type_(x) for x in arg.split(',')]
+    return convert
 
 def main():
     logging.basicConfig()
