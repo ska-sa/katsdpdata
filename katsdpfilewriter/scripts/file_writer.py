@@ -28,7 +28,7 @@ import signal
 import manhole
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import request, return_reply, Str
-from katsdpfilewriter import telescope_model, rts_model, file_writer
+from katsdpfilewriter import telescope_model, ar1_model, file_writer
 
 
 class TelstateModelData(telescope_model.TelescopeModelData):
@@ -70,13 +70,13 @@ class FileWriterServer(DeviceServer):
     VERSION_INFO = ("sdp-file-writer", 0, 1)
     BUILD_INFO = ("sdp-file-writer", 0, 1, "rc1")
 
-    def __init__(self, logger, l0_spectral_endpoints, file_base, telstate, *args, **kwargs):
+    def __init__(self, logger, l0_spectral_endpoints, file_base, antenna_mask, telstate, *args, **kwargs):
         super(FileWriterServer, self).__init__(*args, logger=logger, **kwargs)
         self._file_base = file_base
         self._endpoints = l0_spectral_endpoints
         self._capture_thread = None
         self._telstate = telstate
-        self._model = rts_model.create_model()
+        self._model = ar1_model.create_model(antenna_mask=antenna_mask)
         self._file_obj = None
         self._start_timestamp = None
 
@@ -213,13 +213,14 @@ def main():
     parser = katsdptelstate.ArgumentParser()
     parser.add_argument('--l0-spectral-spead', type=katsdptelstate.endpoint.endpoint_list_parser(7200), default=':7200', help='source port/multicast groups for spectral L0 input. [default=%(default)s]', metavar='ENDPOINTS')
     parser.add_argument('--file-base', default='.', type=str, help='base directory into which to write HDF5 files. [default=%(default)s]', metavar='DIR')
+    parser.add_argument('--antenna-mask', type=comma_list(str), default='', help='List of antennas to store in the telescope model. [default=%(default)s]')
     parser.add_argument('-p', '--port', dest='port', type=int, default=2046, metavar='N', help='katcp host port. [default=%(default)s]')
     parser.add_argument('-a', '--host', dest='host', type=str, default="", metavar='HOST', help='katcp host address. [default=all hosts]')
     parser.set_defaults(telstate='localhost')
     args = parser.parse_args()
 
     restart_queue = Queue.Queue()
-    server = FileWriterServer(logger, args.l0_spectral_spead, args.file_base, args.telstate,
+    server = FileWriterServer(logger, args.l0_spectral_spead, args.file_base, args.antenna_mask, args.telstate,
                               host=args.host, port=args.port)
     server.set_restart_queue(restart_queue)
     server.start()
