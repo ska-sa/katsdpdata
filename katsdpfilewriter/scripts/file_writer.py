@@ -14,7 +14,8 @@ The status sensor has the following states:
 """
 
 from __future__ import print_function, division
-import spead64_48 as spead
+import spead2
+import spead2.recv
 import katsdptelstate
 import time
 import os.path
@@ -79,6 +80,7 @@ class FileWriterServer(DeviceServer):
         self._model = ar1_model.create_model(antenna_mask=antenna_mask)
         self._file_obj = None
         self._start_timestamp = None
+        self._rx = None
 
     def setup_sensors(self):
         self._status_sensor = Sensor.string(
@@ -115,16 +117,15 @@ class FileWriterServer(DeviceServer):
         sock = self._multicast_socket()
         n_dumps = 0
         try:
-            rx = spead.TransportUDPrx(self._endpoints[0].port, pkt_count=1024, buffer_size=51200000)
-            ig = spead.ItemGroup()
-            for heap in spead.iterheaps(rx):
+            ig = spead2.ItemGroup()
+            for heap in self._rx:
                 ig.update(heap)
-                file_obj.add_data_frame(ig['correlator_data'], ig['flags'])
-                timestamps.append(ig['timestamp'])
+                file_obj.add_data_frame(ig['correlator_data'].value, ig['flags'].value)
+                timestamps.append(ig['timestamp'].value)
                 n_dumps += 1
                 self._dumps_sensor.set_value(n_dumps)
-	except Exception as err:
-		self._logger.error(err)
+        except Exception as err:
+            self._logger.error(err)
         finally:
             self._status_sensor.set_value("ready")
             sock.close()
@@ -153,6 +154,8 @@ class FileWriterServer(DeviceServer):
         self._dumps_sensor.set_value(0)
         self._file_obj = file_writer.File(self._stage_filename)
         self._start_timestamp = timestamp
+        self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2)
+        self._rx.add_udp_reader(self._endpoints[0].port)
         self._capture_thread = threading.Thread(
                 target=self._do_capture, name='capture', args=(self._file_obj,))
         self._capture_thread.start()
@@ -173,14 +176,10 @@ class FileWriterServer(DeviceServer):
         """
         if self._capture_thread is None:
             return ("fail", "Not capturing")
-        # Nasty hack until PySPEAD has a way to interrupt an iterheaps: send an
-        # end-of-stream packet to ourself, and keep doing it until it is received
-        tx = spead.Transmitter(spead.TransportUDPtx('localhost', self._endpoints[0].port))
-        while self._capture_thread.is_alive():
-            tx.send_halt()
-            time.sleep(0.1)
+        self._rx.stop()
         self._capture_thread.join()
         self._capture_thread = None
+        self._rx = None
         self._logger.info("Joined capture thread")
 
         self._status_sensor.set_value("finalising")
@@ -215,7 +214,7 @@ def main():
     logging.basicConfig()
     logger = logging.getLogger("katsdpresearch.file_writer")
     logger.setLevel(logging.INFO)
-    spead.logger.setLevel(logging.WARNING)
+    logging.getLogger('spead2').setLevel(logging.WARNING)
 
     parser = katsdptelstate.ArgumentParser()
     parser.add_argument('--l0-spectral-spead', type=katsdptelstate.endpoint.endpoint_list_parser(7200), default=':7200', help='source port/multicast groups for spectral L0 input. [default=%(default)s]', metavar='ENDPOINTS')
