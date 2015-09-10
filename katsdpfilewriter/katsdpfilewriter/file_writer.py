@@ -47,7 +47,11 @@ class File(object):
     def __init__(self, filename):
         """Initialises an HDF5 output file as appropriate for this version of
         the telescope model."""
-        h5_file = h5py.File(filename, mode="w")
+        # Need to use at least version 1.8, so that >64K attributes
+        # (specifically bls_ordering) can be stored. At present there is no
+        # way to explicitly request 1.8; this should be revisited after 1.10
+        # ships.
+        h5_file = h5py.File(filename, mode="w", libver='latest')
         h5_file['/'].create_group('Data')
         h5_file['/'].attrs['version'] = HDF5_VERSION
         self._h5_file = h5_file
