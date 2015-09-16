@@ -13,6 +13,8 @@ RUN chmod -R go-rwx ~/.ssh
 # Install system packages
 RUN apt-get -y update && apt-get -y install \
     build-essential git-core \
+    libboost-python1.55-dev \
+    libboost-system1.55-dev \
     python python-dev python-pip \
     python-h5py \
     python-netifaces \
@@ -23,9 +25,10 @@ RUN apt-get -y update && apt-get -y install \
 
 RUN pip install --no-deps \
     katcp==0.5.5 \
+    manhole \
     redis==2.10.3 \
     six==1.9.0 \
-    manhole
+    spead2==0.2.2
 COPY requirements.txt /tmp/install/requirements.txt
 # Keep only dependent git repositories; everything else is installed explicitly
 # by this Dockerfile.
