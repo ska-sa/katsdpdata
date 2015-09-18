@@ -28,7 +28,7 @@ RUN pip install --no-deps \
     manhole \
     redis==2.10.3 \
     six==1.9.0 \
-    spead2==0.2.2
+    spead2==0.3.0
 COPY requirements.txt /tmp/install/requirements.txt
 # Keep only dependent git repositories; everything else is installed explicitly
 # by this Dockerfile.

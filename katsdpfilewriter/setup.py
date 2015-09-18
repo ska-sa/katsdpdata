@@ -17,7 +17,7 @@ setup(
     install_requires=[
         'h5py',
         'numpy',
-        'spead2',
+        'spead2>=0.3.0',
         'katcp',
         'katsdptelstate'
     ]
