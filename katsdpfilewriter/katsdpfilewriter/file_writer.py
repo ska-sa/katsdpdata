@@ -61,7 +61,8 @@ class File(object):
         """Write all timestamps for the file in one go. This must only be
         called once, as it creates the dataset.
         """
-        self._h5_file.create_dataset(_TIMESTAMPS_DATASET, data=timestamps)
+        ds = self._h5_file.create_dataset(_TIMESTAMPS_DATASET, data=timestamps)
+        ds.attrs['timestamp_reference'] = 'centroid'
 
     def _create_data(self, shape):
         """Creates the data sets for visibilities and flags."""

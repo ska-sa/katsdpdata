@@ -119,11 +119,12 @@ class FileWriterServer(DeviceServer):
         try:
             ig = spead2.ItemGroup()
             for heap in self._rx:
-                ig.update(heap)
-                file_obj.add_data_frame(ig['correlator_data'].value, ig['flags'].value)
-                timestamps.append(ig['timestamp'].value)
-                n_dumps += 1
-                self._dumps_sensor.set_value(n_dumps)
+                updated = ig.update(heap)
+                if 'timestamp' in updated:
+                    file_obj.add_data_frame(ig['correlator_data'].value, ig['flags'].value)
+                    timestamps.append(ig['timestamp'].value)
+                    n_dumps += 1
+                    self._dumps_sensor.set_value(n_dumps)
         except Exception as err:
             self._logger.error(err)
         finally:
