@@ -29,7 +29,7 @@ def get_options():
     parser.add_option('-p', '--port', type='int',
          help='The port to listen on for XMLRPC requests')
     parser.add_option('--FileMgrUrl', type='str', default='http://localhost:9101',
-         help='The URL for the workflow manager XMLRPC interface. Default is http://localhost:9101. Use http://192.186.1.50:9103 as remote file manager.')
+         help='The URL for the filemanger manager XMLRPC interface. Default is http://localhost:9101. Use http://192.186.1.50:9101 as remote file manager.')
     parser.add_option('--Foreground', action='store_true', default=False,
          help='For testing purposes. Log to console and not the file.')
     parser.add_option('--DisableCeleryBackend', action='store_true', default=False,
