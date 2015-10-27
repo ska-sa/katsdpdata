@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 import os
 import sys
-import katdal
 
-from katsdpdata.met_extractors import RTSTelescopeProductMetExtractor
+from katsdpdata.met_extractors import TelescopeProductMetExtractor
 from optparse import OptionParser
 
 usage = 'Usage: %prog katfile'
@@ -22,7 +21,6 @@ if os.path.isfile(metfilename):
     sys.exit(0)
 
 #met extractor specific
-katdata = katdal.open(filename)
-met_extractor = RTSTelescopeProductMetExtractor(katdata)
+met_extractor = TelescopeProductMetExtractor.factory(filename)
 met_extractor.extract_metadata()
 met_extractor.write_metadatafile()
