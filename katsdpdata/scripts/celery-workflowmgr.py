@@ -80,12 +80,13 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
     def _find_queue_from_event(self, event_name):
         queue_lookup = {'KatFile': 'Kat', 'RTSTelescopeProduct': 'RTS', 'MeerkatTelescopeTapeProduct': 'Meerkat'}
         #Default queue is Kat if nothing there
-        queue=[queue_lookup[prefix] for prefix in queue_lookup.keys() if event_name.startswith(prefix)]
-        if not queue:
+        if event_name not in queue_lookup:
             logging.info('Event: %s has no associated queue. Defaulting to Kat' % (event_name))
-            return 'Kat'
+            queue = 'Kat'
         else:
-            return queue[0]
+            queue = queue_lookup[event_name]
+        return queue
+
 
 class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
     def __init__(self, filemgr_url, disable_backend, *args, **kwargs):
@@ -109,6 +110,7 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         logging.debug(data_store_ref)
         return data_store_ref, product_metadata
 
+    #todo: deprecate this method in favour of RTSTelescopeProductIngest
     def RTSTelescopeProductReduce(self, metadata, queue='RTS'):
         data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
         #client call for this method already contains a call to the file manager
@@ -119,10 +121,11 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         else:
             qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url, queue)
 
+    #todo: deprecate this method in favour of RTSTelescopeProductIngest
     def RTSTelescopeProductRTSIngest(self, metadata, queue='RTS'):
         logging.info('Filename: %s' % (metadata['Filename'][0]))
-        data_store_ref, product_metadata = self._get_product_info_from_filemgr(metadata)
-        if product_metadata['ReductionName'][0] == '':
+        product_metadata = self.filemgr.get_product_metadata(metadata['ProductName'][0])
+        if product_metadata['ReductionName'][0] = '':
             logging.info('No ReductionName. Description to ReductionName override.')
             product_metadata['ReductionName']=product_metadata['Description']
         logging.info('Reduction Name: %s' % (product_metadata['ReductionName'][0]))
@@ -168,6 +171,22 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         else:
             tasks.check_archive_to_tape.apply_async(queue=queue)
 
+    #@todo: map PostIngestIrcInform, AutoImagerInform, ImagerPipeline, ObsReporter into all [ProductTypeName]Ingest
+    #[ProductTypeName]Ingest
+    def RTSTelescopeProductIngest(self, metadata, queue='RTS'):
+        logging.info('Filename: %s' % (metadata['Filename'][0]))
+        product_metadata = self.filemgr.get_product_metadata(metadata['ProductName'][0])
+        #execute irc inform
+        #execute qualification tests
+        if product_metadata['ReductionName'][0] = '':
+            logging.info('No ReductionName. Description to ReductionName override.')
+            product_metadata['ReductionName']=product_metadata['Description']
+        logging.info('Reduction Name: %s' % (product_metadata['ReductionName'][0]))
+        if self.disable_backend:
+            logging.info('Disabled backend: No call implemented.')
+        else:
+            qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url, queue)
+
 options = get_options()
 
 if not options.DisableCeleryBackend:
@@ -180,7 +199,7 @@ if options.Foreground:
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
     logging.info('Logging to console.')
 else:
-    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO,format='%(asctime)s:%(levelname)s:%(message)s')
+    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
     logging.info('Starting in daemon mode.')
     logging.info('Logging to %s' % (LOG_FILENAME))
 
