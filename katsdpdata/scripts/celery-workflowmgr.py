@@ -170,12 +170,6 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
 
 options = get_options()
 
-if not options.DisableCeleryBackend:
-    #then import the backend
-    from katsdpworkflow.RTS import qualification_tests
-    from katsdpworkflow.KAT7 import pipelines
-    from katsdpworkflow.MKAT import tasks
-
 if options.Foreground:
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
     logging.info('Logging to console.')
@@ -183,6 +177,12 @@ else:
     logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO,format='%(asctime)s:%(levelname)s:%(message)s')
     logging.info('Starting in daemon mode.')
     logging.info('Logging to %s' % (LOG_FILENAME))
+
+if not options.DisableCeleryBackend:
+    #then import the backend
+    from katsdpworkflow.RTS import qualification_tests
+    from katsdpworkflow.KAT7 import pipelines
+    from katsdpworkflow.MKAT import tasks
 
 server = OODTWorkflowManager(options.FileMgrUrl, options.DisableCeleryBackend, ("", options.port,))
 if options.DisableCeleryBackend:
