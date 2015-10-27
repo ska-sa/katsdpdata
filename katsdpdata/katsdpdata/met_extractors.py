@@ -141,19 +141,14 @@ class TelescopeProductMetExtractor(MetExtractor):
         """
         katdata = katdal.open(katfile)
         try:
-            telescope_id = katdata.file['TelescopeState'].attrs['subarray_product_id']
-            if telescope_id == 'rts_c856M4k':
-                return MeerKATAR1TelescopeProductMetExtractor(katdata)
-            elif katdata.sub_array_product_id == 'RTS':
-                return RTSTelescopeProductMetExtractor(katdata)
-            elif katdata.sub_array_product_id == 'KAT7':
-                return KAT7TelescopeProductMetExtractor(katdata)
-            else:
-                raise MetExtractorException('Bad met extractor creation.')
+            #does it have the subarray key?
+            katdata.file['TelescopeState'].attrs['subarray_product_id']
+            return MeerKATAR1TelescopeProductMetExtractor(katdata)
         except KeyError:
             if katdata.ants[0].name.startswith('ant'):
                 #must be KAT7
-                return KAT7TelescopeProductMetExtractor(katdata)
+                #todo: replace with KAT7TelescopeProductMetExtractor
+                return KatFileProductMetExtractor(katdata)
             else:
                 #must be RTS
                 return RTSTelescopeProductMetExtractor(katdata)
