@@ -110,6 +110,7 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         logging.debug(data_store_ref)
         return data_store_ref, product_metadata
 
+    #todo: deprecate this method in favour of RTSTelescopeProductIngest
     def RTSTelescopeProductReduce(self, metadata, queue='RTS'):
         data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
         #client call for this method already contains a call to the file manager
@@ -120,6 +121,7 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         else:
             qualification_tests.run_qualification_tests(data_store_ref.path, metadata, self.filemgr_url, queue)
 
+    #todo: deprecate this method in favour of RTSTelescopeProductIngest
     def RTSTelescopeProductRTSIngest(self, metadata, queue='RTS'):
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         product_metadata = self.filemgr.get_product_metadata(metadata['ProductName'][0])
