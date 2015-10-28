@@ -80,13 +80,10 @@ class WorkflowManagerXMLRPCServer(SimpleXMLRPCServer):
     def _find_queue_from_event(self, event_name):
         queue_lookup = {'KatFile': 'Kat', 'RTSTelescopeProduct': 'RTS', 'MeerkatTelescopeTapeProduct': 'Meerkat'}
         #Default queue is Kat if nothing there
-        if event_name not in queue_lookup:
-            logging.info('Event: %s has no associated queue. Defaulting to Kat' % (event_name))
-            queue = 'Kat'
-        else:
-            queue = queue_lookup[event_name]
-        return queue
-
+        queue=[queue_lookup[prefix] for prefix in queue_lookup.keys() if event_name.startswith(prefix)]
+        if not queue:
+            queue= ['Kat']
+        return queue[0]
 
 class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
     def __init__(self, filemgr_url, disable_backend, *args, **kwargs):
@@ -123,9 +120,10 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
 
     #todo: deprecate this method in favour of RTSTelescopeProductIngest
     def RTSTelescopeProductRTSIngest(self, metadata, queue='RTS'):
+        data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         product_metadata = self.filemgr.get_product_metadata(metadata['ProductName'][0])
-        if product_metadata['ReductionName'][0] = '':
+        if product_metadata['ReductionName'][0] == '':
             logging.info('No ReductionName. Description to ReductionName override.')
             product_metadata['ReductionName']=product_metadata['Description']
         logging.info('Reduction Name: %s' % (product_metadata['ReductionName'][0]))
@@ -176,9 +174,10 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
     def RTSTelescopeProductIngest(self, metadata, queue='RTS'):
         logging.info('Filename: %s' % (metadata['Filename'][0]))
         product_metadata = self.filemgr.get_product_metadata(metadata['ProductName'][0])
+        data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
         #execute irc inform
         #execute qualification tests
-        if product_metadata['ReductionName'][0] = '':
+        if product_metadata['ReductionName'][0] == '':
             logging.info('No ReductionName. Description to ReductionName override.')
             product_metadata['ReductionName']=product_metadata['Description']
         logging.info('Reduction Name: %s' % (product_metadata['ReductionName'][0]))
@@ -193,7 +192,7 @@ if options.Foreground:
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
     logging.info('Logging to console.')
 else:
-    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO)
+    logging.basicConfig(filename=LOG_FILENAME,level=logging.INFO,format='%(asctime)s:%(levelname)s:%(message)s')
     logging.info('Starting in daemon mode.')
     logging.info('Logging to %s' % (LOG_FILENAME))
 
