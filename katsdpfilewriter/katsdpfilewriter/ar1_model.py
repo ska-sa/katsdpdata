@@ -19,7 +19,7 @@ class AntennaPositioner(TelescopeComponent):
                  'dig_noise_diode', 'ap_indexer_position',
                  'rsc_rxl_serial_number', 'rsc_rxs_serial_number',
                  'rsc_rxu_serial_number', 'rsc_rxx_serial_number'], True)
-        self.add_attributes(['description'], True)
+        self.add_attributes(['observer'], True)
 
 
 class CorrelatorBeamformer(TelescopeComponent):
