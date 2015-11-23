@@ -106,7 +106,6 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['Duration'] = str(round(self._katdata.end_time-self._katdata.start_time, 2))
         self.metadata['ExperimentID'] = self._katdata.experiment_id
         self.metadata['FileSize'] = str(os.path.getsize(self._katdata.file.filename))
-        self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
         self.metadata['KatfileVersion'] = self._katdata.version
         self.metadata['KatpointTargets'] = list(set([str(i).replace('tags=','') for i in self._katdata.catalogue.targets if i.name not in ['None', 'Nothing']]))
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
@@ -114,6 +113,11 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['RefAntenna'] = self._katdata.ref_ant
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(self._katdata.start_time))
         self.metadata['Targets'] = list(set([i.name for i in self._katdata.catalogue.targets if i.name not in ['None', 'Nothing', 'azel', 'radec']]))
+
+        try:
+            self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
+        except KeyError:
+            self.metadata['InstructionSet'] = ''
 
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
