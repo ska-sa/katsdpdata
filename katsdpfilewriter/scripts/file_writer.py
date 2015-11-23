@@ -92,6 +92,9 @@ class FileWriterServer(DeviceServer):
         self._dumps_sensor = Sensor.integer(
                 "dumps", "Number of L0 dumps captured", "", [0, 2**63], 0)
         self.add_sensor(self._dumps_sensor)
+        self._rate_sensor = Sensor.float(
+                "input_rate", "Input data rate in Bps averaged over last 10 dumps", "Bps")
+        self.add_sensor(self._rate_sensor)
 
     def _multicast_socket(self):
         """Returns a socket that is subscribed to any necessary multicast groups."""
@@ -116,15 +119,23 @@ class FileWriterServer(DeviceServer):
         timestamps = []
         sock = self._multicast_socket()
         n_dumps = 0
+        n_bytes = 0
+        loop_time = time.time()
         try:
             ig = spead2.ItemGroup()
             for heap in self._rx:
                 updated = ig.update(heap)
                 if 'timestamp' in updated:
-                    file_obj.add_data_frame(ig['correlator_data'].value, ig['flags'].value)
+                    vis_data = ig['correlator_data'].value
+                    flags = ig['flags'].value
+                    file_obj.add_data_frame(vis_data, flags)
                     timestamps.append(ig['timestamp'].value)
                     n_dumps += 1
+                    n_bytes += vis_data.nbytes + flags.nbytes
                     self._dumps_sensor.set_value(n_dumps)
+                    if n_dumps % 10 == 0 and n_dumps > 0:
+                        self._rate_sensor.set_value(n_bytes / (time.time() - loop_time))
+                        n_bytes = 0
         except Exception as err:
             self._logger.error(err)
         finally:
@@ -212,7 +223,13 @@ def comma_list(type_):
     return convert
 
 def main():
-    logging.basicConfig()
+    if len(logging.root.handlers) > 0: logging.root.removeHandler(logging.root.handlers[0])
+    formatter = logging.Formatter("%(asctime)s.%(msecs)dZ - %(filename)s:%(lineno)s - %(levelname)s - %(message)s",
+                                      datefmt="%Y-%m-%d %H:%M:%S")
+    sh = logging.StreamHandler()
+    sh.setFormatter(formatter)
+    logging.root.addHandler(sh)
+
     logger = logging.getLogger("katsdpresearch.file_writer")
     logger.setLevel(logging.INFO)
     logging.getLogger('spead2').setLevel(logging.WARNING)
