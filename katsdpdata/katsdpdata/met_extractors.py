@@ -111,8 +111,7 @@ class TelescopeProductMetExtractor(MetExtractor):
             self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
         except KeyError:
             print "InstructionSet is an optional key-value pair. There is no 'script_name' in obs_params."
-            self.metadata['InstructionSet'] = ''
-
+            pass
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
         md5_filename = os.path.abspath(self.katfile + '.md5')
