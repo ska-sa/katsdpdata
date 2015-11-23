@@ -72,23 +72,16 @@ class MetExtractor(object):
             raise MetExtractorException('No metadata extracted.')
 
 class TelescopeProductMetExtractor(MetExtractor):
-    """Base class for handling telescope systems metadata extraction. This class contains
-    a factory which returns the correct met extractor object to use. The following systems
-    are currently supported: KAT7, RTS, MeerKAT AR1.
+    """A class for handling telescope systems metadata extraction. This class contains
+    a factory method which returns the correct met extractor object to use. The following 
+    systems are currently supported: KAT7, RTS, MeerKAT AR1.
+
+    Use the static 'factory' method from this class.
 
     Parameters
     ----------
-    metadata_filename : string : name of the metadata output file to use.
-        Filename for access handler to CAS metadata file.
-
-    Attributes
-    ----------
-    metadata_filename : string : Name of the metadata file to create.
-    
-    metadata : dict : Place holder for metadata key value pairs.
-    
-    product_type : string : Specify product type for OODT Filemananger ingest
-        set to None
+    katdata : object : katdal object 
+        A valid katdal oject.
     """
     def __init__(self, katdata):
         self._katdata = katdata
@@ -106,7 +99,6 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['Duration'] = str(round(self._katdata.end_time-self._katdata.start_time, 2))
         self.metadata['ExperimentID'] = self._katdata.experiment_id
         self.metadata['FileSize'] = str(os.path.getsize(self._katdata.file.filename))
-        self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
         self.metadata['KatfileVersion'] = self._katdata.version
         self.metadata['KatpointTargets'] = list(set([str(i).replace('tags=','') for i in self._katdata.catalogue.targets if i.name not in ['None', 'Nothing']]))
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
@@ -115,6 +107,11 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(self._katdata.start_time))
         self.metadata['Targets'] = list(set([i.name for i in self._katdata.catalogue.targets if i.name not in ['None', 'Nothing', 'azel', 'radec']]))
 
+        try:
+            self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
+        except KeyError:
+            print "InstructionSet is an optional key-value pair. There is no 'script_name' in obs_params."
+            pass
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
         md5_filename = os.path.abspath(self.katfile + '.md5')
