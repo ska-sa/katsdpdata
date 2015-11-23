@@ -72,23 +72,16 @@ class MetExtractor(object):
             raise MetExtractorException('No metadata extracted.')
 
 class TelescopeProductMetExtractor(MetExtractor):
-    """Base class for handling telescope systems metadata extraction. This class contains
-    a factory which returns the correct met extractor object to use. The following systems
-    are currently supported: KAT7, RTS, MeerKAT AR1.
+    """A class for handling telescope systems metadata extraction. This class contains
+    a factory method which returns the correct met extractor object to use. The following 
+    systems are currently supported: KAT7, RTS, MeerKAT AR1.
+
+    Use the static 'factory' method from this class.
 
     Parameters
     ----------
-    metadata_filename : string : name of the metadata output file to use.
-        Filename for access handler to CAS metadata file.
-
-    Attributes
-    ----------
-    metadata_filename : string : Name of the metadata file to create.
-    
-    metadata : dict : Place holder for metadata key value pairs.
-    
-    product_type : string : Specify product type for OODT Filemananger ingest
-        set to None
+    katdata : object : katdal object 
+        A valid katdal oject.
     """
     def __init__(self, katdata):
         self._katdata = katdata
