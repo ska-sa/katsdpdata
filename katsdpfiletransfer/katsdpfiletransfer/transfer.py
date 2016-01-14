@@ -25,11 +25,12 @@ class AuthenticatedFtpTransfer(object):
     remote_path : string: ftp server path
         Defauls is 'staging'
     """
-    def __init__(self, server, username, password, remote_path, tx_md5, *args, **kwargs):
+    def __init__(self, server, username, password, local_path, remote_path, tx_md5, *args, **kwargs):
         super(AuthenticatedFtpTransfer, self).__init__(*args, **kwargs)
         self.server = server
         self.username = username
         self.password = password
+        self.local_path = local_path
         self.remote_path = remote_path.rstrip('/')
         self.tx_md5 = tx_md5
 
@@ -56,12 +57,12 @@ class AuthenticatedFtpTransfer(object):
         filename : string : Name of file to transfer
         """
         local_files = []
-        local_files.add(filename)
+        local_files.append(filename)
 
         if self.tx_md5:
             m = hashlib.md5()
             md5_filename = '%s.md5' % (filename,)
-            local_files.add(md5_filename)
+            local_files.append(md5_filename)
 
         try:
             logger.info('Local path is %s' % (self.local_path,))
@@ -140,21 +141,18 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         Defauls is 'staging'
     """
     def __init__(self, local_path, on_success_path, regex, period, *args, **kwargs):
-        super(SunStoreTransfer, self).__init__(server='192.168.1.7', username='kat', password='kat', remote_path='staging/', tx_md5=True, *args, **kwargs)
-        self.local_path = local_path
+        super(SunStoreTransferDaemon, self).__init__(server='192.168.1.7', username='kat', password='kat', local_path=local_path, remote_path='staging/', tx_md5=True, *args, **kwargs)
         self.on_success_path = on_success_path
         self.regex = re.compile(regex)
         self.period = period
 
-    def cleanup(self, filenames):
+    def cleanup(self, filename):
         if not self.on_success_path:
-            for f in filenames:
-                logger.info('Deleting: %s' % (f))
-                os.remove((os.path.join(self.local_path, f))
+            logger.info('Deleting: %s' % (filename))
+            os.remove((os.path.join(self.local_path, filename)))
         else:
-            for f in filenames:
-                logger.info('Moving %s to %s' % (f, self.on_success_path,))
-                os.rename(os.path.join(self.local_path, f), os.path.join(self.on_success_path, f))
+            logger.info('Moving %s to %s' % (filename, self.on_success_path,))
+            os.rename(os.path.join(self.local_path, filename), os.path.join(self.on_success_path, filename))
 
     def run(self):
         """Execution method for class. Periodically check directory for new files to transfer.
@@ -162,23 +160,22 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         Sleep. Repeat."""
         logger.info('Starting run process')
         while True:
-            file_list = [f for f in os.listdir(self.local_path) if os.path.isfile(f)]
+            file_list = [f for f in os.listdir(self.local_path) if os.path.isfile(f) and self.regex.match(f)]
             logger.info('Files in %s: %s' % (os.path.abspath(self.local_path), ', '.join(file_list),))
             self.connect()
             for f in file_list:
-                if self.regex.match(f):
-                    self.put(f)
-                    self.cleanup()
+                self.put(f)
+                self.cleanup(f)
             self.close()
             time.sleep(self.period)
 
 class SunStoreTransferFile(AuthenticatedFtpTransfer):
     def __init__(self, filename, tx_md5, *args, **kwargs):
-        super(SunStoreTransferFile, self).__init__(server='192.168.1.7', username='kat', password='kat', remote_path='staging/', tx_md5=tx_md5, *args, **kwargs)
+        super(SunStoreTransferFile, self).__init__(server='192.168.1.7', username='kat', password='kat', local_path=os.path.dirname(os.path.abspath(filename)), remote_path='staging/', tx_md5=tx_md5, *args, **kwargs)
         self.filename = filename
 
     def run(self):
         logger.info('Starting run process')
         self.connect()
-        self.put(f)
+        self.put(self.filename)
         self.close()

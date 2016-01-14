@@ -1,1 +1,2 @@
-from transfer import SunStoreTransfer
+from transfer import SunStoreTransferFile
+from transfer import SunStoreTransferDaemon

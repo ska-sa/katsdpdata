@@ -16,7 +16,7 @@ def get_options():
     parser.add_option('--filename', type='str',
         help='The name of the file to transfer.')
     parser.add_option('--calc-md5', action='store_true', default=False,
-        help='Calculate the md5 checksum and transfer to the sunstore.')
+        help='On the fly caclulate md5 checksum and transfer to the sunstore.')
     parser.add_option('--delete', action='store_true', default=False,
         help='Delete the file after successful transfer to the sunstore.')
     parser.add_option('--debug', action='store_true', default=False,
@@ -26,7 +26,5 @@ def get_options():
 
 opts = get_options()
 logging.basicConfig(level=logging.DEBUG if opts.debug else logging.INFO, format='%(asctime)s %(levelname)s %(message)s', handlers=[logging.StreamHandler()])                
-if opts.on_success and not os.path.isdir(opts.on_success):
-    os.makedirs(opts.on_success)
-transferer = katsdpfiletransfer.SunStoreTransfer(local_path=opts.path, on_success_path=opts.on_success, regex=opts.regex, period=opts.sleep)
+transferer = katsdpfiletransfer.SunStoreTransferFile(filename=opts.filename, tx_md5=opts.calc_md5)
 transferer.run()

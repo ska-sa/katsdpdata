@@ -9,7 +9,8 @@ setup(
     packages = find_packages(),
     url = 'http://ska.ac.za/',
     scripts = [
-        "scripts/sun_store_transfer.py",
+       "scripts/sun_store_transfer_daemon.py",
+       "scripts/sun_store_transfer_file.py",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
