@@ -2,7 +2,7 @@
 from optparse import OptionParser
 import logging
 import os
-import katsdpfiletransfer
+import katsdpprodtf
 
 def get_options():
     """Sets options from the arguments passed to the script.
@@ -26,5 +26,5 @@ def get_options():
 
 opts = get_options()
 logging.basicConfig(level=logging.DEBUG if opts.debug else logging.INFO, format='%(asctime)s %(levelname)s %(message)s', handlers=[logging.StreamHandler()])                
-transferer = katsdpfiletransfer.SunStoreTransferFile(filename=opts.filename, tx_md5=opts.calc_md5)
+transferer = katsdpprodtf.SunStoreTransferFile(filename=opts.filename, tx_md5=opts.calc_md5)
 transferer.run()

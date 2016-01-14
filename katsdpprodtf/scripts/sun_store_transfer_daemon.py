@@ -2,7 +2,7 @@
 from optparse import OptionParser
 import logging
 import os
-import katsdpfiletransfer
+import katsdpprodtf
 
 def get_options():
     """Sets options from the arguments passed to the script.
@@ -31,5 +31,5 @@ opts = get_options()
 logging.basicConfig(level=logging.DEBUG if opts.debug else logging.INFO, format='%(asctime)s %(levelname)s %(message)s', handlers=[logging.StreamHandler()])                
 if opts.on_success and not os.path.isdir(opts.on_success):
     os.makedirs(opts.on_success)
-transferer = katsdpfiletransfer.SunStoreTransferDaemon(local_path=opts.path, on_success_path=opts.on_success, regex=opts.regex, period=opts.sleep)
+transferer = katsdpprodtf.SunStoreTransferDaemon(local_path=opts.path, on_success_path=opts.on_success, regex=opts.regex, period=opts.sleep)
 transferer.run()
