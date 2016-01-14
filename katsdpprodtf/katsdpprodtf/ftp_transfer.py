@@ -1,11 +1,13 @@
 from __future__ import division
 
+import errno
 import ftplib
 import hashlib
 import logging
 import os
 import re
 import socket
+from socket import error as socket_error
 import time
 
 logger = logging.getLogger(__name__)
@@ -36,8 +38,20 @@ class AuthenticatedFtpTransfer(object):
 
     def connect(self):
         """Connect to ftp server."""
-        logger.info('Opening connection to %s' % self.server)
-        self.ftp = ftplib.FTP(self.server)
+
+        while True:
+            try:
+                logger.info('Opening connection to %s' % self.server)
+                self.ftp = ftplib.FTP(self.server)
+                break
+            except socket_error as serr:
+                if serr.errno == errno.ETIMEDOUT or errno.EHOSTDOWN:
+                    logger.error(serr)
+                    logger.info('Retrying connection to %s' % self.server)
+                    continue
+                else:
+                    raise serr
+
         if self.username != None and self.password != None:
             self.ftp.login(user=self.username, passwd=self.password)
         else:
