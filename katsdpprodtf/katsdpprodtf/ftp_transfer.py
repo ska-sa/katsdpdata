@@ -155,7 +155,7 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         Defauls is 'staging'
     """
     def __init__(self, local_path, on_success_path, regex, period, *args, **kwargs):
-        super(SunStoreTransferDaemon, self).__init__(server='192.168.1.7', username='kat', password='kat', local_path=local_path, remote_path='staging/', tx_md5=True, *args, **kwargs)
+        super(SunStoreTransferDaemon, self).__init__(server='sun-store.kat.ac.za', username='kat', password='kat', local_path=local_path, remote_path='staging/', tx_md5=True, *args, **kwargs)
         self.on_success_path = on_success_path
         self.regex = re.compile(regex)
         self.period = period
@@ -185,7 +185,7 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
 
 class SunStoreTransferFile(AuthenticatedFtpTransfer):
     def __init__(self, filename, tx_md5, *args, **kwargs):
-        super(SunStoreTransferFile, self).__init__(server='192.168.1.7', username='kat', password='kat', local_path=os.path.dirname(os.path.abspath(filename)), remote_path='staging/', tx_md5=tx_md5, *args, **kwargs)
+        super(SunStoreTransferFile, self).__init__(server='sun-store.kat.ac.za', username='kat', password='kat', local_path=os.path.dirname(os.path.abspath(filename)), remote_path='staging/', tx_md5=tx_md5, *args, **kwargs)
         self.filename = filename
 
     def run(self):
