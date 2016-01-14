@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name = "katsdpprodtf",
+    name = "katsdptransfer",
     description = "Data transfer library for the MeerKAT archiving",
     author = "Chris Schollar, Thomas Bennett",
     author_email = "cschollar@ska.ac.za, thomas@ska.ac.za",
