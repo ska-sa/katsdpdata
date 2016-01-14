@@ -1,2 +1,2 @@
-from transfer import SunStoreTransferFile
-from transfer import SunStoreTransferDaemon
+from ftp_transfer import SunStoreTransferFile
+from ftp_transfer import SunStoreTransferDaemon
