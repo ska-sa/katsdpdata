@@ -10,7 +10,7 @@ setup(
     url = 'http://ska.ac.za/',
     scripts = [
        "scripts/sun_store_transfer_daemon.py",
-       "scripts/sun_store_transfer_file.py",
+       "scripts/sun_store_transfer_prod.py",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
