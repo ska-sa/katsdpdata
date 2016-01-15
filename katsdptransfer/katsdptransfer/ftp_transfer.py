@@ -11,6 +11,7 @@ from socket import error as socket_error
 import time
 
 logger = logging.getLogger(__name__)
+SUN_STORE = 'sun-store.kat.ac.za'
 
 class AuthenticatedFtpTransfer(object):
     """Class for handling data transfer of files to an ftp server with a
@@ -21,11 +22,13 @@ class AuthenticatedFtpTransfer(object):
     server : string : ftp server address
         Server ip address.
     username : string : ftp server user name for authentication
-        Default is 'kat'
+        Server username.
     passwd : string : ftp server password for authentication
-        Default is 'kat'
+        Server username passsword.
+    local_path : string: working directory for transfers
+        Local working directory for transfer.
     remote_path : string: ftp server path
-        Defauls is 'staging'
+        Remote path on ftp server.
     """
     def __init__(self, server, username, password, local_path, remote_path, tx_md5, *args, **kwargs):
         super(AuthenticatedFtpTransfer, self).__init__(*args, **kwargs)
@@ -38,24 +41,9 @@ class AuthenticatedFtpTransfer(object):
 
     def connect(self):
         """Connect to ftp server."""
-
-        while True:
-            try:
-                logger.info('Opening connection to %s' % self.server)
-                self.ftp = ftplib.FTP(self.server)
-                break
-            except socket_error as serr:
-                if serr.errno == errno.ETIMEDOUT or errno.EHOSTDOWN:
-                    logger.error(serr)
-                    logger.info('Retrying connection to %s' % self.server)
-                    continue
-                else:
-                    raise serr
-
-        if self.username != None and self.password != None:
-            self.ftp.login(user=self.username, passwd=self.password)
-        else:
-            self.ftp.login()
+        logger.info('Opening connection to %s with username:%s password:%s' % (self.server, self.username, self.password,))
+        self.ftp = ftplib.FTP(self.server)
+        self.ftp.login(user=self.username, passwd=self.password)
 
     def close(self):
         """Close connection to ftp server."""
@@ -155,7 +143,7 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         Defauls is 'staging'
     """
     def __init__(self, local_path, on_success_path, regex, period, *args, **kwargs):
-        super(SunStoreTransferDaemon, self).__init__(server='sun-store.kat.ac.za', username='kat', password='kat', local_path=local_path, remote_path='staging/', tx_md5=True, *args, **kwargs)
+        super(SunStoreTransferDaemon, self).__init__(server=SUN_STORE, username='kat', password='kat', local_path=local_path, remote_path='staging/', tx_md5=True, *args, **kwargs)
         self.on_success_path = on_success_path
         self.regex = re.compile(regex)
         self.period = period
@@ -176,16 +164,26 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         while True:
             file_list = [f for f in os.listdir(self.local_path) if os.path.isfile(f) and self.regex.match(f)]
             logger.info('Files in %s: %s' % (os.path.abspath(self.local_path), ', '.join(file_list),))
-            self.connect()
-            for f in file_list:
-                self.put(f)
-                self.cleanup(f)
-            self.close()
-            time.sleep(self.period)
+            try:
+                if file_list:
+                    logger.info('Opening connection to %s' % self.server)
+                    self.connect()
+                    for f in file_list:
+                        self.put(f)
+                        self.cleanup(f)
+                    self.close()
+                time.sleep(self.period)
+            except socket_error as serr:
+                if serr.errno in [errno.ETIMEDOUT, errno.EHOSTDOWN]:
+                    logger.error(serr)
+                    logger.info('Retrying connection to %s' % self.server)
+                    continue
+                else:
+                    raise serr
 
 class SunStoreTransferFile(AuthenticatedFtpTransfer):
     def __init__(self, filename, tx_md5, *args, **kwargs):
-        super(SunStoreTransferFile, self).__init__(server='sun-store.kat.ac.za', username='kat', password='kat', local_path=os.path.dirname(os.path.abspath(filename)), remote_path='staging/', tx_md5=tx_md5, *args, **kwargs)
+        super(SunStoreTransferFile, self).__init__(server=SUN_STORE, username='kat', password='kat', local_path=os.path.dirname(os.path.abspath(filename)), remote_path='staging/', tx_md5=tx_md5, *args, **kwargs)
         self.filename = filename
 
     def run(self):
