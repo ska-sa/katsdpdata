@@ -16,7 +16,8 @@ def get_options():
     parser.add_option('--filename', type='str',
         help='The name of the file to transfer.')
     parser.add_option('--debug', action='store_true', default=False,
-        help='Set logging level to debug.')    (options, args) = parser.parse_args()
+        help='Set logging level to debug.')
+    (options, args) = parser.parse_args()
     return options
 
 opts = get_options()
