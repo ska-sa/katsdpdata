@@ -182,7 +182,7 @@ class SunStoreTransferFile(AuthenticatedFtpTransfer):
     """
     def __init__(self, filename, *args, **kwargs):
         super(SunStoreTransferFile, self).__init__(server='sun-store.kat.ac.za', username='kat', password='kat', local_path=os.path.dirname(os.path.abspath(filename)), remote_path='staging/', tx_md5=True, *args, **kwargs)
-        self.filename = filename
+        self.filename = os.path.basename(filename)
 
     def run(self):
         logger.info('Starting transfer process.')
