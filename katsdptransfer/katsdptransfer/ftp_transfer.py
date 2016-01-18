@@ -11,7 +11,6 @@ from socket import error as socket_error
 import time
 
 logger = logging.getLogger(__name__)
-SUN_STORE = 'sun-store.kat.ac.za'
 
 class AuthenticatedFtpTransfer(object):
     """Class for handling data transfer of files to an ftp server with a
@@ -40,7 +39,7 @@ class AuthenticatedFtpTransfer(object):
         self.tx_md5 = tx_md5
 
     def connect(self):
-        """Connect to ftp server."""
+        """Autheticated connect to ftp server."""
         logger.info('Opening connection to %s with username:%s password:%s' % (self.server, self.username, self.password,))
         self.ftp = ftplib.FTP(self.server)
         self.ftp.login(user=self.username, passwd=self.password)
@@ -118,7 +117,7 @@ class AuthenticatedFtpTransfer(object):
         return local_files
 
 class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
-    """Class for handling ftp data transfer of files lfrom a local staging directory 
+    """Class for handling ftp data transfer of files from a local staging directory
     to the ftp server running on sun-store.kat.ac.za.
     
     A local staging directy is periodically checked for files that match 
@@ -133,17 +132,9 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         Default set to [0-9]{10}\.h5$
     period : int : sleep time between checking local_path for regex files
         Default is 10 seconds
-    server : string : ftp server address
-        Default is 'sun-store.kat.ac.za'
-    username : string : ftp server user name for authentication
-        Default is 'kat'
-    passwd : string : ftp server password for authentication
-        Default is 'kat'
-    remote_path : string: ftp server path
-        Defauls is 'staging'
     """
     def __init__(self, local_path, on_success_path, regex, period, *args, **kwargs):
-        super(SunStoreTransferDaemon, self).__init__(server=SUN_STORE, username='kat', password='kat', local_path=local_path, remote_path='staging/', tx_md5=True, *args, **kwargs)
+        super(SunStoreTransferDaemon, self).__init__(server='sun-store.kat.ac.za', username='kat', password='kat', local_path=local_path, remote_path='staging/', tx_md5=True, *args, **kwargs)
         self.on_success_path = on_success_path
         self.regex = re.compile(regex)
         self.period = period
@@ -159,7 +150,7 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
     def run(self):
         """Execution method for class. Periodically check directory for new files to transfer.
         Connect to the ftp server. Initiate a new transfer. Once complete close the ftp connection.
-        Sleep. Repeat."""
+        Sleep. Repeat. Will persist after timeout or hostdown excptions."""
         logger.info('Starting run process')
         while True:
             file_list = [f for f in os.listdir(self.local_path) if os.path.isfile(f) and self.regex.match(f)]
@@ -182,12 +173,20 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
                     raise serr
 
 class SunStoreTransferFile(AuthenticatedFtpTransfer):
-    def __init__(self, filename, tx_md5, *args, **kwargs):
-        super(SunStoreTransferFile, self).__init__(server=SUN_STORE, username='kat', password='kat', local_path=os.path.dirname(os.path.abspath(filename)), remote_path='staging/', tx_md5=tx_md5, *args, **kwargs)
+    """Class for handling a once off ftp transfer of a file matching filename to the
+    sun-store remote directory.
+
+    Parmeters
+    ---------
+    filename : string : local staging directory to check periodically
+    """
+    def __init__(self, filename, *args, **kwargs):
+        super(SunStoreTransferFile, self).__init__(server='sun-store.kat.ac.za', username='kat', password='kat', local_path=os.path.dirname(os.path.abspath(filename)), remote_path='staging/', tx_md5=True, *args, **kwargs)
         self.filename = filename
 
     def run(self):
-        logger.info('Starting run process')
+        logger.info('Starting transfer process.')
         self.connect()
         self.put(self.filename)
         self.close()
+        logger.info('Done.')
