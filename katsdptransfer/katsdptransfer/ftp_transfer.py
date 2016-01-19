@@ -57,13 +57,9 @@ class AuthenticatedFtpTransfer(object):
         ----------
         filename : string : Name of file to transfer
         """
-        local_files = []
-        local_files.append(filename)
-
         if self.tx_md5:
             m = hashlib.md5()
             md5_filename = '%s.md5' % (filename,)
-            local_files.append(md5_filename)
 
         try:
             logger.info('Local path is %s' % (self.local_path,))
@@ -105,6 +101,8 @@ class AuthenticatedFtpTransfer(object):
                 self.ftp.storbinary('STOR %s/%s'%(self.remote_path, md5_filename), md5_f)
                 logger.info('Granting permissions')
                 logger.info(self.ftp.sendcmd('SITE CHMOD 777 %s/%s' % (self.remote_path, md5_filename,)))
+                logger.info('Deleting local copy of %s', md5_filename)
+                os.remove((os.path.join(self.local_path, md5_filename)))
             logger.info('Updating filename from %s to %s' % (hidden_filename, filename,))
             self.ftp.rename('%s/%s' % (self.remote_path, hidden_filename,), '%s/%s' % (self.remote_path, filename,))
             f.close()
@@ -114,7 +112,7 @@ class AuthenticatedFtpTransfer(object):
             logger.warning('Do not have permissions for %s on FTP server: %s' % (hidden_filename,e))
             logger.info('Granting permissions to %s' % hidden_filename)
             print self.ftp.sendcmd('SITE CHMOD 777 %s/%s' % (self.remote_path, hidden_filename))
-        return local_files
+        return filename
 
 class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
     """Class for handling ftp data transfer of files from a local staging directory
@@ -139,7 +137,38 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         self.regex = re.compile(regex)
         self.period = period
 
+    def run(self):
+        """Execution method for class. Periodically check directory for new files to transfer.
+        Connect to the ftp server. Initiate a new transfer. Once complete close the ftp connection.
+        Sleep. Repeat. Will persist after timeout or hostdown excptions."""
+        logger.info('Starting run process')
+        logger.info('Watching %s.' % (self.local_path,))
+        logger.info('%s' % (os.listdir(self.local_path)))
+        while True:
+            file_list = [f for f in os.listdir(self.local_path) if os.path.isfile(os.path.join(self.local_path, f)) and self.regex.match(f)]
+            import pdb; pdb.set_trace();
+            if file_list:
+                logger.info('Files in %s to transfer: %s' % (os.path.abspath(self.local_path), ', '.join(file_list),))
+                logger.info('Opening connection to %s' % self.server)
+                try:
+                    self.connect()
+                    for f in file_list:
+                        put_file = self.put(f)
+                        self.cleanup(put_file)
+                    self.close()
+                except socket_error as serr:
+                    if serr.errno in [errno.ETIMEDOUT, errno.EHOSTDOWN]:
+                        logger.error(serr)
+                        logger.info('Retrying connection to %s' % self.server)
+                        continue
+                    else:
+                        raise serr
+            else:
+                logger.info('No files to transfer.')
+            time.sleep(self.period)
+
     def cleanup(self, filename):
+        """If self.on_success_path is set, move files to that directory, otherwise delete the file."""
         if not self.on_success_path:
             logger.info('Deleting: %s' % (filename))
             os.remove((os.path.join(self.local_path, filename)))
@@ -147,30 +176,7 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
             logger.info('Moving %s to %s' % (filename, self.on_success_path,))
             os.rename(os.path.join(self.local_path, filename), os.path.join(self.on_success_path, filename))
 
-    def run(self):
-        """Execution method for class. Periodically check directory for new files to transfer.
-        Connect to the ftp server. Initiate a new transfer. Once complete close the ftp connection.
-        Sleep. Repeat. Will persist after timeout or hostdown excptions."""
-        logger.info('Starting run process')
-        while True:
-            file_list = [f for f in os.listdir(self.local_path) if os.path.isfile(f) and self.regex.match(f)]
-            logger.info('Files in %s: %s' % (os.path.abspath(self.local_path), ', '.join(file_list),))
-            try:
-                if file_list:
-                    logger.info('Opening connection to %s' % self.server)
-                    self.connect()
-                    for f in file_list:
-                        self.put(f)
-                        self.cleanup(f)
-                    self.close()
-                time.sleep(self.period)
-            except socket_error as serr:
-                if serr.errno in [errno.ETIMEDOUT, errno.EHOSTDOWN]:
-                    logger.error(serr)
-                    logger.info('Retrying connection to %s' % self.server)
-                    continue
-                else:
-                    raise serr
+
 
 class SunStoreTransferFile(AuthenticatedFtpTransfer):
     """Class for handling a once off ftp transfer of a file matching filename to the
