@@ -146,7 +146,6 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         logger.info('%s' % (os.listdir(self.local_path)))
         while True:
             file_list = [f for f in os.listdir(self.local_path) if os.path.isfile(os.path.join(self.local_path, f)) and self.regex.match(f)]
-            import pdb; pdb.set_trace();
             if file_list:
                 logger.info('Files in %s to transfer: %s' % (os.path.abspath(self.local_path), ', '.join(file_list),))
                 logger.info('Opening connection to %s' % self.server)
