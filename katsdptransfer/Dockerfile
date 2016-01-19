@@ -8,5 +8,4 @@ WORKDIR /tmp/install/katsdptransfer
 RUN python ./setup.py clean && pip install --no-index .
 
 VOLUME ["/var/kat/data/staging"]
-
-RUN sun_store_transfer_daemon.py
+WORKDIR /var/kat/data/staging/
