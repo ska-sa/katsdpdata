@@ -143,7 +143,6 @@ class SunStoreTransferDaemon(AuthenticatedFtpTransfer):
         Sleep. Repeat. Will persist after timeout or hostdown excptions."""
         logger.info('Starting run process')
         logger.info('Watching %s.' % (self.local_path,))
-        logger.info('%s' % (os.listdir(self.local_path)))
         while True:
             file_list = [f for f in os.listdir(self.local_path) if os.path.isfile(os.path.join(self.local_path, f)) and self.regex.match(f)]
             if file_list:
