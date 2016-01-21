@@ -8,4 +8,3 @@ WORKDIR /tmp/install/katsdptransfer
 RUN python ./setup.py clean && pip install --no-index .
 
 VOLUME ["/var/kat/data/staging"]
-WORKDIR /var/kat/data/staging/

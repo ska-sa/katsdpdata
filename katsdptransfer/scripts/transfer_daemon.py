@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+"""Watch a product staging directory and tranfer files that match the given regex pattern to the sun-store."""
+
 from optparse import OptionParser
 import logging
 import os

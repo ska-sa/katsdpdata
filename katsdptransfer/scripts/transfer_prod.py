@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+"""Once off tranfer of file to the sun-store ftp server."""
+
 from optparse import OptionParser
 import logging
 import os
