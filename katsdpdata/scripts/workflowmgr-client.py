@@ -74,7 +74,7 @@ if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
     logging.info('Calling handleEvent RTSTelescopeProductReduce with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName']))
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductReduce', product_metadata)
 
-if opts.RTSTelescopeProductRTSIngest and product_metadata:
+if opts.RTSTelescopeProductIngest and product_metadata:
     logging.info('Calling handleEvent RTSTelescopeProductRTSIngest with product %s ' % (opts.filename))
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductRTSIngest', product_metadata)
 
