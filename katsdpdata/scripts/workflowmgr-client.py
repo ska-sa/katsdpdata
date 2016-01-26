@@ -87,7 +87,7 @@ if opts.KatFileImagerPipeline and product_metadata:
     logging.info('Calling handleEvent KatFileImagerPipeline with product %s' % (opts.filename))
     xmlrpc_client.workflowmgr.handleEvent('KatFileImagerPipeline', product_metadata)
 
-if opts.KatFileProductIngest and product_metadata:
+if opts.KatFileIngest and product_metadata:
     logging.info('Calling handleEvent KatFileIngest with product %s' % (opts.filename))
     xmlrpc_client.workflowmgr.handleEvent('KatFileIngest', product_metadata)
 
