@@ -23,24 +23,27 @@ def get_options():
          help='The URL for the file manager XMLRPC interface. Default is http://192.168.1.50:9101.')
     parser.add_option('--filename', type='str',
          help='The file to reduce')
-    parser.add_option('--KatFileObsReporter', action='store_true', default=False,
-         help='Call KatFileObsReporter on the xmlrpc interface.')
-    parser.add_option('--RTSTelescopeProductObsReporter', action='store_true', default=False,
-         help='Call RTSTelescopeProduct on the xmlrpc interface.')
-    parser.add_option('--KatFileImagerPipeline', action='store_true', default=False,
-         help='Call KatFileImagerPipeline on the xmlrpc interface.')
-    parser.add_option('--KatFileRTSTesting', action='store_true', default=False,
-         help='Call KatFileRTSTesting on the xmlrpc interface.')
-    parser.add_option('--MeerkatTelescopeTapeProductCheckArchiveToTape', action='store_true', default=False,
-         help='Call MeerkatTelescopeTapeProductCheckArchiveToTape on the xmlrpc interface.')
+
     parser.add_option('--RTSTelescopeProductReduce', action='store_true', default=False,
          help='Call RTSTelescopeProductReduce. Note you need to specify the reduction to perform.')
-    parser.add_option('--RTSTelescopeProductRTSIngest', action='store_true', default=False,
-         help='Call RTSTelescopeProductRTSIngest.')
-    parser.add_option('--ReductionName', type='str',
-         help='String containing the data to set for ReductionName metadata')
+    parser.add_option('--RTSTelescopeProductObsReporter', action='store_true', default=False,
+         help='Call RTSTelescopeProductObsReporter on the xmlrpc interface.')
+    parser.add_option('--RTSTelescopeProductIngest', action='store_true', default=False,
+         help='Call RTSTelescopeProductIngest on the xmlrpc interface.')
+
+    parser.add_option('--KatFileImagerPipeline', action='store_true', default=False,
+         help='Call KatFileImagerPipeline on the xmlrpc interface.')
+    parser.add_option('--KatFileObsReporter', action='store_true', default=False,
+         help='Call KatFileObsReporter on the xmlrpc interface.')
+    parser.add_option('--KatFileProductIngest', action='store_true', default=False,
+         help='Call KatFileProductIngest on the xmlrpc interface.')
+
+    parser.add_option('--MeerkatTelescopeTapeProductCheckArchiveToTape', action='store_true', default=False,
+         help='Call MeerkatTelescopeTapeProductCheckArchiveToTape on the xmlrpc interface.')
+
     parser.add_option('--ListEvents', action='store_true', default=False,
          help='List OODT events.')
+
     parser.add_option('--CallExit', action='store_true', default=False,
          help='Call exit on the xmlrpc interface')
     (options, args) = parser.parse_args()
@@ -61,27 +64,10 @@ if opts.filename:
 if not product_metadata:
     logging.warning('No product metadata specified.')
 
-if opts.KatFileObsReporter and product_metadata:
-    logging.info('Calling handleEvent KatFileObsReporter with product %s' % (opts.filename))
-    xmlrpc_client.workflowmgr.handleEvent('KatFileObsReporter', product_metadata)
-
+#RTSTelescopeProducts
 if opts.RTSTelescopeProductObsReporter and product_metadata:
     logging.info('Calling handleEvent RTSTelescopeProductObsReporter with product %s' % (opts.filename))
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductObsReporter', product_metadata)
-
-if opts.KatFileImagerPipeline and product_metadata:
-    logging.info('Calling handleEvent KatFileImagerPipeline with product %s' % (opts.filename))
-    xmlrpc_client.workflowmgr.handleEvent('KatFileImagerPipeline', product_metadata)
-
-if opts.KatFileRTSTesting and product_metadata:
-    product_metadata['ReductionName'] = product_metadata['Description']
-    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName']))
-    xmlrpc_client.workflowmgr.handleEvent('KatFileRTSTesting', product_metadata)
-
-if opts.MeerkatTelescopeTapeProductCheckArchiveToTape and product_metadata:
-    product_metadata['ReductionName'] = product_metadata['Description']
-    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName']))
-    xmlrpc_client.workflowmgr.handleEvent('MeerkatTelescopeTapeProductCheckArchiveToTape', product_metadata)
 
 if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
     product_metadata['ReductionName'] = [opts.ReductionName]
@@ -91,6 +77,25 @@ if opts.RTSTelescopeProductReduce and product_metadata and opts.ReductionName:
 if opts.RTSTelescopeProductRTSIngest and product_metadata:
     logging.info('Calling handleEvent RTSTelescopeProductRTSIngest with product %s ' % (opts.filename))
     xmlrpc_client.workflowmgr.handleEvent('RTSTelescopeProductRTSIngest', product_metadata)
+
+#KatFile
+if opts.KatFileObsReporter and product_metadata:
+    logging.info('Calling handleEvent KatFileObsReporter with product %s' % (opts.filename))
+    xmlrpc_client.workflowmgr.handleEvent('KatFileObsReporter', product_metadata)
+
+if opts.KatFileImagerPipeline and product_metadata:
+    logging.info('Calling handleEvent KatFileImagerPipeline with product %s' % (opts.filename))
+    xmlrpc_client.workflowmgr.handleEvent('KatFileImagerPipeline', product_metadata)
+
+if opts.KatFileProductIngest and product_metadata:
+    logging.info('Calling handleEvent KatFileProductIngest with product %s' % (opts.filename))
+    xmlrpc_client.workflowmgr.handleEvent('KatFileProductIngest', product_metadata)
+
+#MeerkatTelescopeTapeProductCheckArchiveToTape
+if opts.MeerkatTelescopeTapeProductCheckArchiveToTape and product_metadata:
+    product_metadata['ReductionName'] = product_metadata['Description']
+    logging.info('Calling handleEvent KatFileRTSTesting with product %s with reductions %s' % (opts.filename, product_metadata['ReductionName']))
+    xmlrpc_client.workflowmgr.handleEvent('MeerkatTelescopeTapeProductCheckArchiveToTape', product_metadata)
 
 if opts.ListEvents:
     for e in xmlrpc_client.workflowmgr.listEvents():
