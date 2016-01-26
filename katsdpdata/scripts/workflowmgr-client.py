@@ -35,8 +35,8 @@ def get_options():
          help='Call KatFileImagerPipeline on the xmlrpc interface.')
     parser.add_option('--KatFileObsReporter', action='store_true', default=False,
          help='Call KatFileObsReporter on the xmlrpc interface.')
-    parser.add_option('--KatFileProductIngest', action='store_true', default=False,
-         help='Call KatFileProductIngest on the xmlrpc interface.')
+    parser.add_option('--KatFileIngest', action='store_true', default=False,
+         help='Call KatFileIngest on the xmlrpc interface.')
 
     parser.add_option('--MeerkatTelescopeTapeProductCheckArchiveToTape', action='store_true', default=False,
          help='Call MeerkatTelescopeTapeProductCheckArchiveToTape on the xmlrpc interface.')
@@ -88,8 +88,8 @@ if opts.KatFileImagerPipeline and product_metadata:
     xmlrpc_client.workflowmgr.handleEvent('KatFileImagerPipeline', product_metadata)
 
 if opts.KatFileProductIngest and product_metadata:
-    logging.info('Calling handleEvent KatFileProductIngest with product %s' % (opts.filename))
-    xmlrpc_client.workflowmgr.handleEvent('KatFileProductIngest', product_metadata)
+    logging.info('Calling handleEvent KatFileIngest with product %s' % (opts.filename))
+    xmlrpc_client.workflowmgr.handleEvent('KatFileIngest', product_metadata)
 
 #MeerkatTelescopeTapeProductCheckArchiveToTape
 if opts.MeerkatTelescopeTapeProductCheckArchiveToTape and product_metadata:
