@@ -186,6 +186,17 @@ class OODTWorkflowManager(WorkflowManagerXMLRPCServer):
         else:
             qualification_tests.run_qualification_tests(data_store_ref.path, product_metadata, self.filemgr_url, queue)
 
+    def KatFileIngest(self, metadata, queue='Kat'):
+        logging.info('Filename: %s' % (metadata['Filename'][0]))
+        product_metadata = self.filemgr.get_product_metadata(metadata['ProductName'][0])
+        data_store_ref, dummy_get = self._get_product_info_from_filemgr(metadata)
+        if self.disable_backend:
+            logging.info('Disabled backend: No call implemented.')
+        else:
+            #todo: Add in IRC inform that product has been ingested
+            pipelines.generate_obs_report.apply_async(args=(product_metadata,),queue=queue)
+            pipelines.run_kat_cont_pipe.apply_async(args=(product_metadata,),queue=queue)
+
 options = get_options()
 
 if options.Foreground:
