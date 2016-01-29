@@ -2,17 +2,16 @@
 from setuptools import setup, find_packages
 
 setup(
-    name = "katsdptape",
-    description = "Tape Library interface for the MeerKAT project",
-    author = "Chris Schollar",
-    author_email = "cschollar@ska.ac.za",
+    name = "katsdpdataclient",
+    description = "Data search and retrieval client library for the MeerKAT project",
+    author = "Thomas Bennett, Chris Schollar",
+    author_email = "thomas@ska.ac.za, cschollar@ska.ac.za",
     packages = find_packages(),
-    #install_requires = [
-    #            "MySQL-python"
-    #                ],
     url = 'http://ska.ac.za/',
     scripts = [
-        "scripts/vis_store_controller.py"
+        "scripts/celery-workflowmgr.py",
+        "scripts/workflowmgr-client.py",
+        "bin/celery-workflowmgr",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

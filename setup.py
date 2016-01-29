@@ -4,23 +4,18 @@ from setuptools import setup, find_packages
 setup(
     name = "katsdpdata",
     description = "Data search and retrieval library for the MeerKAT project",
-    author = "Thomas Bennett",
-    author_email = "thomas@ska.ac.za",
+    author = "Thomas Bennett, Chris Schollar",
+    author_email = "thomas@ska.ac.za, cschollar@ska.ac.za",
     packages = find_packages(),
     install_requires = [
-        "pysolr"
+        "pysolr>=3.2.0"#,
+        #"MySQL-python"
     ],
     url = 'http://ska.ac.za/',
     scripts = [
-        "scripts/tel_prod_met_extractor.py",
-        "scripts/katfile_met_extractor.py",
-        "scripts/rts_met_extractor.py",
         "scripts/mkat_tape_met_extractor.py",
-        "scripts/workflowmgr-client.py",
-        "scripts/celery-workflowmgr.py",
-        "bin/cas-crawler-client.sh",
-        "bin/cas-filemgr-client.sh",
-        "bin/celery-workflowmgr"
+        "scripts/tel_prod_met_extractor.py",
+        "scripts/vis_store_controller.py",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
