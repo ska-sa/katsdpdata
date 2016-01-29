@@ -1,4 +1,1 @@
-from solr_clients import KatSdpSolrClient
-from oodt_clients import FileMgrClient
-from oodt_servers import WorkflowManagerXMLRPCServer
 from met_extractors import TelescopeProductMetExtractor
