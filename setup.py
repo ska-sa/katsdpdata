@@ -13,13 +13,9 @@ setup(
     ],
     url = 'http://ska.ac.za/',
     scripts = [
-        "scripts/vis_store_controller.py",
-        "scripts/tel_prod_met_extractor.py",
-        "scripts/katfile_met_extractor.py",
-        "scripts/rts_met_extractor.py",
         "scripts/mkat_tape_met_extractor.py",
-        "scripts/workflowmgr-client.py",
-        "scripts/celery-workflowmgr.py",
+        "scripts/tel_prod_met_extractor.py",
+        "scripts/vis_store_controller.py",
         "bin/celery-workflowmgr"
     ],
     classifiers=[
