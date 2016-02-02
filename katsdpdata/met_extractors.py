@@ -123,11 +123,11 @@ class TelescopeProductMetExtractor(MetExtractor):
 
         known_args, other_args = parser.parse_known_args(re.split(r' (?=\-)', self._katdata.obs_params['script_arguments']))
 
-        if hasattr(known_args, 'proposal_id'):
-            self.metadata['ProposalId']=known_args.proposal_id
-        if hasattr(known_args, 'program_block_id'):
-            self.metadata['ProgramBlockId']=known_args.program_block_id
-        if hasattr(known_args, 'sb_id_code'):
+        if hasattr(known_args, 'proposal_id') and known_args.proposal_id:
+            self.metadata['ProposalId'] = known_args.proposal_id
+        if hasattr(known_args, 'program_block_id') and known_args.program_block_id:
+            self.metadata['ProgramBlockId'] = known_args.program_block_id
+        if hasattr(known_args, 'sb_id_code') and known_args.sb_id_code:
             self.metadata['ScheduleBlockIdCode']=known_args.sb_id_code
 
     def _extract_metadata_file_digest(self):
