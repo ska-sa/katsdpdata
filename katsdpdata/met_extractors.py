@@ -117,8 +117,8 @@ class TelescopeProductMetExtractor(MetExtractor):
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
         parser = argparse.ArgumentParser()
-        parser.add_argument('—-proposal-id')
-        parser.add_argument('—-program-block-id')
+        parser.add_argument('--proposal-id')
+        parser.add_argument('--program-block-id')
         parser.add_argument('--sb-id-code')
 
         known_args, other_args = parser.parse_known_args(re.split(r' (?=\-)', self._katdata.obs_params['script_arguments']))
