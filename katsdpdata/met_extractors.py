@@ -1,6 +1,8 @@
 import os
+import argparse
 import subprocess
 import time
+import re
 
 import katdal
 
@@ -110,8 +112,24 @@ class TelescopeProductMetExtractor(MetExtractor):
         try:
             self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
         except KeyError:
-            print "InstructionSet is an optional key-value pair. There is no 'script_name' in obs_params."
             pass
+
+    def _extract_metadata_for_project(self):
+        """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
+        parser = argparse.ArgumentParser()
+        parser.add_argument('—-proposal-id')
+        parser.add_argument('—-program-block-id')
+        parser.add_argument('--sb-id-code')
+
+        known_args, other_args = parser.parse_known_args(re.split(r' (?=\-)', self._katdata.obs_params['script_arguments']))
+
+        if hasattr(known_args, 'proposal_id'):
+            self.metadata['ProposalId']=known_args.proposal_id
+        if hasattr(known_args, 'program_block_id'):
+            self.metadata['ProgramBlockId']=known_args.program_block_id
+        if hasattr(known_args, 'sb_id_code'):
+            self.metadata['ScheduleBlockIdCode']=known_args.sb_id_code
+
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
         md5_filename = os.path.abspath(self.katfile + '.md5')
@@ -176,10 +194,6 @@ class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     def __init__(self, katdata):
         super(KAT7TelescopeProductMetExtractor, self).__init__(katdata)
         self.product_type = 'KAT7TelescopeProduct'
-
-    def _extract_metadata_for_project(self):
-        """Extract metadata key value pairs from the command line stored in the katdal file."""
-        pass
 
     def extract_metadata(self):
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If 
@@ -296,8 +310,9 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
         if not self._metadata_extracted:
             self._extract_metadata_file_digest()
             self._extract_metadata_product_type()
-            self._extract_sub_array_product_id()
             self._extract_metadata_from_katdata()
+            self._extract_metadata_for_project()
+            self._extract_sub_array_product_id()
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
