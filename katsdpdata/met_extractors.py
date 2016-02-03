@@ -1,6 +1,7 @@
 import os
 import argparse
 import subprocess
+import sys
 import time
 import re
 
@@ -61,7 +62,10 @@ class MetExtractor(object):
             else:
                 val = ElementTree.SubElement(keyval, 'val')
                 val.text = self.metadata[k]
-        return ElementTree.tostring(xml_tree, 'utf-8')
+        #utf8 hickup
+        reload(sys)
+        sys.setdefaultencoding('utf8')
+        return ElementTree.tostring(xml_tree)
 
     def extract_metadata(self):
         raise NotImplementedError
