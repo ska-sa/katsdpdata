@@ -24,5 +24,7 @@ setup(
     ],
     platforms = [ "OS Independent" ],
     keywords="kat ska",
-    zip_safe = False
+    zip_safe = False,
+    setup_requires = ["katversion"],
+    use_katversion = True
 )

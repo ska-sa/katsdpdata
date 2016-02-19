@@ -5,6 +5,7 @@ pyephem
 numpy
 git+ssh://git@github.com/ska-sa/katpoint
 git+ssh://git@github.com/ska-sa/katdal
+git+ssh://git@github.com/ska-sa/katversion
 
 pysolr==3.3.3
 requests==2.0
