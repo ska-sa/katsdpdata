@@ -20,6 +20,7 @@ import katsdptelstate
 import time
 import os.path
 import os
+import sys
 import socket
 import threading
 import logging
@@ -230,7 +231,7 @@ def main():
     sh.setFormatter(formatter)
     logging.root.addHandler(sh)
 
-    logger = logging.getLogger("katsdpresearch.file_writer")
+    logger = logging.getLogger("katsdpfilewriter")
     logger.setLevel(logging.INFO)
     logging.getLogger('spead2').setLevel(logging.WARNING)
 
@@ -242,6 +243,9 @@ def main():
     parser.add_argument('-a', '--host', dest='host', type=str, default="", metavar='HOST', help='katcp host address. [default=all hosts]')
     parser.set_defaults(telstate='localhost')
     args = parser.parse_args()
+    if not os.access(args.file_base, os.W_OK):
+        logger.error('Target directory (%s) is not writable', args.file_base)
+        sys.exit(1)
 
     restart_queue = Queue.Queue()
     server = FileWriterServer(logger, args.l0_spectral_spead, args.file_base, args.antenna_mask, args.telstate,
