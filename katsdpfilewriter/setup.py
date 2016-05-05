@@ -3,7 +3,6 @@ from setuptools import setup, find_packages
 
 setup(
     name="katsdpfilewriter",
-    version="trunk",
     description="Karoo Array Telescope Data Capture",
     author="Bruce Merry",
     packages=find_packages(),
@@ -12,13 +11,15 @@ setup(
         ],
     dependency_links=[
         'git+ssh://git@github.com/ska-sa/katsdptelstate#egg=katsdptelstate',
-        'git+https://github.com/ska-sa/PySPEAD#egg=spead'
+        'git+ssh://git@github.com/ska-sa/katversion#egg=katversion'
     ],
+    setup_requires=['katversion'],
     install_requires=[
         'h5py',
         'numpy',
         'spead2>=0.5.0',
         'katcp',
         'katsdptelstate'
-    ]
+    ],
+    use_katversion=True
 )

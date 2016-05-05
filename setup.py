@@ -7,6 +7,7 @@ setup(
     author = "Thomas Bennett, Chris Schollar",
     author_email = "thomas@ska.ac.za, cschollar@ska.ac.za",
     packages = find_packages(),
+    setup_requires = ["katversion"],
     install_requires = [
         "pysolr>=3.2.0"#,
         #"MySQL-python"
@@ -28,5 +29,6 @@ setup(
     ],
     platforms = [ "OS Independent" ],
     keywords="kat ska",
-    zip_safe = False
+    zip_safe = False,
+    use_katversion = True
 )
