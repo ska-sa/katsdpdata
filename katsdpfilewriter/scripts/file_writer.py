@@ -21,7 +21,6 @@ import time
 import os.path
 import os
 import sys
-import socket
 import threading
 import logging
 import Queue
@@ -97,17 +96,6 @@ class FileWriterServer(DeviceServer):
                 "input_rate", "Input data rate in Bps averaged over last 10 dumps", "Bps")
         self.add_sensor(self._rate_sensor)
 
-    def _multicast_socket(self):
-        """Returns a socket that is subscribed to any necessary multicast groups."""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        for endpoint in self._endpoints:
-            if endpoint.multicast_subscribe(sock):
-                self._logger.info("Subscribing to multicast address {0}".format(endpoint.host))
-            elif endpoint.host != '':
-                self._logger.warning("Ignoring non-multicast address {0}".format(endpoint.host))
-        return sock
-
     def _do_capture(self, file_obj):
         """Capture a stream from SPEAD and write to file. This is run in a
         separate thread.
@@ -118,7 +106,6 @@ class FileWriterServer(DeviceServer):
             Output file object
         """
         timestamps = []
-        sock = self._multicast_socket()
         n_dumps = 0
         n_bytes = 0
         loop_time = time.time()
@@ -141,7 +128,6 @@ class FileWriterServer(DeviceServer):
             self._logger.error(err)
         finally:
             self._status_sensor.set_value("ready")
-            sock.close()
             # Timestamps in the SPEAD stream are relative to sync_time
             if not timestamps:
                 self._logger.warning("H5 file contains no data and hence no timestamps")
@@ -168,7 +154,8 @@ class FileWriterServer(DeviceServer):
         self._file_obj = file_writer.File(self._stage_filename)
         self._start_timestamp = timestamp
         self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2)
-        self._rx.add_udp_reader(self._endpoints[0].port)
+        for endpoint in self._endpoints:
+            self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host)
         self._capture_thread = threading.Thread(
                 target=self._do_capture, name='capture', args=(self._file_obj,))
         self._capture_thread.start()
