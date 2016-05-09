@@ -86,7 +86,7 @@ def set_telescope_state(h5_file, tstate, base_path=_TSTATE_DATASET):
     tstate_group.attrs['subarray_product_id'] = tstate.get('subarray_product_id','none')
      # include the subarray product id for use by the crawler to identify which system the file belongs to
     tstate_keys = tstate.keys()
-    logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), _TSTATE_DATASET))
+    logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), base_path))
 
     for key in tstate_keys:
         if not tstate.is_immutable(key):
