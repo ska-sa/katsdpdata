@@ -32,41 +32,6 @@ from katcp.kattypes import request, return_reply, Str
 from katsdpfilewriter import telescope_model, ar1_model, file_writer
 
 
-class TelstateModelData(telescope_model.TelescopeModelData):
-    """Retrieves metadata from a telescope model. Sensor values
-    prior to a given time are excluded.
-
-    Parameters
-    ----------
-    model : :class:`katsdpfilewriter.telescope_model.TelescopeModel`
-        Underlying model
-    telstate : :class:`katsdptelstate.TelescopeState`
-        Telescope state containing the metadata
-    start_timestamp : float
-        Minimum timestamp for sensor queries
-    """
-    def __init__(self, model, telstate, start_timestamp):
-        super(TelstateModelData, self).__init__(model)
-        self._telstate = telstate
-        self._start_timestamp = start_timestamp
-
-    def get_attribute_value(self, attribute):
-        return self._telstate.get(attribute.full_name)
-
-    def get_sensor_values(self, sensor):
-        try:
-            values = self._telstate.get_range(sensor.full_name,
-                                              self._start_timestamp,
-                                              include_previous=True)
-        except KeyError:
-            return None
-        if values is None:
-            return None
-        # Reorder fields, and insert a status of 'nominal' since we don't get
-        # any status information from the telescope state
-        return [(ts, value, 'nominal') for (value, ts) in values]
-
-
 class FileWriterServer(DeviceServer):
     VERSION_INFO = ("sdp-file-writer", 0, 1)
     BUILD_INFO = ("sdp-file-writer", 0, 1, "rc1")
@@ -183,7 +148,7 @@ class FileWriterServer(DeviceServer):
         self._logger.info("Joined capture thread")
 
         self._status_sensor.set_value("finalising")
-        self._file_obj.set_metadata(TelstateModelData(
+        self._file_obj.set_metadata(telescope_model.TelstateModelData(
                 self._model, self._telstate, self._start_timestamp))
         self._file_obj.close()
         self._file_obj = None

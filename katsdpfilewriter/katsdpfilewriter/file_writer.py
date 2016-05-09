@@ -43,6 +43,65 @@ def _split_array(array, dtype):
     return np.asarray(np.lib.stride_tricks.DummyArray(interface, base=array))
 
 
+def set_telescope_model(h5_file, model_data, base_path="/TelescopeModel"):
+    """Sets the tree of telescope model data on an HDF5 file."""
+    for component in model_data.components.values():
+        comp_base = "{0}/{1}/".format(base_path, component.name)
+        try:
+            c_group = h5_file.create_group(comp_base)
+            c_group.attrs['class'] = str(component.__class__.__name__)
+        except ValueError:
+            c_group = h5_file[comp_base]
+            logger.warning("Failed to create group %s (likely to already exist)", comp_base)
+        for attribute in component.attributes:
+            try:
+                value = model_data.get_attribute_value(attribute)
+                if value is not None:
+                    c_group.attrs[attribute.name] = value
+            except Exception:
+                logger.warning("Exception thrown while storing attribute %s", attribute.name, exc_info=True)
+        for sensor in sorted(component.sensors, key=lambda sensor: sensor.name):
+            try:
+                data = model_data.get_sensor_values(sensor)
+                if data is not None:
+                    try:
+                        dset = np.rec.fromrecords(data, names='timestamp, value, status')
+                        dset.sort(axis=0)
+                        c_group.create_dataset(sensor.name, data=dset)
+                        if sensor.description is not None:
+                            c_group[sensor.name].attrs['description'] = sensor.description
+                    except IndexError:
+                        logger.warning("Failed to create dataset %s/%s as the model has no values",
+                                       comp_base, sensor.name)
+                    except RuntimeError:
+                        logger.warning("Failed to insert dataset %s/%s as it already exists",
+                                       comp_base, sensor.name)
+            except Exception:
+                logger.warning("Exception thrown while storing sensor %s", sensor.name, exc_info=True)
+
+
+def set_telescope_state(h5_file, tstate, base_path=_TSTATE_DATASET):
+    """Write raw pickled telescope state to an HDF5 file."""
+    tstate_group = h5_file.create_group(base_path)
+    tstate_group.attrs['subarray_product_id'] = tstate.get('subarray_product_id','none')
+     # include the subarray product id for use by the crawler to identify which system the file belongs to
+    tstate_keys = tstate.keys()
+    logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), base_path))
+
+    for key in tstate_keys:
+        if not tstate.is_immutable(key):
+            sensor_values = tstate.get_range(key, st=0, return_pickle=True)
+             # retrieve all values for a particular key
+            # swap value, timestamp to timestamp, value
+            sensor_values = [(timestamp, value) for (value, timestamp) in sensor_values]
+            dset = np.rec.fromrecords(sensor_values, names='timestamp,value')
+            tstate_group.create_dataset(key, data=dset)
+            logger.debug("TelescopeState: Written {} values for key {} to file".format(len(dset), key))
+        else:
+            tstate_group.attrs[key] = str(tstate[key])
+            logger.debug("TelescopeState: Key {} written as an attribute".format(key))
+
+
 class File(object):
     def __init__(self, filename):
         """Initialises an HDF5 output file as appropriate for this version of
@@ -123,60 +182,8 @@ class File(object):
          # more informative messages.
 
         self._h5_file.create_dataset(_FLAGS_DESCRIPTION_DATASET, data=model_data.flags_description)
-        for component in model_data.components.values():
-            comp_base = "{0}/{1}/".format(base_path, component.name)
-            try:
-                c_group = self._h5_file.create_group(comp_base)
-                c_group.attrs['class'] = str(component.__class__.__name__)
-            except ValueError:
-                c_group = self._h5_file[comp_base]
-                logger.warning("Failed to create group %s (likely to already exist)", comp_base)
-            for attribute in component.attributes:
-                try:
-                    value = model_data.get_attribute_value(attribute)
-                    if value is not None:
-                        c_group.attrs[attribute.name] = value
-                except Exception:
-                    logger.warning("Exception thrown while storing attribute %s", attribute.name, exc_info=True)
-            for sensor in sorted(component.sensors, key=lambda sensor: sensor.name):
-                try:
-                    data = model_data.get_sensor_values(sensor)
-                    if data is not None:
-                        try:
-                            dset = np.rec.fromrecords(data, names='timestamp, value, status')
-                            dset.sort(axis=0)
-                            c_group.create_dataset(sensor.name, data=dset)
-                            if sensor.description is not None:
-                                c_group[sensor.name].attrs['description'] = sensor.description
-                        except IndexError:
-                            logger.warning("Failed to create dataset %s/%s as the model has no values",
-                                           comp_base, sensor.name)
-                        except RuntimeError:
-                            logger.warning("Failed to insert dataset %s/%s as it already exists",
-                                           comp_base, sensor.name)
-                except Exception:
-                    logger.warning("Exception thrown while storing sensor %s", sensor.name, exc_info=True)
-
-         # write telescope state data out to file
-        tstate = model_data._telstate
-        tstate_group = self._h5_file.create_group(_TSTATE_DATASET)
-	tstate_group.attrs['subarray_product_id'] = tstate.get('subarray_product_id','none')
-	 # include the subarray product id for use by the crawler to identify which system the file belongs to
-        tstate_keys = tstate.keys()
-        logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), _TSTATE_DATASET))
-
-        for key in tstate_keys:
-            if not tstate.is_immutable(key):
-                sensor_values = tstate.get_range(key, st=0)
-                 # retrieve all values for a particular key
-                str_sensor_values = [(str(val),ts) for (val,ts) in sensor_values]
-                dset = np.rec.fromrecords(str_sensor_values, names='value, timestamp')
-                tstate_group.create_dataset(key, data=dset)
-                logger.debug("TelescopeState: Written {} values for key {} to file".format(len(dset), key))
-            else:
-                tstate_group.attrs[key] = str(tstate[key])
-                logger.debug("TelescopeState: Key {} written as an attribute".format(key))
-
+        set_telescope_model(self._h5_file, model_data, base_path)
+        set_telescope_state(self._h5_file, model_data._telstate)
         self._h5_file.flush()
 
     def close(self):
