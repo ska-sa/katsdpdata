@@ -302,6 +302,16 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     def _extract_sub_array_product_id(self):
         self.metadata['SubarrayProductId'] = self._katdata.file['TelescopeState'].attrs['subarray_product_id']
 
+    def _extract_metadata_for_auto_reduction(self):
+        """Populate self.metadata with information scraped from self"""
+        metadata_key_to_map = 'ReductionLabel'
+        obs_param_to_get = 'reduction_label'
+        obs_param = self._katdata.obs_params.get(obs_param_to_get)
+        if not obs_param:
+            obs_param = self._katdata.obs_params.get('reduction_name')
+        if obs_param:
+            self.metadata[metadata_key_to_map] = obs_param
+
     def extract_metadata(self):
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If 
         True, this method has already been run once. If False, extract metadata.
@@ -317,6 +327,7 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_from_katdata()
             self._extract_metadata_for_project()
             self._extract_sub_array_product_id()
+            self._extract_metadata_for_auto_reduction()
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
