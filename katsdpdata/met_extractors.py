@@ -306,7 +306,11 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
         """Populate self.metadata with information scraped from self"""
         metadata_key_to_map = 'ReductionLabel'
         obs_param_to_get = 'reduction_label'
-        self.metadata[metadata_key_to_map] = self._katdata.obs_params.get(obs_param_to_get, '')
+        obs_param = self._katdata.obs_params.get(obs_param_to_get)
+        if not obs_param:
+            obs_param = self._katdata.obs_params.get('reduction_name')
+        if obs_param:
+            self.metadata[metadata_key_to_map] = obs_param
 
     def extract_metadata(self):
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If 
