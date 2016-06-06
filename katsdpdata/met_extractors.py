@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 import re
+import pickle
 
 import katdal
 
@@ -394,6 +395,37 @@ class MeerkatTelescopeTapeProductMetExtractor(TelescopeProductMetExtractor):
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+
+class RTSReductionProductMetExtractor(MetExtractor):
+    """A class for handling RTS reduction systems metadata extraction.
+
+    Use the static 'factory' method from this class.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        self.picklefile = None
+        picklefile = next((p for p in os.listdir(prod_name) if p.endswith('.met.pickle')), None)
+        if picklefile:
+            self._picklefile = os.path.join(prod_name, picklefile)
+        else:
+            raise MetExtractorException('Cannot find a *.met.pickle file in %s' % (prod_name))
+        self.product_type = 'RTSReductionProduct'
+        super(RTSReductionProductMetExtractor, self).__init__('%s.%s' % (self.prod_name, 'met',))
+
+    def extract_metadata(self):
+        if not self._metadata_extracted:
+            self._extract_metadata_product_type()
+            self._extract_metadata_from_pickle()
+            self._metadata_extracted = True
+        else:
+            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+
+    def _extract_metadata_from_pickle(self):
+        with open(self._pickle) as pickled_met:
+            self.metadata = pickle.load(pickled_met)
 
 #class KATContPipeExtractor(MetExtractor):
 #    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
