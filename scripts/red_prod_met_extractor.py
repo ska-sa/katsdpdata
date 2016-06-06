@@ -10,7 +10,7 @@ parser = OptionParser(usage=usage)
 (options, args) = parser.parse_args()
 
 if (len(sys.argv) == 2):
-    product_name = sys.argv[1]
+    product_name = os.path.normpath(sys.argv[1])
 else:
     print parser.format_help()
     sys.exit(0)
