@@ -18,4 +18,4 @@ RUN install-requirements.py -d ~/docker-base/base-requirements.txt -r /tmp/insta
 COPY . /tmp/install/katsdpdata
 WORKDIR /tmp/install/katsdpdata
 RUN python ./setup.py clean && pip install --no-index .
-
+WORKDIR /var/kat/data
