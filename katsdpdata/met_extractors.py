@@ -413,7 +413,7 @@ class RTSReductionProductMetExtractor(MetExtractor):
         else:
             raise MetExtractorException('Cannot find a *.met.pickle file in %s' % (prod_name))
         self.product_type = 'RTSReductionProduct'
-        super(RTSReductionProductMetExtractor, self).__init__('%s.%s' % (self.prod_name, 'met',))
+        super(RTSReductionProductMetExtractor, self).__init__('%s.%s' % (prod_name, 'met',))
 
     def extract_metadata(self):
         if not self._metadata_extracted:
@@ -424,7 +424,7 @@ class RTSReductionProductMetExtractor(MetExtractor):
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
     def _extract_metadata_from_pickle(self):
-        with open(self._pickle) as pickled_met:
+        with open(self._picklefile) as pickled_met:
             self.metadata = pickle.load(pickled_met)
 
 #class KATContPipeExtractor(MetExtractor):

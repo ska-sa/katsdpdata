@@ -16,7 +16,7 @@ else:
     sys.exit(0)
 
 metfilename = '%s.%s' % (product_name, 'met')
-if os.path.isfile(product_name):
+if os.path.isfile(metfilename):
     print 'Metadate file %s already exists.' % (product_name)
     sys.exit(0)
 
