@@ -14,9 +14,8 @@ setup(
     ],
     url = 'http://ska.ac.za/',
     scripts = [
-        "scripts/mkat_tape_met_extractor.py",
         "scripts/tel_prod_met_extractor.py",
-        "scripts/vis_store_controller.py",
+        "scripts/red_prod_met_extractor.py",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
