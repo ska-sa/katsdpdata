@@ -174,7 +174,7 @@ class TelescopeProductMetExtractor(MetExtractor):
                 return RTSTelescopeProductMetExtractor(katdata)
 
 class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
-    """Used for extracting metdata for a KAT7 Telescope product. As well as extracting data from a
+    """Used for extracting metadata for a KAT7 Telescope product. As well as extracting data from a
     katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise
     empty string.
 
@@ -224,7 +224,7 @@ class KatFileProductMetExtractor(KAT7TelescopeProductMetExtractor):
         self.product_type = 'KatFile'
 
 class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
-    """Used for extracting metdata for a RTSTelescopeProduct. As well as extracting data from a
+    """Used for extracting metadata for a RTSTelescopeProduct. As well as extracting data from a
     katdal, a further metadata key 'ReductionName' is created.
 
     Parameters
@@ -275,7 +275,7 @@ class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
 class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
-    """Used for extracting metdata for a MeerKATAR1TelescopeProduct.
+    """Used for extracting metadata for a MeerKATAR1TelescopeProduct.
 
     Parameters
     ----------
@@ -334,7 +334,7 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
 class MeerkatTelescopeTapeProductMetExtractor(TelescopeProductMetExtractor):
-    """Used for extracting metdata for a MeerkatTelescopeTapeProduct. As well as extracting data
+    """Used for extracting metadata for a MeerkatTelescopeTapeProduct. As well as extracting data
     from a katfile, a further metadata key 'TapeBufferDirectory' must be gotten from a katcp server
     sensor.
 
@@ -396,10 +396,10 @@ class MeerkatTelescopeTapeProductMetExtractor(TelescopeProductMetExtractor):
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
-class RTSReductionProductMetExtractor(MetExtractor):
-    """A class for handling RTS reduction systems metadata extraction.
+class ReductionProductMetExtractor(MetExtractor):
+    """A base class for handling reduction systems metadata extraction.
 
-    Use the static 'factory' method from this class.
+    self.product_type is not set
 
     Parameters
     ----------
@@ -412,8 +412,7 @@ class RTSReductionProductMetExtractor(MetExtractor):
             self._picklefile = os.path.join(prod_name, picklefile)
         else:
             raise MetExtractorException('Cannot find a *.met.pickle file in %s' % (prod_name))
-        self.product_type = 'RTSReductionProduct'
-        super(RTSReductionProductMetExtractor, self).__init__('%s.%s' % (prod_name, 'met',))
+        super(ReductionProductMetExtractor, self).__init__('%s.%s' % (prod_name, 'met',))
 
     def extract_metadata(self):
         if not self._metadata_extracted:
@@ -425,7 +424,29 @@ class RTSReductionProductMetExtractor(MetExtractor):
 
     def _extract_metadata_from_pickle(self):
         with open(self._picklefile) as pickled_met:
-            self.metadata = pickle.load(pickled_met)
+            self.metadata.update(pickle.load(pickled_met))
+
+class RTSReductionProductMetExtractor(ReductionProductMetExtractor):
+    """A class for handling RTS reduction systems metadata extraction.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(RTSReductionProductMetExtractor, self).__init__(prod_name)
+        self.product_type = 'RTSReductionProduct'
+
+class MeerKATAR1ReductionProductMetExtractor(ReductionProductMetExtractor):
+    """A class for handling AR1 reduction systems metadata extraction.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(MeerKATAR1ReductionProductMetExtractor, self).__init__(prod_name)
+        self.product_type = 'MeerKATAR1ReductionProduct'
 
 #class KATContPipeExtractor(MetExtractor):
 #    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.

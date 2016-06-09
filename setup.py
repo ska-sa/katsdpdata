@@ -15,7 +15,8 @@ setup(
     url = 'http://ska.ac.za/',
     scripts = [
         "scripts/tel_prod_met_extractor.py",
-        "scripts/red_prod_met_extractor.py",
+        "scripts/rts_red_prod_met_extractor.py",
+        "scripts/meerkatar1_red_prod_met_extractor.py",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
