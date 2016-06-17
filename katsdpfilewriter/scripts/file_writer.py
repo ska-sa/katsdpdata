@@ -118,9 +118,15 @@ class FileWriterServer(DeviceServer):
         self._dumps_sensor.set_value(0)
         self._file_obj = file_writer.File(self._stage_filename)
         self._start_timestamp = timestamp
-        self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2)
+        self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2, max_heaps=2, ring_heaps=2)
+         # as a temporary fix we try and allocate memory pools sized to fit the maximum expected
+         # heap size for AR1 which is 16 antennas, 32k channels, 9 bytes per vis
+        l0_heap_size = 16 * 17 * 2 * 32768 * 9
+        memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8, 8)
+        self._rx.set_memory_pool(memory_pool)
+
         for endpoint in self._endpoints:
-            self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host)
+            self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host, buffer_size=l0_heap_size)
         self._capture_thread = threading.Thread(
                 target=self._do_capture, name='capture', args=(self._file_obj,))
         self._capture_thread.start()
