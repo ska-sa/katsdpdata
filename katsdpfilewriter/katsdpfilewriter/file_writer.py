@@ -132,7 +132,8 @@ class File(object):
                 chunks=(1, 32, shape[1], 2))
         self._h5_file.create_dataset(
                 _FLAGS_DATASET, [0] + shape,
-                maxshape=[None] + shape, dtype=np.uint8)
+                maxshape=[None] + shape, dtype=np.uint8,
+                chunks=(1, 32, shape[1]))
         self._created_data = True
 
     def add_data_frame(self, vis, flags):
