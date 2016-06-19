@@ -128,7 +128,8 @@ class File(object):
         shape = list(shape)  # Ensures that + works belows
         self._h5_file.create_dataset(
                 _CBF_DATA_DATASET, [0] + shape + [2],
-                maxshape=[None] + shape + [2], dtype=np.float32)
+                maxshape=[None] + shape + [2], dtype=np.float32,
+                chunks=(1, 32, shape[1], 2))
         self._h5_file.create_dataset(
                 _FLAGS_DATASET, [0] + shape,
                 maxshape=[None] + shape, dtype=np.uint8)
