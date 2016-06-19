@@ -448,40 +448,43 @@ class MeerKATAR1ReductionProductMetExtractor(ReductionProductMetExtractor):
         super(MeerKATAR1ReductionProductMetExtractor, self).__init__(prod_name)
         self.product_type = 'MeerKATAR1ReductionProduct'
 
-#class KATContPipeExtractor(MetExtractor):
-#    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
-#
-#    Parameters
-#    ----------
-#    votable : ElementTree
-#        An xml string
-#
-#    Attributes
-#    ----------
-#    """
-#    def __init__(self, project):
-#        super(KAT7MetExtractor, self).__init__()
-#        self.votable = votable
-#        self.metadata['ProductType'] = 'KATContPipeReductionProduct'
-#
-#    def extract_metadata(self):
-#        """Populate self.metadata with information scraped from a votable xml file"""
-#        self.metadata['aipsVer'] = project['aipsVer']
-#        self.metadata['AmpCals'] = project['AmpCals'].split()
-#        self.metadata['anNames'] = project['anNames'].split()
-#        self.metadata['archFileID'] = project['archFileID']
-#        self.metadata['BPCals'] = project['BPCals'].split()
-#        self.metadata['dataSet'] = project['dataSet']
-#        self.metadata['DlyCals'] = project['DlyCals'].split()
-#        self.metadata['fileSetID'] = project['fileSetID']
-#        self.metadata['freqCov'] = project[float(f) for f in project['freqCov'].split()]
-#        self.metadata['minFringe'] = float(project['minFringe'])
-#        self.metadata['obitVer'] = project['obitVer']
-#        self.metadata['PhsCals'] = project['PhsCals'].split()
-#        self.metadata['pipeVer'] = project['pipeVer']
-#        self.metadata['procDate'] = project['procDate']
-#        self.metadata['project'] = project['project']
-#        self.metadata['pyVer'] = project['pyVer']
-#        self.metadata['session'] = project['sessioin']
-#        self.metadata['sysInfo'] = project['sysInfo']
-#
+class ObitReductionProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        votable_file = next((p for p in os.listdir(prod_name) if p.endswith('_VOTable.xml')), None)
+        tree = ElementTree.parse(os.path.join(prod_name, votable_file))
+        votable = tree.getroot()
+        for child in votable:
+            if child.tag == 'resource' and child.attrib['name'] == 'Project Data':
+                project_data = child
+                break
+        if project_data:
+            self.project_data = project_data
+        else:
+            raise MetExtractorException('Cannot find a *_VOTable.xml file in %s' % (prod_name))
+        super(ObitReductionProductMetExtractor, self).__init__('%s.%s' % (prod_name, 'met',))
+        self.product_type = 'ObitReductionProduct'
+
+    def extract_metadata(self):
+        if not self._metadata_extracted:
+            self._extract_metadata_product_type()
+            self._extract_metadata_from_votable()
+            self._metadata_extracted = True
+        else:
+            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+
+    def _extract_metadata_from_votable(self):
+        met = dict([[param.attrib['name'],param.attrib['value']] for param in self.project_data.getchildren() if param.tag == 'param'])
+        mult_valued = ['AmpCals', 'BPCals', 'DlyCals', 'PhyCals', 'PhsCals', 'anNames', 'freqCov']
+        date_valued = ['obsDate', 'procDate']
+        for k,v in met.iteritems():
+            if k in mult_valued:
+                met[k] = ' '.join(v.split()).split()
+            if k in date_valued:
+                met[k] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.strptime(v, '%Y-%m-%d'))
+        self.metadata.update(met)
