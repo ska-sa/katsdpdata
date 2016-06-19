@@ -122,6 +122,7 @@ class File(object):
         """
         ds = self._h5_file.create_dataset(_TIMESTAMPS_DATASET, data=timestamps)
         ds.attrs['timestamp_reference'] = 'centroid'
+        self._h5_file.flush()
 
     def _create_data(self, shape):
         """Creates the data sets for visibilities and flags."""
