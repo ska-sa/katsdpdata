@@ -9,6 +9,7 @@ mock
 netifaces
 nose
 pbr
+pkginfo
 ply
 ProxyTypes
 six
