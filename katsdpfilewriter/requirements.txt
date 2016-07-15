@@ -1,6 +1,7 @@
 Cython
 h5py
 funcsigs
+futures
 katcp
 numpy
 linecache2
@@ -16,6 +17,7 @@ six
 spead2
 redis
 traceback2
+tornado
 Twisted
 unittest2
 zope.interface
