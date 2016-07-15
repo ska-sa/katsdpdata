@@ -1,4 +1,5 @@
 backports-abc
+backports.ssl-match-hostname
 certifi
 Cython
 h5py
