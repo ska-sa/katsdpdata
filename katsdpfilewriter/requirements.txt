@@ -1,3 +1,5 @@
+backports-abc
+certifi
 Cython
 h5py
 funcsigs
@@ -13,6 +15,7 @@ pbr
 pkginfo
 ply
 ProxyTypes
+singledispatch
 six
 spead2
 redis
