@@ -159,19 +159,28 @@ class TelescopeProductMetExtractor(MetExtractor):
         ----------
         katfile: string : name of file to opened with the katdal module.
         """
-        katdata = katdal.open(katfile)
-        try:
-            #does it have the subarray key?
-            katdata.file['TelescopeState'].attrs['subarray_product_id']
-            return MeerKATAR1TelescopeProductMetExtractor(katdata)
-        except KeyError:
-            if katdata.ants[0].name.startswith('ant'):
-                #must be KAT7
-                #todo: replace with KAT7TelescopeProductMetExtractor
-                return KatFileProductMetExtractor(katdata)
-            else:
-                #must be RTS
-                return RTSTelescopeProductMetExtractor(katdata)
+
+        if katfile[-2:] == 'h5': #Correlator data  Remove and put in crawler
+            katdata = katdal.open(katfile)
+            try:
+                #does it have the subarray key?
+                katdata.file['TelescopeState'].attrs['subarray_product_id']
+                return MeerKATAR1TelescopeProductMetExtractor(katdata)
+            except KeyError:
+                if katdata.ants[0].name.startswith('ant'):
+                    #must be KAT7
+                    #todo: replace with KAT7TelescopeProductMetExtractor
+                    return KatFileProductMetExtractor(katdata)
+                else:
+                    #must be RTS
+                    return RTSTelescopeProductMetExtractor(katdata)
+        elif katfile[-2:] == 'sf': 
+            #pulsar search file
+            return PulsarSearchProductMetExtractor(katfile)
+        elif katfile[-2:] == 'ar':
+            #pulsar timing archive file
+            return PulsarTimingArchiveProductMetExtractor(katfile)
+
 
 class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """Used for extracting metadata for a KAT7 Telescope product. As well as extracting data from a
@@ -488,3 +497,78 @@ class ObitReductionProductMetExtractor(MetExtractor):
             if k in date_valued:
                 met[k] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.strptime(v, '%Y-%m-%d'))
         self.metadata.update(met)
+
+class PulsarSearchProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(PulsarTimingProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PulsarSearchProduct'
+        self.product_name = prod_name
+    
+    def extract_metadata(self):
+        self._extract_metadata_product_type()
+        self.extract_fits_header()
+    
+    def extract_fits_header(self):
+        import pyfits
+        data = pyfits.open(self.product_name, memmap=True)
+        hduPrimary = data[0].header
+        hduSubint = data[2].header
+        radec = hoursToDegrees(hduPrimary["RA"],hduPrimary["DEC"])
+        self.metadata["DecRA"]="%f,%f"%(radec[1],radec[0])
+        self.metadata["STT_CRD1"]=hduPrimary["STT_CRD1"]
+        self.metadata["STT_CRD2"]=hduPrimary["STT_CRD2"]
+        self.metadata["STP_CRD1"]=hduPrimary["STP_CRD1"]
+        self.metadata["STP_CRD2"]=hduPrimary["STP_CRD2"]
+        self.metadata["TRK_MODE"]=hduPrimary["TRK_MODE"]
+        self.metadata["OBS_MODE"]=hduPrimary["OBS_MODE"]
+        self.metadata["TCYCLE"]=hduPrimary["TCYCLE"]
+        self.metadata["ANT_X"]=hduPrimary["ANT_X"]
+        self.metadata["ANT_Y"]=hduPrimary["ANT_Y"]
+        self.metadata["ANT_Z"]=hduPrimary["ANT_Z"]
+        self.metadata["NRCVR"]=hduPrimary["NRCVR"]
+        self.metadata["CAL_MODE"]=hduPrimary["CAL_MODE"]
+        self.metadata["CAL_FREQ"]=hduPrimary["CAL_FREQ"]
+        self.metadata["CAL_DCYC"]=hduPrimary["CAL_DCYC"]
+        self.metadata["CAL_PHS"]=hduPrimary["CAL_PHS"]
+        self.metadata["CAL_NPHS"]=hduPrimary["CAL_NPHS"]
+        self.metadata["CHAN_DM"]=hduPrimary["CHAN_DM"]
+        self.metadata["DATE-OBS"]=hduPrimary["DATE-OBS"]
+        self.metadata["DATE"]=hduPrimary["DATE"]
+        self.metadata["NPOL"]=hduSubint["NPOL"]
+        self.metadata["POL_TYPE"]=hduSubint["AA+BB"]
+        self.metadata["NCHNOFFS"]=hduSubint["NCHNOFFS"]
+
+#input string of ra and dec in hours and return floats with the degree values
+def hoursToDegrees(ra,dec):
+    ralist = [float(v) for v in ra.split(':')]
+    declist = [float(v) for v in dec.split(':')]
+    
+    raDeg = ralist[0]*15 + ralist[1]*15/60 + ralist[2]*15/3600
+    decDeg = declist[0] + declist[1]/60 + declist[2]/3600
+
+    return raDeg,decDeg
+         
+class PulsarTimingiArchiveProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(PulsarTimingProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PulsarTimingArchiveProduct'        
+    
+    def extract_metadata(self):
+        self._extract_metadata_product_type()
+        self.extract_archive_header()
+
+    def extract_archive_header(self):
+
+    
