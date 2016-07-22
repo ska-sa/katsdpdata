@@ -1,6 +1,10 @@
+backports-abc
+backports.ssl-match-hostname
+certifi
 Cython
 h5py
 funcsigs
+futures
 katcp
 numpy
 linecache2
@@ -9,12 +13,15 @@ mock
 netifaces
 nose
 pbr
+pkginfo
 ply
 ProxyTypes
+singledispatch
 six
 spead2
 redis
 traceback2
+tornado
 Twisted
 unittest2
 zope.interface

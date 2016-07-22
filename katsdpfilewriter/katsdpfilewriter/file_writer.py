@@ -122,16 +122,19 @@ class File(object):
         """
         ds = self._h5_file.create_dataset(_TIMESTAMPS_DATASET, data=timestamps)
         ds.attrs['timestamp_reference'] = 'centroid'
+        self._h5_file.flush()
 
     def _create_data(self, shape):
         """Creates the data sets for visibilities and flags."""
         shape = list(shape)  # Ensures that + works belows
         self._h5_file.create_dataset(
                 _CBF_DATA_DATASET, [0] + shape + [2],
-                maxshape=[None] + shape + [2], dtype=np.float32)
+                maxshape=[None] + shape + [2], dtype=np.float32,
+                chunks=(1, 32, shape[1], 2))
         self._h5_file.create_dataset(
                 _FLAGS_DATASET, [0] + shape,
-                maxshape=[None] + shape, dtype=np.uint8)
+                maxshape=[None] + shape, dtype=np.uint8,
+                chunks=(1, 32, shape[1]))
         self._created_data = True
 
     def add_data_frame(self, vis, flags):

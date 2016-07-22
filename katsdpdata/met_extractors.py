@@ -468,7 +468,7 @@ class MeerKATAR1ReductionProductMetExtractor(ReductionProductMetExtractor):
         super(MeerKATAR1ReductionProductMetExtractor, self).__init__(prod_name)
         self.product_type = 'MeerKATAR1ReductionProduct'
 
-class ObitReductionMetExtractor(MetExtractor):
+class ObitReductionProductMetExtractor(MetExtractor):
     """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
 
     Parameters
@@ -487,7 +487,7 @@ class ObitReductionMetExtractor(MetExtractor):
             self.project_data = project_data
         else:
             raise MetExtractorException('Cannot find a *_VOTable.xml file in %s' % (prod_name))
-        super(ReductionProductMetExtractor, self).__init__('%s.%s' % (prod_name, 'met',))
+        super(ObitReductionProductMetExtractor, self).__init__('%s.%s' % (prod_name, 'met',))
         self.product_type = 'ObitReductionProduct'
 
     def extract_metadata(self):
@@ -500,16 +500,11 @@ class ObitReductionMetExtractor(MetExtractor):
 
     def _extract_metadata_from_votable(self):
         met = dict([[param.attrib['name'],param.attrib['value']] for param in self.project_data.getchildren() if param.tag == 'param'])
-        mult_valued = ['AmpCals', 'BPCals', 'DlyCals', 'PhyCals', 'PhsCals', 'anNames']
-        float_valued = ['obsStart', 'obsStop', 'minFringe']
+        mult_valued = ['AmpCals', 'BPCals', 'DlyCals', 'PhyCals', 'PhsCals', 'anNames', 'freqCov']
         date_valued = ['obsDate', 'procDate']
         for k,v in met.iteritems():
             if k in mult_valued:
                 met[k] = ' '.join(v.split()).split()
-            if k in float_valued:
-                met[k] = float(v)
             if k in date_valued:
                 met[k] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.strptime(v, '%Y-%m-%d'))
-            if k == 'freqCov':
-                met[k] = map(float, v.split())
         self.metadata.update(met)
