@@ -506,7 +506,7 @@ class PulsarSearchProductMetExtractor(MetExtractor):
     prod_name : string : the name of a heirachical product to ingest.
     """
     def __init__(self, prod_name):
-        super(PulsarTimingProductMetExtractor, self).__init__(prod_name+'.met')
+        super(PulsarSearchProductMetExtractor, self).__init__(prod_name+'.met')
         self.product_type = 'PulsarSearchProduct'
         self.product_name = prod_name
     
@@ -516,7 +516,8 @@ class PulsarSearchProductMetExtractor(MetExtractor):
     
     def extract_fits_header(self):
         import pyfits
-        data = pyfits.open(self.product_name, memmap=True)
+        data_files = os.listdir(self.product_name)
+        data = pyfits.open("%s/%s"%(self.product_name,data_files[0]), memmap=True)
         hduPrimary = data[0].header
         hduSubint = data[2].header
         radec = hoursToDegrees(hduPrimary["RA"],hduPrimary["DEC"])
@@ -541,8 +542,9 @@ class PulsarSearchProductMetExtractor(MetExtractor):
         self.metadata["DATE-OBS"]=hduPrimary["DATE-OBS"]
         self.metadata["DATE"]=hduPrimary["DATE"]
         self.metadata["NPOL"]=hduSubint["NPOL"]
-        self.metadata["POL_TYPE"]=hduSubint["AA+BB"]
+        self.metadata["POL_TYPE"]=hduSubint["POL_TYPE"]
         self.metadata["NCHNOFFS"]=hduSubint["NCHNOFFS"]
+        self._metadata_extracted = True
 
 #input string of ra and dec in hours and return floats with the degree values
 def hoursToDegrees(ra,dec):
@@ -569,6 +571,6 @@ class PulsarTimingiArchiveProductMetExtractor(MetExtractor):
         self._extract_metadata_product_type()
         self.extract_archive_header()
 
-    def extract_archive_header(self):
+    #def extract_archive_header(self):
 
     
