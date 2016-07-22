@@ -23,4 +23,4 @@ mock
 funcsigs
 pbr
 katcp
-
+pkginfo
