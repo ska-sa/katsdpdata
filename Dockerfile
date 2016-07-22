@@ -1,4 +1,4 @@
-FROM sdp-docker-registry.kat.ac.za:5000/docker-base
+FROM sdp-docker-registry.kat.ac.za:5000/psrchive:v1
 
 MAINTAINER Thomas Bennett "tbennett@ska.ac.za"
 
@@ -12,10 +12,13 @@ RUN apt-get -y update && apt-get -y install \
 USER kat
 
 COPY requirements.txt /tmp/install/requirements.txt
+#RUN pip install pkginfo
+#RUN pip install futures
+#RUN pip install tornado
 RUN install-requirements.py -d ~/docker-base/base-requirements.txt -r /tmp/install/requirements.txt 
 
 # Install the current package
 COPY . /tmp/install/katsdpdata
 WORKDIR /tmp/install/katsdpdata
 RUN python ./setup.py clean && pip install --no-index .
-WORKDIR /var/kat/data
+#WORKDIR /var/kat/data
