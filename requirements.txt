@@ -24,3 +24,10 @@ funcsigs
 pbr
 katcp
 pkginfo
+backports-abc
+backports.ssl-match-hostname
+certifi
+futures
+ProxyTypes
+singledispatch
+tornado
