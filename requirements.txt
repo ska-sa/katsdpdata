@@ -1,3 +1,10 @@
+singledispatch
+backports.ssl-match-hostname
+backports-abc
+certifi
+pkginfo
+futures
+tornado
 
 six
 Cython
