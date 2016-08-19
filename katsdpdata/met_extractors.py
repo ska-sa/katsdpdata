@@ -513,37 +513,45 @@ class PulsarSearchProductMetExtractor(MetExtractor):
     def extract_metadata(self):
         self._extract_metadata_product_type()
         self.extract_fits_header()
-    
+   
     def extract_fits_header(self):
         import pyfits
         data_files = os.listdir(self.product_name)
-        data = pyfits.open("%s/%s"%(self.product_name,data_files[0]), memmap=True)
+        data = pyfits.open("%s/%s"%(self.product_name,data_files[1]), memmap=True)
+        obs_info_file = open ("%s/obs_info.dat"%self.product_name)
+        obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+        self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
+        self.metadata["Targets"]=obs_info["targets"]
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata["Duration"]=obs_info["target_duration"]
+        self.metadata["ProposalId"]=obs_info["proposal_id"]
+        self.metadata["Description"]=obs_info["description"]
+        self.metadata["ExperimentID"]=obs_info["experiment_id"]
+        self.metadata["CAS.ProductTypeName"]='PulsarSearchProduct'
+
         hduPrimary = data[0].header
         hduSubint = data[2].header
         radec = hoursToDegrees(hduPrimary["RA"],hduPrimary["DEC"])
         self.metadata["DecRA"]="%f,%f"%(radec[1],radec[0])
-        self.metadata["STT_CRD1"]=hduPrimary["STT_CRD1"]
-        self.metadata["STT_CRD2"]=hduPrimary["STT_CRD2"]
-        self.metadata["STP_CRD1"]=hduPrimary["STP_CRD1"]
-        self.metadata["STP_CRD2"]=hduPrimary["STP_CRD2"]
-        self.metadata["TRK_MODE"]=hduPrimary["TRK_MODE"]
-        self.metadata["OBS_MODE"]=hduPrimary["OBS_MODE"]
-        self.metadata["TCYCLE"]=hduPrimary["TCYCLE"]
-        self.metadata["ANT_X"]=hduPrimary["ANT_X"]
-        self.metadata["ANT_Y"]=hduPrimary["ANT_Y"]
-        self.metadata["ANT_Z"]=hduPrimary["ANT_Z"]
-        self.metadata["NRCVR"]=hduPrimary["NRCVR"]
-        self.metadata["CAL_MODE"]=hduPrimary["CAL_MODE"]
-        self.metadata["CAL_FREQ"]=hduPrimary["CAL_FREQ"]
-        self.metadata["CAL_DCYC"]=hduPrimary["CAL_DCYC"]
-        self.metadata["CAL_PHS"]=hduPrimary["CAL_PHS"]
-        self.metadata["CAL_NPHS"]=hduPrimary["CAL_NPHS"]
-        self.metadata["CHAN_DM"]=hduPrimary["CHAN_DM"]
-        self.metadata["DATE-OBS"]=hduPrimary["DATE-OBS"]
-        self.metadata["DATE"]=hduPrimary["DATE"]
-        self.metadata["NPOL"]=hduSubint["NPOL"]
-        self.metadata["POL_TYPE"]=hduSubint["POL_TYPE"]
-        self.metadata["NCHNOFFS"]=hduSubint["NCHNOFFS"]
+        self.metadata["STT_CRD1"]=str(hduPrimary["STT_CRD1"])
+        self.metadata["STT_CRD2"]=str(hduPrimary["STT_CRD2"])
+        self.metadata["STP_CRD1"]=str(hduPrimary["STP_CRD1"])
+        self.metadata["STP_CRD2"]=str(hduPrimary["STP_CRD2"])
+        self.metadata["TRK_MODE"]=str(hduPrimary["TRK_MODE"])
+        self.metadata["CAL_MODE"]=str(hduPrimary["CAL_MODE"])
+        self.metadata["NPOL"]=str(hduSubint["NPOL"])
+        self.metadata["POL_TYPE"]=str(hduSubint["POL_TYPE"])
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata['Description'] = obs_info["description"]
+        self.metadata['ExperimentID'] = obs_info["experiment_id"]
+        self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
+        self.metadata['KatfileVersion'] = "sf"
+        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['Observer'] = obs_info["observer"]
+        print str(hduPrimary["DATE"])
+        self.metadata['StartTime'] = "%sZ"%hduPrimary["DATE"]
+        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')] 
         self._metadata_extracted = True
 
 #input string of ra and dec in hours and return floats with the degree values
@@ -556,7 +564,7 @@ def hoursToDegrees(ra,dec):
 
     return raDeg,decDeg
          
-class PulsarTimingiArchiveProductMetExtractor(MetExtractor):
+class PulsarTimingArchiveProductMetExtractor(MetExtractor):
     """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
 
     Parameters
@@ -564,13 +572,31 @@ class PulsarTimingiArchiveProductMetExtractor(MetExtractor):
     prod_name : string : the name of a heirachical product to ingest.
     """
     def __init__(self, prod_name):
-        super(PulsarTimingProductMetExtractor, self).__init__(prod_name+'.met')
+        super(PulsarTimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
         self.product_type = 'PulsarTimingArchiveProduct'        
-    
+        self.product_name = prod_name
+ 
     def extract_metadata(self):
         self._extract_metadata_product_type()
         self.extract_archive_header()
 
-    #def extract_archive_header(self):
-
-    
+    def extract_archive_header(self):
+        data_files = os.listdir(self.product_name)
+        obs_info_file = open ("%s/obs_info.dat"%self.product_name)
+        obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+        self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
+        self.metadata["Targets"]=obs_info["targets"]
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata["Duration"]=obs_info["target_duration"]
+        self.metadata["ProposalId"]=obs_info["proposal_id"]
+        self.metadata["Description"]=obs_info["description"]
+        self.metadata["ExperimentID"]=obs_info["experiment_id"]
+        self.metadata["CAS.ProductTypeName"]='PulsarTimingArchiveProduct'
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata['Description'] = obs_info["description"]
+        self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
+        self.metadata['KatfileVersion'] = "ar"
+        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self._metadata_extracted = True
