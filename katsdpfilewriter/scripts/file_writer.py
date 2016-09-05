@@ -81,7 +81,15 @@ class FileWriterServer(DeviceServer):
                 if 'timestamp' in updated:
                     vis_data = ig['correlator_data'].value
                     flags = ig['flags'].value
-                    file_obj.add_data_frame(vis_data, flags)
+                    try:
+                        weights = ig['weights'].value
+                    except KeyError:
+                        weights = None
+                    try:
+                        weights_channel = ig['weights_channel'].value
+                    except KeyError:
+                        weights_channel = None
+                    file_obj.add_data_frame(vis_data, flags, weights, weights_channel)
                     timestamps.append(ig['timestamp'].value)
                     n_dumps += 1
                     n_bytes += vis_data.nbytes + flags.nbytes
