@@ -162,7 +162,7 @@ class File(object):
         weights : numpy array, uint8, dimensions channels and baselines, optional
             Detailed weights, which must be scaled by `weights_channel`
             to get the actual weights
-        weight_channel : numpy array, uint8, dimensions channels, optional
+        weights_channel : numpy array, float32, dimensions channels, optional
             Coarse weights
         """
         # create datasets if they do not already exist
