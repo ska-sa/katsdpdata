@@ -18,6 +18,8 @@ _TIMESTAMPS_DATASET = '/Data/timestamps'
 _FLAGS_DATASET = '/Data/flags'
 _FLAGS_DESCRIPTION_DATASET = '/Data/flags_description'
 _CBF_DATA_DATASET = '/Data/correlator_data'
+_WEIGHTS_DATASET = '/Data/weights'
+_WEIGHTS_CHANNEL_DATASET = '/Data/weights_channel'
 _TSTATE_DATASET = '/TelescopeState'
 
 
@@ -126,7 +128,7 @@ class File(object):
 
     def _create_data(self, shape):
         """Creates the data sets for visibilities and flags."""
-        shape = list(shape)  # Ensures that + works belows
+        shape = list(shape)  # Ensures that + works below
         self._h5_file.create_dataset(
                 _CBF_DATA_DATASET, [0] + shape + [2],
                 maxshape=[None] + shape + [2], dtype=np.float32,
@@ -135,9 +137,19 @@ class File(object):
                 _FLAGS_DATASET, [0] + shape,
                 maxshape=[None] + shape, dtype=np.uint8,
                 chunks=(1, 32, shape[1]))
+        self._h5_file.create_dataset(
+                _WEIGHTS_DATASET, [0] + shape,
+                maxshape=[None] + shape, dtype=np.uint8,
+                chunks=(1, 32, shape[1]),
+                fillvalue=np.uint8(1))
+        self._h5_file.create_dataset(
+                _WEIGHTS_CHANNEL_DATASET, [0] + shape[:1],
+                maxshape=[None] + shape[:1], dtype=np.float32,
+                chunks=(1, shape[0]),
+                fillvalue=np.float32(1))
         self._created_data = True
 
-    def add_data_frame(self, vis, flags):
+    def add_data_frame(self, vis, flags, weights=None, weights_channel=None):
         """Add a single visibility/flags frame to the file. The datasets are
         created on first use.
 
@@ -147,6 +159,11 @@ class File(object):
             Visibilities
         flags : numpy array, uint8, dimensions channels and baselines
             Flags
+        weights : numpy array, uint8, dimensions channels and baselines, optional
+            Detailed weights, which must be scaled by `weights_channel`
+            to get the actual weights
+        weights_channel : numpy array, float32, dimensions channels, optional
+            Coarse weights
         """
         # create datasets if they do not already exist
         if not self._created_data:
@@ -155,9 +172,13 @@ class File(object):
         # resize datasets
         h5_cbf = self._h5_file[_CBF_DATA_DATASET]
         h5_flags = self._h5_file[_FLAGS_DATASET]
+        h5_weights = self._h5_file[_WEIGHTS_DATASET]
+        h5_weights_channel = self._h5_file[_WEIGHTS_CHANNEL_DATASET]
         idx = h5_cbf.shape[0]
         h5_cbf.resize(idx+1, axis=0)
         h5_flags.resize(idx+1, axis=0)
+        h5_weights.resize(idx+1, axis=0)
+        h5_weights_channel.resize(idx+1, axis=0)
 
         # Complex values are written to file as an extra dimension of size 2,
         # rather than as structs. Revisit this later to see if either the HDF5
@@ -166,6 +187,10 @@ class File(object):
         vis_pairs = _split_array(vis, np.float32)
         h5_cbf[idx] = vis_pairs
         h5_flags[idx] = flags
+        if weights is not None:
+            h5_weights[idx] = weights
+        if weights_channel is not None:
+            h5_weights_channel[idx] = weights_channel
         self._h5_file.flush()
 
     def set_metadata(self, model_data, base_path="/TelescopeModel"):
