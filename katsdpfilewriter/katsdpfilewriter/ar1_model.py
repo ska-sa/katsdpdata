@@ -77,7 +77,7 @@ def create_model(antenna_mask=[]):
         ('reserved0', 'reserved - bit 0'),
         ('static', 'predefined static flag list'),
         ('cam', 'flag based on live CAM information'),
-        ('reserved3', 'reserved - bit 3'),
+        ('data_lost', 'no data was received'),
         ('ingest_rfi', 'RFI detected in ingest'),
         ('predicted_rfi', 'RFI predicted from space based pollutants'),
         ('cal_rfi', 'RFI detected in calibration'),
