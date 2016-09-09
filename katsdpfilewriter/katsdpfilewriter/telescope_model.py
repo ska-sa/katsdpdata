@@ -146,16 +146,8 @@ class TelstateModelData(TelescopeModelData):
         super(TelstateModelData, self).__init__(model)
         self._telstate = telstate
         self._start_timestamp = start_timestamp
-        # Wait for cam2telstate to guarantee that the initial values are
-        # populated.
-        timeout = 5
-        try:
-            telstate.wait_key('sdp_cam2telstate_status',
-                              lambda value: value == 'ready',
-                              timeout=timeout)
-        except katsdptelstate.TimeoutError:
-            logger.warn('cam2telstate was not ready within %d seconds, telescope state may be incomplete',
-                        timeout)
+        if telstate.get('sdp_cam2telstate_status') != 'ready':
+            logger.warn('cam2telstate was not ready, telescope state may be incomplete')
 
     def get_attribute_value(self, attribute):
         return self._telstate.get(attribute.full_name)
