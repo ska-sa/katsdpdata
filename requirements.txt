@@ -29,7 +29,6 @@ mock
 funcsigs
 pbr
 katcp
-pkginfo
 backports-abc
 backports.ssl-match-hostname
 certifi
