@@ -1,4 +1,4 @@
-FROM sdp-docker-registry.kat.ac.za:5000/docker-base
+FROM sdp-docker-registry.kat.ac.za:5000/psrchive:v3
 
 MAINTAINER Thomas Bennett "tbennett@ska.ac.za"
 
@@ -18,4 +18,3 @@ RUN install-requirements.py -d ~/docker-base/base-requirements.txt -r /tmp/insta
 COPY . /tmp/install/katsdpdata
 WORKDIR /tmp/install/katsdpdata
 RUN python ./setup.py clean && pip install --no-index .
-WORKDIR /var/kat/data
