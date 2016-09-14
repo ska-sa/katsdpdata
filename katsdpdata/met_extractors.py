@@ -182,6 +182,26 @@ class TelescopeProductMetExtractor(MetExtractor):
             return PulsarTimingArchiveProductMetExtractor(katfile)
 
 
+    @staticmethod
+    def alt_factory(katfile):
+        """Static method to instantiate a metadata extraction object. The following systems
+        are currently supported: KAT7, RTS. Note, if called, this method will think that AR1 data is
+        RTS data.
+
+        Parameters:
+        ----------
+        katfile: string : name of file to opened with the katdal module.
+        """
+        katdata = katdal.open(katfile)
+        try:
+            #does it have the subarray key?
+            katdata.file['TelescopeState'].attrs['subarray_product_id']
+            return RTSTelescopeProductMetExtractor(katdata)
+        except KeyError:
+            if katdata.ants[0].name.startswith('ant'):
+                #must be KAT7
+                return KatFileProductMetExtractor(katdata)
+
 class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """Used for extracting metadata for a KAT7 Telescope product. As well as extracting data from a
     katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise
