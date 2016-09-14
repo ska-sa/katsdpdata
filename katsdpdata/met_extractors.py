@@ -549,7 +549,6 @@ class PulsarSearchProductMetExtractor(MetExtractor):
         self.metadata['KatfileVersion'] = "sf"
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Observer'] = obs_info["observer"]
-        print str(hduPrimary["DATE"])
         self.metadata['StartTime'] = "%sZ"%hduPrimary["DATE"]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')] 
         self._metadata_extracted = True

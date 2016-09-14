@@ -12,14 +12,9 @@ RUN apt-get -y update && apt-get -y install \
 USER kat
 
 COPY requirements.txt /tmp/install/requirements.txt
-#COPY install-requirements.py .
-#RUN pip install pkginfo
-#RUN pip install futures
-#RUN pip install --upgrade pip
 RUN install-requirements.py -d ~/docker-base/base-requirements.txt -r /tmp/install/requirements.txt 
 
 # Install the current package
 COPY . /tmp/install/katsdpdata
 WORKDIR /tmp/install/katsdpdata
 RUN python ./setup.py clean && pip install --no-index .
-#WORKDIR /var/kat/data
