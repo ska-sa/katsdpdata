@@ -191,8 +191,9 @@ def comma_list(type_):
 
 def main():
     if len(logging.root.handlers) > 0: logging.root.removeHandler(logging.root.handlers[0])
-    formatter = logging.Formatter("%(asctime)s.%(msecs)dZ - %(filename)s:%(lineno)s - %(levelname)s - %(message)s",
-                                      datefmt="%Y-%m-%d %H:%M:%S")
+    formatter = logging.Formatter("%(asctime)s.%(msecs)03dZ - %(filename)s:%(lineno)s - %(levelname)s - %(message)s",
+                                  datefmt="%Y-%m-%d %H:%M:%S")
+    formatter.converter = time.gmtime
     sh = logging.StreamHandler()
     sh.setFormatter(formatter)
     logging.root.addHandler(sh)
