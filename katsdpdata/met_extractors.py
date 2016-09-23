@@ -159,19 +159,28 @@ class TelescopeProductMetExtractor(MetExtractor):
         ----------
         katfile: string : name of file to opened with the katdal module.
         """
-        katdata = katdal.open(katfile)
-        try:
-            #does it have the subarray key?
-            katdata.file['TelescopeState'].attrs['subarray_product_id']
-            return MeerKATAR1TelescopeProductMetExtractor(katdata)
-        except KeyError:
-            if katdata.ants[0].name.startswith('ant'):
-                #must be KAT7
-                #todo: replace with KAT7TelescopeProductMetExtractor
-                return KatFileProductMetExtractor(katdata)
-            else:
-                #must be RTS
-                return RTSTelescopeProductMetExtractor(katdata)
+
+        if katfile[-2:] == 'h5': #Correlator data  Remove and put in crawler
+            katdata = katdal.open(katfile)
+            try:
+                #does it have the subarray key?
+                katdata.file['TelescopeState'].attrs['subarray_product_id']
+                return MeerKATAR1TelescopeProductMetExtractor(katdata)
+            except KeyError:
+                if katdata.ants[0].name.startswith('ant'):
+                    #must be KAT7
+                    #todo: replace with KAT7TelescopeProductMetExtractor
+                    return KatFileProductMetExtractor(katdata)
+                else:
+                    #must be RTS
+                    return RTSTelescopeProductMetExtractor(katdata)
+        elif katfile[-2:] == 'sf': 
+            #pulsar search file
+            return PulsarSearchProductMetExtractor(katfile)
+        elif katfile[-2:] == 'ar':
+            #pulsar timing archive file
+            return PulsarTimingArchiveProductMetExtractor(katfile)
+
 
     @staticmethod
     def alt_factory(katfile):
@@ -508,3 +517,105 @@ class ObitReductionProductMetExtractor(MetExtractor):
             if k in date_valued:
                 met[k] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.strptime(v, '%Y-%m-%d'))
         self.metadata.update(met)
+
+class PulsarSearchProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(PulsarSearchProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PulsarSearchProduct'
+        self.product_name = prod_name
+    
+    def extract_metadata(self):
+        self._extract_metadata_product_type()
+        self.extract_fits_header()
+   
+    def extract_fits_header(self):
+        import pyfits
+        data_files = os.listdir(self.product_name)
+        data = pyfits.open("%s/%s"%(self.product_name,data_files[1]), memmap=True)
+        obs_info_file = open ("%s/obs_info.dat"%self.product_name)
+        obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+        self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
+        self.metadata["Targets"]=obs_info["targets"]
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata["Duration"]=obs_info["target_duration"]
+        self.metadata["ProposalId"]=obs_info["proposal_id"]
+        self.metadata["Description"]=obs_info["description"]
+        self.metadata["ExperimentID"]=obs_info["experiment_id"]
+        self.metadata["CAS.ProductTypeName"]='PulsarSearchProduct'
+
+        hduPrimary = data[0].header
+        hduSubint = data[2].header
+        radec = hoursToDegrees(hduPrimary["RA"],hduPrimary["DEC"])
+        self.metadata["DecRA"]="%f,%f"%(radec[1],radec[0])
+        self.metadata["STT_CRD1"]=str(hduPrimary["STT_CRD1"])
+        self.metadata["STT_CRD2"]=str(hduPrimary["STT_CRD2"])
+        self.metadata["STP_CRD1"]=str(hduPrimary["STP_CRD1"])
+        self.metadata["STP_CRD2"]=str(hduPrimary["STP_CRD2"])
+        self.metadata["TRK_MODE"]=str(hduPrimary["TRK_MODE"])
+        self.metadata["CAL_MODE"]=str(hduPrimary["CAL_MODE"])
+        self.metadata["NPOL"]=str(hduSubint["NPOL"])
+        self.metadata["POL_TYPE"]=str(hduSubint["POL_TYPE"])
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata['Description'] = obs_info["description"]
+        self.metadata['ExperimentID'] = obs_info["experiment_id"]
+        self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
+        self.metadata['KatfileVersion'] = "sf"
+        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['Observer'] = obs_info["observer"]
+        self.metadata['StartTime'] = "%sZ"%hduPrimary["DATE"]
+        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')] 
+        self._metadata_extracted = True
+
+#input string of ra and dec in hours and return floats with the degree values
+def hoursToDegrees(ra,dec):
+    ralist = [float(v) for v in ra.split(':')]
+    declist = [float(v) for v in dec.split(':')]
+    
+    raDeg = ralist[0]*15 + ralist[1]*15/60 + ralist[2]*15/3600
+    decDeg = declist[0] + declist[1]/60 + declist[2]/3600
+
+    return raDeg,decDeg
+         
+class PulsarTimingArchiveProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(PulsarTimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PulsarTimingArchiveProduct'        
+        self.product_name = prod_name
+ 
+    def extract_metadata(self):
+        self._extract_metadata_product_type()
+        self.extract_archive_header()
+
+    def extract_archive_header(self):
+        data_files = os.listdir(self.product_name)
+        obs_info_file = open ("%s/obs_info.dat"%self.product_name)
+        obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+        self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
+        self.metadata["Targets"]=obs_info["targets"]
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata["Duration"]=obs_info["target_duration"]
+        self.metadata["ProposalId"]=obs_info["proposal_id"]
+        self.metadata["Description"]=obs_info["description"]
+        self.metadata["ExperimentID"]=obs_info["experiment_id"]
+        self.metadata["CAS.ProductTypeName"]='PulsarTimingArchiveProduct'
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata['Description'] = obs_info["description"]
+        self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
+        self.metadata['KatfileVersion'] = "ar"
+        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self._metadata_extracted = True
