@@ -1,4 +1,4 @@
-FROM sdp-docker-registry.kat.ac.za:5000/psrchive:v3
+FROM sdp-docker-registry.kat.ac.za:5000/psrchive
 
 MAINTAINER Thomas Bennett "tbennett@ska.ac.za"
 
