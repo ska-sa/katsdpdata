@@ -100,7 +100,7 @@ def set_telescope_state(h5_file, tstate, base_path=_TSTATE_DATASET):
             tstate_group.create_dataset(key, data=dset)
             logger.debug("TelescopeState: Written {} values for key {} to file".format(len(dset), key))
         else:
-            tstate_group.attrs[key] = str(tstate[key])
+            tstate_group.attrs[key] = tstate.get(key, return_pickle=True)
             logger.debug("TelescopeState: Key {} written as an attribute".format(key))
 
 
