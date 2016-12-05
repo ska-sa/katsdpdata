@@ -71,17 +71,17 @@ RUN apt-get -y install \
     libbison-dev \
     libblas-dev \
     libblas3 \
-    libblas3gf \
-    libboost-program-options1.55-dev \
-    libboost-python1.55-dev \
-    libboost-regex1.55-dev \
-    libboost-system1.55-dev \
-    libboost1.55-all-dev \
-    libboost1.55-dev \
-    libboost1.55-tools-dev \
+    #libblas3gf \
+    libboost-program-options1.58-dev \
+    libboost-python1.58-dev \
+    libboost-regex1.58-dev \
+    libboost-system1.58-dev \
+    libboost1.58-all-dev \
+    libboost1.58-dev \
+    libboost1.58-tools-dev \
     libc-dev-bin \
     libc6-dev \
-    libcfitsio3 \
+    #libcfitsio3 \
     libcfitsio3-dev \
     libcloog-isl4 \
     libcppunit-dev \
@@ -103,14 +103,14 @@ RUN apt-get -y install \
     libglib2.0-0 \
     libglib2.0-dev \
     libgmp3-dev \
-    libgsl0-dev \
-    libgsl0ldbl \
+    libgsl-dev \
+    libgsl-dbg \
     libgtksourceview-3.0-dev \
     libgtksourceview2.0-dev \
-    libhdf5-7 \
+    libhdf5-10 \
     libhdf5-dev \
     libhdf5-serial-dev \
-    libhdf5-7 \
+    libhdf5-10 \
     libhdf5-dev \
     libhdf5-serial-dev \
     libhwloc-dev \
@@ -171,7 +171,7 @@ RUN apt-get -y install \
     python-tk \
     screen \
     subversion \
-    swig \
+    #swig \
     swig2.0 \
     tcsh \
     tk \
@@ -321,7 +321,7 @@ WORKDIR $PSRHOME
 RUN rm -rf ./*.gz
 
 
-# Update database for locate and run sshd server and expose port 22
+# Update database for locate
 USER root
 RUN updatedb && \
     ldconfig
