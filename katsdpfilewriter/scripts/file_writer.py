@@ -147,10 +147,10 @@ class FileWriterServer(DeviceServer):
         else:
             free_space = stat.f_bsize * stat.f_bavail
             if free_space < FREE_DISK_THRESHOLD_START:
-                self._logger.info("Insufficient disk space to start capture (%d < %d)",
+                self._logger.error("Insufficient disk space to start capture (%d < %d)",
                                   free_space, FREE_DISK_THRESHOLD_START)
                 self._device_status_sensor.set_value("fail", "error")
-                return ("fail", "Disk too full (only {} bytes free)".format(free_space))
+                return ("fail", "Disk too full (only {:.2f} GiB free)".format(free_space / 1024**3))
         self._device_status_sensor.set_value("ok")
         self._filename_sensor.set_value(self._final_filename)
         self._status_sensor.set_value("capturing")
