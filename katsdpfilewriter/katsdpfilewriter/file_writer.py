@@ -2,6 +2,7 @@
 Writes L0 data plus metadata to an HDF5 file.
 """
 
+import os
 import logging
 import h5py
 import numpy as np
@@ -213,6 +214,13 @@ class File(object):
         set_telescope_model(self._h5_file, model_data, base_path)
         set_telescope_state(self._h5_file, model_data._telstate)
         self._h5_file.flush()
+
+    def free_space(self):
+        """
+        Bytes of free space remaining on the file system containing the file.
+        """
+        stat = os.fstatvfs(self._h5_file.id.get_vfd_handle())
+        return stat.f_bsize * stat.f_bavail
 
     def close(self):
         self._h5_file.close()

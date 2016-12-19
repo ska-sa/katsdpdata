@@ -32,6 +32,12 @@ from katcp.kattypes import request, return_reply, Str
 from katsdpfilewriter import telescope_model, ar1_model, file_writer
 
 
+#: Bytes free at which a running capture will be stopped
+FREE_DISK_THRESHOLD_STOP = 2 * 1024**3
+#: Bytes free at which a new capture will be refused
+FREE_DISK_THRESHOLD_START = 3 * 1024**3
+
+
 class FileWriterServer(DeviceServer):
     VERSION_INFO = ("sdp-file-writer", 0, 1)
     BUILD_INFO = ("sdp-file-writer", 0, 1, "rc1")
@@ -51,6 +57,9 @@ class FileWriterServer(DeviceServer):
         self._status_sensor = Sensor.string(
                 "status", "The current status of the capture process", "", "idle")
         self.add_sensor(self._status_sensor)
+        self._device_status_sensor = Sensor.string(
+                "device-status", "Health sensor", "", "ok")
+        self.add_sensor(self._device_status_sensor)
         self._filename_sensor = Sensor.string(
                 "filename", "Final name for file being captured", "")
         self.add_sensor(self._filename_sensor)
@@ -74,6 +83,8 @@ class FileWriterServer(DeviceServer):
         n_dumps = 0
         n_bytes = 0
         loop_time = time.time()
+        # status to report once the capture stops
+        end_status = "ready"
         try:
             ig = spead2.ItemGroup()
             for heap in self._rx:
@@ -97,10 +108,18 @@ class FileWriterServer(DeviceServer):
                     if n_dumps % 10 == 0 and n_dumps > 0:
                         self._rate_sensor.set_value(n_bytes / (time.time() - loop_time))
                         n_bytes = 0
+                free_space = file_obj.free_space()
+                if free_space < FREE_DISK_THRESHOLD_STOP:
+                    self._logger.error('Stopping capture because only %d bytes left on disk',
+                                       free_space)
+                    self._rx.stop()
+                    end_status = "disk-full"
+                    self._device_status_sensor.set_value("fail", "error")
         except Exception as err:
             self._logger.error(err)
+            end_status = "error"
         finally:
-            self._status_sensor.set_value("ready")
+            self._status_sensor.set_value(end_status)
             # Timestamps in the SPEAD stream are relative to sync_time
             if not timestamps:
                 self._logger.warning("H5 file contains no data and hence no timestamps")
@@ -121,6 +140,18 @@ class FileWriterServer(DeviceServer):
                 self._file_base, "{0}.h5".format(int(timestamp)))
         self._stage_filename = os.path.join(
                 self._file_base, "{0}.writing.h5".format(int(timestamp)))
+        try:
+            stat = os.statvfs(os.path.dirname(self._stage_filename))
+        except OSError:
+            self._logger.warn("Failed to check free disk space, continuing anyway")
+        else:
+            free_space = stat.f_bsize * stat.f_bavail
+            if free_space < FREE_DISK_THRESHOLD_START:
+                self._logger.error("Insufficient disk space to start capture (%d < %d)",
+                                  free_space, FREE_DISK_THRESHOLD_START)
+                self._device_status_sensor.set_value("fail", "error")
+                return ("fail", "Disk too full (only {:.2f} GiB free)".format(free_space / 1024**3))
+        self._device_status_sensor.set_value("ok")
         self._filename_sensor.set_value(self._final_filename)
         self._status_sensor.set_value("capturing")
         self._dumps_sensor.set_value(0)
