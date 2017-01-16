@@ -6,12 +6,13 @@ h5py
 funcsigs
 futures
 katcp
-numpy
+hiredis==0.2.0
 linecache2
 manhole
 mock
 netifaces
 nose
+numpy
 pbr
 pkginfo
 ply
