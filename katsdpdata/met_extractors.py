@@ -619,3 +619,40 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self._metadata_extracted = True
+
+class PTUSETimingArchiveProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(PulsarTimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PTUSETimingArchiveProduct'
+        self.product_name = prod_name
+
+    def extract_metadata(self):
+        self._extract_metadata_product_type()
+        self.extract_archive_header()
+
+    def extract_archive_header(self):
+        data_files = os.listdir(self.product_name)
+        obs_info_file = open ("%s/obs_info.dat"%self.product_name)
+        obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+        self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata["Duration"]=obs_info["target_duration"]
+        self.metadata["ProposalId"]=obs_info["proposal_id"]
+        self.metadata["Description"]=obs_info["description"]
+        self.metadata["ExperimentID"]=obs_info["experiment_id"]
+        self.metadata["CAS.ProductTypeName"]='PTUSETimingArchiveProduct'
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata['Description'] = obs_info["description"]
+        self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
+        self.metadata['KatfileVersion'] = "ar"
+        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self._metadata_extracted = True
+
