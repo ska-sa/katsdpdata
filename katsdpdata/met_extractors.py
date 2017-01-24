@@ -628,7 +628,7 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
     prod_name : string : the name of a heirachical product to ingest.
     """
     def __init__(self, prod_name):
-        super(PulsarTimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
+        super(PTUSETimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
         self.product_type = 'PTUSETimingArchiveProduct'
         self.product_name = prod_name
 
