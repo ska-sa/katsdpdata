@@ -167,7 +167,7 @@ class TelescopeProductMetExtractor(MetExtractor):
         elif file_ext == 'ar':
             #pulsar timing archive file
             return PulsarTimingArchiveProductMetExtractor(katfile)
-        if file_ext == 'h5': #Correlator data  Remove and put in crawler
+        elif file_ext == 'h5': #Correlator data  Remove and put in crawler
             katdata = katdal.open(katfile)
             #figure out some information about the experiment from the command line
             parser = argparse.ArgumentParser()
