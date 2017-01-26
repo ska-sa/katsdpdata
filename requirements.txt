@@ -4,6 +4,7 @@ Cython
 h5py
 pyephem
 numpy
+pkginfo
 git+ssh://git@github.com/ska-sa/katpoint
 git+ssh://git@github.com/ska-sa/katdal
 git+ssh://git@github.com/ska-sa/katversion
@@ -22,5 +23,11 @@ zope.interface
 mock
 funcsigs
 pbr
+futures
+singledispatch
+certifi
+backports-abc
+backports.ssl-match-hostname
+tornado
 katcp
 
