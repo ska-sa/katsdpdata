@@ -5,6 +5,7 @@ import sys
 import time
 import re
 import pickle
+import shlex
 
 import katdal
 
@@ -126,7 +127,7 @@ class TelescopeProductMetExtractor(MetExtractor):
         parser.add_argument('--program-block-id')
         parser.add_argument('--sb-id-code')
 
-        known_args, other_args = parser.parse_known_args(re.split(r' (?=\-)', self._katdata.obs_params['script_arguments']))
+        known_args, other_args = parser.parse_known_args(shlex.split(self._katdata.obs_params['script_arguments']))
 
         if hasattr(known_args, 'proposal_id') and known_args.proposal_id:
             self.metadata['ProposalId'] = known_args.proposal_id
@@ -160,38 +161,24 @@ class TelescopeProductMetExtractor(MetExtractor):
         katfile: string : name of file to opened with the katdal module.
         """
         katdata = katdal.open(katfile)
-        try:
-            #does it have the subarray key?
-            katdata.file['TelescopeState'].attrs['subarray_product_id']
-            return MeerKATAR1TelescopeProductMetExtractor(katdata)
-        except KeyError:
-            if katdata.ants[0].name.startswith('ant'):
-                #must be KAT7
-                #todo: replace with KAT7TelescopeProductMetExtractor
-                return KatFileProductMetExtractor(katdata)
-            else:
-                #must be RTS
-                return RTSTelescopeProductMetExtractor(katdata)
+        #figure out some information about the experiment from the command line
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--proposal-id')
+        parser.add_argument('--program-block-id')
+        parser.add_argument('--sb-id-code')
 
-    @staticmethod
-    def alt_factory(katfile):
-        """Static method to instantiate a metadata extraction object. The following systems
-        are currently supported: KAT7, RTS. Note, if called, this method will think that AR1 data is
-        RTS data.
-
-        Parameters:
-        ----------
-        katfile: string : name of file to opened with the katdal module.
-        """
-        katdata = katdal.open(katfile)
-        try:
-            #does it have the subarray key?
-            katdata.file['TelescopeState'].attrs['subarray_product_id']
+        known_args, other_args = parser.parse_known_args(shlex.split(katdata.obs_params['script_arguments']))
+       
+        #atleast one antenna starts with 'ant'
+        if katdata.ants[0].name.startswith('ant'):
+            #todo: replace with KAT7TelescopeProductMetExtractor
+            return KatFileProductMetExtractor(katdata)
+        #proposal id must mention RTS at least once
+        elif known_args.proposal_id.count('RTS') >= 1:
             return RTSTelescopeProductMetExtractor(katdata)
-        except KeyError:
-            if katdata.ants[0].name.startswith('ant'):
-                #must be KAT7
-                return KatFileProductMetExtractor(katdata)
+        else:
+            pass 
+        return MeerKATAR1TelescopeProductMetExtractor(katdata)
 
 class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """Used for extracting metadata for a KAT7 Telescope product. As well as extracting data from a
