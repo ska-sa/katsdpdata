@@ -160,25 +160,32 @@ class TelescopeProductMetExtractor(MetExtractor):
         ----------
         katfile: string : name of file to opened with the katdal module.
         """
-        katdata = katdal.open(katfile)
-        #figure out some information about the experiment from the command line
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--proposal-id')
-        parser.add_argument('--program-block-id')
-        parser.add_argument('--sb-id-code')
+        file_ext = katfile[-2:]
+        if file_ext == 'sf': 
+            #pulsar search file
+            return PulsarSearchProductMetExtractor(katfile)
+        elif file_ext == 'ar':
+            #pulsar timing archive file
+            return PulsarTimingArchiveProductMetExtractor(katfile)
+        if file_ext == 'h5': #Correlator data  Remove and put in crawler
+            katdata = katdal.open(katfile)
+            #figure out some information about the experiment from the command line
+            parser = argparse.ArgumentParser()
+            parser.add_argument('--proposal-id')
+            parser.add_argument('--program-block-id')
+            parser.add_argument('--sb-id-code')
 
-        known_args, other_args = parser.parse_known_args(shlex.split(katdata.obs_params['script_arguments']))
+            known_args, other_args = parser.parse_known_args(shlex.split(katdata.obs_params['script_arguments']))
        
-        #atleast one antenna starts with 'ant'
-        if katdata.ants[0].name.startswith('ant'):
-            #todo: replace with KAT7TelescopeProductMetExtractor
-            return KatFileProductMetExtractor(katdata)
-        #proposal id must mention RTS at least once
-        elif known_args.proposal_id.count('RTS') >= 1:
-            return RTSTelescopeProductMetExtractor(katdata)
-        else:
-            pass 
-        return MeerKATAR1TelescopeProductMetExtractor(katdata)
+            #atleast one antenna starts with 'ant'
+            if katdata.ants[0].name.startswith('ant'):
+                #todo: replace with KAT7TelescopeProductMetExtractor
+                return KatFileProductMetExtractor(katdata)
+            #proposal id must mention RTS at least once
+            elif known_args.proposal_id.count('RTS') >= 1:
+                return RTSTelescopeProductMetExtractor(katdata)
+            else:
+                return MeerKATAR1TelescopeProductMetExtractor(katdata)
 
 class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """Used for extracting metadata for a KAT7 Telescope product. As well as extracting data from a
@@ -495,3 +502,142 @@ class ObitReductionProductMetExtractor(MetExtractor):
             if k in date_valued:
                 met[k] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.strptime(v, '%Y-%m-%d'))
         self.metadata.update(met)
+
+class PulsarSearchProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(PulsarSearchProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PulsarSearchProduct'
+        self.product_name = prod_name
+    
+    def extract_metadata(self):
+        self._extract_metadata_product_type()
+        self.extract_fits_header()
+   
+    def extract_fits_header(self):
+        import pyfits
+        data_files = os.listdir(self.product_name)
+        data = pyfits.open("%s/%s"%(self.product_name,data_files[1]), memmap=True, ignore_missing_end=True)
+        obs_info_file = open ("%s/obs_info.dat"%self.product_name)
+        obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+        self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
+        self.metadata["Targets"]=obs_info["targets"]
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata["Duration"]=obs_info["target_duration"]
+        self.metadata["ProposalId"]=obs_info["proposal_id"]
+        self.metadata["Description"]=obs_info["description"]
+        self.metadata["ExperimentID"]=obs_info["experiment_id"]
+        self.metadata["CAS.ProductTypeName"]='PulsarSearchProduct'
+
+        hduPrimary = data[0].header
+        hduSubint = data[2].header
+        radec = hoursToDegrees(hduPrimary["RA"],hduPrimary["DEC"])
+        self.metadata["DecRA"]="%f,%f"%(radec[1],radec[0])
+        self.metadata["STT_CRD1"]=str(hduPrimary["STT_CRD1"])
+        self.metadata["STT_CRD2"]=str(hduPrimary["STT_CRD2"])
+        self.metadata["STP_CRD1"]=str(hduPrimary["STP_CRD1"])
+        self.metadata["STP_CRD2"]=str(hduPrimary["STP_CRD2"])
+        self.metadata["TRK_MODE"]=str(hduPrimary["TRK_MODE"])
+        self.metadata["CAL_MODE"]=str(hduPrimary["CAL_MODE"])
+        self.metadata["NPOL"]=str(hduSubint["NPOL"])
+        self.metadata["POL_TYPE"]=str(hduSubint["POL_TYPE"])
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata['Description'] = obs_info["description"]
+        self.metadata['ExperimentID'] = obs_info["experiment_id"]
+        self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
+        self.metadata['KatfileVersion'] = "sf"
+        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['Observer'] = obs_info["observer"]
+        self.metadata['StartTime'] = "%sZ"%hduPrimary["DATE"]
+        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')] 
+        self._metadata_extracted = True
+
+#input string of ra and dec in hours and return floats with the degree values
+def hoursToDegrees(ra,dec):
+    ralist = [float(v) for v in ra.split(':')]
+    declist = [float(v) for v in dec.split(':')]
+    
+    raDeg = ralist[0]*15 + ralist[1]*15/60 + ralist[2]*15/3600
+    decDeg = declist[0] + declist[1]/60 + declist[2]/3600
+
+    return raDeg,decDeg
+         
+class PulsarTimingArchiveProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(PulsarTimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PulsarTimingArchiveProduct'        
+        self.product_name = prod_name
+ 
+    def extract_metadata(self):
+        self._extract_metadata_product_type()
+        self.extract_archive_header()
+
+    def extract_archive_header(self):
+        data_files = os.listdir(self.product_name)
+        obs_info_file = open ("%s/obs_info.dat"%self.product_name)
+        obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+        self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
+        self.metadata["Targets"]=obs_info["targets"]
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata["Duration"]=obs_info["target_duration"]
+        self.metadata["ProposalId"]=obs_info["proposal_id"]
+        self.metadata["Description"]=obs_info["description"]
+        self.metadata["ExperimentID"]=obs_info["experiment_id"]
+        self.metadata["CAS.ProductTypeName"]='PulsarTimingArchiveProduct'
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata['Description'] = obs_info["description"]
+        self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
+        self.metadata['KatfileVersion'] = "ar"
+        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self._metadata_extracted = True
+
+class PTUSETimingArchiveProductMetExtractor(MetExtractor):
+    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(PTUSETimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PTUSETimingArchiveProduct'
+        self.product_name = prod_name
+
+    def extract_metadata(self):
+        self._extract_metadata_product_type()
+        self.extract_archive_header()
+
+    def extract_archive_header(self):
+        data_files = os.listdir(self.product_name)
+        obs_info_file = open ("%s/obs_info.dat"%self.product_name)
+        obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+        self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata["Duration"]=obs_info["target_duration"]
+        self.metadata["ProposalId"]=obs_info["proposal_id"]
+        self.metadata["Description"]=obs_info["description"]
+        self.metadata["ExperimentID"]=obs_info["experiment_id"]
+        self.metadata["CAS.ProductTypeName"]='PTUSETimingArchiveProduct'
+        self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
+        self.metadata['Description'] = obs_info["description"]
+        self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
+        self.metadata['KatfileVersion'] = "ar"
+        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self._metadata_extracted = True
+

@@ -3,6 +3,7 @@ Defines the expected and required sensors and attributes for a telescope.
 """
 
 import logging
+import katsdptelstate
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -145,6 +146,8 @@ class TelstateModelData(TelescopeModelData):
         super(TelstateModelData, self).__init__(model)
         self._telstate = telstate
         self._start_timestamp = start_timestamp
+        if telstate.get('sdp_cam2telstate_status') != 'ready':
+            logger.warn('cam2telstate was not ready, telescope state may be incomplete')
 
     def get_attribute_value(self, attribute):
         return self._telstate.get(attribute.full_name)
