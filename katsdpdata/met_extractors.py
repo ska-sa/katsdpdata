@@ -586,6 +586,28 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
 
     def extract_archive_header(self):
         data_files = os.listdir(self.product_name)
+        #sort = sorted(data_files)
+        #print sort
+        #import subprocess
+        #import re
+        #from astropy.time import Time
+        #cmd = ["psrstat","%s/%s"%(self.product_name,sort[0])]
+        #psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        #output, err = psrstat_process.communicate()
+        #print output
+        #m = re.search('ext:stt_imjd\s+Start\sMJD\s+(\d+?)\n',output)
+        #imjd = m.group(1)
+        #m = re.search('ext:stt_smjd\s+Start\ssecond\s+(\d+?)\n',output)
+        #smjd = m.group(1)
+        #m = re.search('ext:stt_offs\s+Start\sfractional\ssecond\s+(0.\d+?)\n',output)
+        #offs = m.group(1)
+        #print ("imjd=%s\nsmjd=%s"%(imjd,smjd))
+        #start_time = Time([float(imjd) + float(smjd) / 3600.0 / 24.0],format='mjd')
+        #start_time.format = 'isot'
+        #print ("Time info")
+        #print (start_time.value)
+        #startTime =start_time.value[0][:-4]+'Z'
+        #print startTime
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
@@ -603,6 +625,7 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['KatfileVersion'] = "ar"
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        #self.metadata['StartTime'] = startTime
         self._metadata_extracted = True
 
 class PTUSETimingArchiveProductMetExtractor(MetExtractor):
@@ -623,6 +646,28 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
 
     def extract_archive_header(self):
         data_files = os.listdir(self.product_name)
+        sort = sorted(data_files)
+        print sort
+        import subprocess
+        import re
+        from astropy.time import Time
+        cmd = ["psrstat","%s/%s"%(self.product_name,sort[0])]
+        psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        output, err = psrstat_process.communicate()
+        m = re.search('ext:stt_imjd\s+Start\sMJD\s+(\d+?)\n',output)
+        imjd = m.group(1)
+        m = re.search('ext:stt_smjd\s+Start\ssecond\s+(\d+?)\n',output)
+        smjd = m.group(1)
+        #m = re.search('ext:stt_offs\s+Start\sfractional\ssecond\s+(0.\d+?)\n',output)
+        #offs = m.group(1)
+        print ("imjd=%s\nsmjd=%s"%(imjd,smjd))
+        start_time = Time([float(imjd) + float(smjd) / 3600.0 / 24.0],format='mjd')
+        start_time.format = 'isot'
+        print ("Time info")
+        print (start_time.value)
+        startTime =start_time.value[0][:-4]+'Z'
+        print startTime
+        
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
@@ -639,5 +684,6 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['KatfileVersion'] = "ar"
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['StartTime'] = startTime
         self._metadata_extracted = True
 
