@@ -522,7 +522,10 @@ class PulsarSearchProductMetExtractor(MetExtractor):
     def extract_fits_header(self):
         import pyfits
         data_files = os.listdir(self.product_name)
-        data = pyfits.open("%s/%s"%(self.product_name,data_files[1]), memmap=True, ignore_missing_end=True)
+        count = 0
+	while data_files[count][-2:] != 'sf':
+	    count+=1
+	data = pyfits.open("%s/%s"%(self.product_name,data_files[count]), memmap=True, ignore_missing_end=True)
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
