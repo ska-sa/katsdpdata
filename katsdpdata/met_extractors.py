@@ -277,6 +277,7 @@ class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             * extracting the product type
             * extracting basic hdf5 information
             * extracting auto reduction
+            * extracting project info
             * extracting an md5 checksum
         """
         if not self._metadata_extracted:
@@ -284,6 +285,7 @@ class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_from_katdata()
             self._extract_metadata_for_auto_reduction()
             self._extract_metadata_file_digest()
+            self._extract_metadata_for_project()
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
