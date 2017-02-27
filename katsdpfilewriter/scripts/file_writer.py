@@ -82,6 +82,8 @@ class FileWriterServer(DeviceServer):
         timestamps = []
         n_dumps = 0
         n_bytes = 0
+        self._dumps_sensor.set_value(n_dumps)
+        self._rate_sensor.set_value(0, status=Sensor.UNKNOWN)
         loop_time = time.time()
         # status to report once the capture stops
         end_status = "ready"
