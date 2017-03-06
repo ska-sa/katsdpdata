@@ -29,3 +29,4 @@ backports.ssl-match-hostname
 certifi
 futures
 ProxyTypes
+astropy==1.2.1

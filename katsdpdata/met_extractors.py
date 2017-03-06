@@ -524,7 +524,10 @@ class PulsarSearchProductMetExtractor(MetExtractor):
     def extract_fits_header(self):
         import pyfits
         data_files = os.listdir(self.product_name)
-        data = pyfits.open("%s/%s"%(self.product_name,data_files[1]), memmap=True, ignore_missing_end=True)
+        count = 0
+	while data_files[count][-2:] != 'sf':
+	    count+=1
+	data = pyfits.open("%s/%s"%(self.product_name,data_files[count]), memmap=True, ignore_missing_end=True)
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
@@ -621,10 +624,25 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
 
     def extract_metadata(self):
         self._extract_metadata_product_type()
-        self.extract_archive_header()
+        self._extract_archive_header()
 
-    def extract_archive_header(self):
+    def _extract_archive_header(self):
         data_files = os.listdir(self.product_name)
+        sort = sorted(data_files)
+        import subprocess
+        import re
+        from astropy.time import Time
+        cmd = ["psrstat","%s/%s"%(self.product_name,sort[0])]
+        psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        output, err = psrstat_process.communicate()
+        m = re.search('ext:stt_imjd\s+Start\sMJD\s+(\d+?)\n',output)
+        imjd = m.group(1)
+        m = re.search('ext:stt_smjd\s+Start\ssecond\s+(\d+?)\n',output)
+        smjd = m.group(1)
+        start_time = Time([float(imjd) + float(smjd) / 3600.0 / 24.0],format='mjd')
+        start_time.format = 'isot'
+        startTime =start_time.value[0][:-4]+'Z'
+        
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
@@ -641,5 +659,6 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['KatfileVersion'] = "ar"
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['StartTime'] = startTime
         self._metadata_extracted = True
 
