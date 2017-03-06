@@ -624,7 +624,7 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
         self._extract_metadata_product_type()
         self.extract_archive_header()
 
-    def extract_archive_header(self):
+    def _extract_archive_header(self):
         data_files = os.listdir(self.product_name)
         sort = sorted(data_files)
         import subprocess
