@@ -42,6 +42,7 @@ def perform_checks(failed_dir):
     h5files = [os.path.join(failed_dir,f) for f in os.listdir(failed_dir) if os.path.isfile(os.path.join(failed_dir, f)) and re.match('[0-9]{10}.h5$', f)]
     #move md5s
     if failed_dir in default_dirs:
+        staging_dir = os.path.join(os.path.split(os.path.normpath(failed_dir))[0], 'staging') 
         for h5 in h5files:
             h5_md5 = os.path.basename(h5) + '.md5'
             if os.path.isfile(os.path.join(staging_dir, h5_md5)):
