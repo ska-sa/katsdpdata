@@ -3,6 +3,7 @@ backports.ssl-match-hostname
 certifi
 Cython
 h5py
+fakeredis
 funcsigs
 futures
 katcp
