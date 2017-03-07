@@ -3,9 +3,8 @@ import re
 import os
 import katdal
 import katsdpdata
-import time
 import logging
-import sys
+from datetime import datetime, timedelta
 
 from optparse import OptionParser
 
@@ -15,7 +14,7 @@ default_dirs = []
 default_dirs.append('/var/kat/archive/data/ftp/failed')
 default_dirs.append('/var/kat/archive2/data/ftp/failed')
 
-
+wrapper = '<html><head><link type="text/css" href="http://kat-archive.kat.ac.za:8080/archive_search/css/ska_style.css" rel="stylesheet"><title>%s</title></head><body><div align="center">%s</div></body></html>'
 
 def get_options():
     """Sets options from the arguments passed to the script.
@@ -34,11 +33,15 @@ def get_options():
          help='Check directory, /var/kat/archive/data/ftp/failed')
     parser.add_option('-b', '--archive2', action='store_true', default=False,
          help='Check directory, /var/kat/archive2/data/ftp/failed')
+    parser.add_option('--hours', type=float,
+         help='Only look at the last .. hours.')
+    parser.add_option('--web', action='store_true', default=False,
+         help='Output as html')
     (options, args) = parser.parse_args()
 
     return options
 
-def perform_checks(failed_dir):
+def perform_checks(failed_dir, cutoff=None):
     h5files = [os.path.join(failed_dir,f) for f in os.listdir(failed_dir) if os.path.isfile(os.path.join(failed_dir, f)) and re.match('[0-9]{10}.h5$', f)]
     #move md5s
     if failed_dir in default_dirs:
@@ -51,7 +54,9 @@ def perform_checks(failed_dir):
     katdal_errors = {}
     katdal_pass = []
     for h5 in h5files:
-        ctime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(os.path.getctime(h5)))
+        ctime = datetime.fromtimestamp(os.path.getctime(h5))
+        if cutoff and ctime < cutoff:
+           continue 
         fsize = os.path.getsize(h5)
         try:
             k = katdal.open(h5)
@@ -59,14 +64,14 @@ def perform_checks(failed_dir):
         except Exception, e:
             e = repr(e)
             if katdal_errors.has_key(e):
-                katdal_errors[e].append((ctime, os.path.basename(h5), fsize),)
+                katdal_errors[e].append((ctime.isoformat(), os.path.basename(h5), fsize),)
             else:
-                katdal_errors[e] = [(ctime, os.path.basename(h5), fsize),]
+                katdal_errors[e] = [(ctime.isoformat(), os.path.basename(h5), fsize),]
 
     met_extractor_errors = {}
     met_extractor_pass = []
     for h5 in katdal_pass:
-        ctime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(os.path.getctime(h5)))
+        ctime = datetime.fromtimestamp(os.path.getctime(h5))
         fsize = os.path.getsize(h5)
         try:
             km = katsdpdata.met_extractors.TelescopeProductMetExtractor.factory(h5)
@@ -74,40 +79,53 @@ def perform_checks(failed_dir):
         except Exception, e:
             e = repr(e)
             if met_extractor_errors.has_key(e):
-                met_extractor_errors[e].append((ctime, os.path.basename(h5), fsize),)
+                met_extractor_errors[e].append((ctime.isoformat(), os.path.basename(h5), fsize),)
             else:
                 met_extractor_errors[e] = [(ctime, os.path.basename(h5), fsize),]
     return katdal_errors, met_extractor_errors, met_extractor_pass
 
-def show_results(katdal_errors, met_extractor_errors, met_extractor_pass):
-    title = 'KATDAL ERRORS'
-    print title
-    print '+'*len(title)
+
+def html_results(failed_dir, katdal_errors, met_extracor_errors, met_extractor_pass):
+    with open(os.path.join(failed_dir, 'index.html'), 'w') as index:
+        body = html_body(katdal_errors, met_extracor_errors, met_extractor_pass)
+        html = wrapper % (failed_dir, '\n'.join(body))
+        index.write(html)
+  
+def html_body(katdal_errors, met_extractor_errors, met_extractor_pass):
+    th = '<tr><th>%s</th></tr>'
+    td = '<tr><td>%s</td/></tr>'
+    tb_start = '<table width="950" cellspacing="10" cellpadding="0" border="0" bgcolor="#ffffff">'
+    tb_end = '</table>'
+    body = []
+    body.append(tb_start)
+    body.append(th % 'KATDAL ERRORS')
+    body.append(tb_end)
     for key,val in katdal_errors.iteritems():
-        print key
-        print '='*len(key)
+        body.append(tb_start)
+        body.append(th % key)
         for v in sorted(val, reverse=True):
-            print '%s: %s %i bytes' % (v[0], v[1], v[2])
-    print '+'*len(title) + '\n'
-
-    title = 'MET EXTRACTOR ERRORS'
-    print title
-    print '+'*len(title)
+            body.append(td % ('%s: %s %i bytes' % (v[0], v[1], v[2])))
+        body.append(tb_end) 
+    
+    body.append(tb_start)
+    body.append(th % 'MET EXTRACTOR ERRORS')
+    body.append(tb_end)
     for key,val in met_extractor_errors.iteritems():
-        print key
-        print '='*len(key)
+        body.append(tb_start) 
+        body.append(th % key)
         for v in sorted(val, reverse=True):
-            print '%s: %s %i bytes' % (v[0], v[1], v[2])
-    print '+'*len(title) + '\n'
+            body.append(td % ('%s: %s %i bytes' % (v[0], v[1], v[2])))
+        body.append(tb_end)
 
-    title = 'FILES STILL PASSING'
-    print title
-    print '+'*len(title)
+    body.append(tb_start)
+    body.append(th % 'FILES STILL PASSING')
+   
     if met_extractor_pass:
-        print '\n'.join(met_extractor_pass)
+        body.append('\n'.join(td % (met_extractor_pass)))
     else:
-        print 'No files remaining.'
-    print '+'*len(title) + '\n'
+        body.append(td % 'No files remaining.')
+    body.append(tb_end)
+    return body
 
 opts = get_options()
 
@@ -118,7 +136,14 @@ if opts.archive:
     failed_dirs.append(default_dirs[0])
 if opts.archive2:
     failed_dirs.append(default_dirs[1])
+if opts.hours:
+    cutoff = datetime.now() - timedelta(hours=opts.hours)
+else:
+    cutoff = None
 
 for failed_dir in failed_dirs:
-    katdal_errors, met_extractor_errors, met_extractor_pass = perform_checks(failed_dir)
-    show_results(katdal_errors, met_extractor_errors, met_extractor_pass)
+    katdal_errors, met_extractor_errors, met_extractor_pass = perform_checks(failed_dir, cutoff)
+    if opts.web:    
+        html_results(failed_dir, katdal_errors, met_extractor_errors, met_extractor_pass)
+    else:
+        print html_body(katdal_errors, met_extractor_errors, met_extractor_pass)
