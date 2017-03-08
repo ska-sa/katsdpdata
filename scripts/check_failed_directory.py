@@ -81,7 +81,7 @@ def perform_checks(failed_dir, cutoff=None):
             if met_extractor_errors.has_key(e):
                 met_extractor_errors[e].append((ctime.isoformat(), os.path.basename(h5), fsize),)
             else:
-                met_extractor_errors[e] = [(ctime, os.path.basename(h5), fsize),]
+                met_extractor_errors[e] = [(ctime.isoformat(), os.path.basename(h5), fsize),]
     return katdal_errors, met_extractor_errors, met_extractor_pass
 
 
@@ -98,7 +98,7 @@ def html_body(katdal_errors, met_extractor_errors, met_extractor_pass):
     tb_end = '</table>'
     body = []
     body.append(tb_start)
-    body.append(th % 'KATDAL ERRORS')
+    body.append(th % 'katdal errors')
     body.append(tb_end)
     for key,val in katdal_errors.iteritems():
         body.append(tb_start)
@@ -108,8 +108,8 @@ def html_body(katdal_errors, met_extractor_errors, met_extractor_pass):
         body.append(tb_end) 
     
     body.append(tb_start)
-    body.append(th % 'MET EXTRACTOR ERRORS')
-    body.append(tb_end)
+    body.append(th % 'TelescopeProductMetExtractor errors')
+    bodr.append(tb_end)
     for key,val in met_extractor_errors.iteritems():
         body.append(tb_start) 
         body.append(th % key)
@@ -118,7 +118,7 @@ def html_body(katdal_errors, met_extractor_errors, met_extractor_pass):
         body.append(tb_end)
 
     body.append(tb_start)
-    body.append(th % 'FILES STILL PASSING')
+    body.append(th % 'Passed all test')
    
     if met_extractor_pass:
         body.append('\n'.join(td % (met_extractor_pass)))
