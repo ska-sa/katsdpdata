@@ -69,6 +69,9 @@ class FileWriterServer(DeviceServer):
         self._rate_sensor = Sensor.float(
                 "input_rate", "Input data rate in Bps averaged over last 10 dumps", "Bps")
         self.add_sensor(self._rate_sensor)
+        self._disk_free_sensor = Sensor.float(
+                "disk_free", "Free disk space in bytes on target device for this file.", "B")
+        self.add_sensor(self._disk_free_sensor)
 
     def _do_capture(self, file_obj):
         """Capture a stream from SPEAD and write to file. This is run in a
@@ -85,6 +88,8 @@ class FileWriterServer(DeviceServer):
         self._dumps_sensor.set_value(n_dumps)
         self._rate_sensor.set_value(0, status=Sensor.UNKNOWN)
         loop_time = time.time()
+        free_space = file_obj.free_space()
+        self._disk_free_sensor.set_value(free_space)
         # status to report once the capture stops
         end_status = "ready"
         try:
@@ -111,6 +116,7 @@ class FileWriterServer(DeviceServer):
                         self._rate_sensor.set_value(n_bytes / (time.time() - loop_time))
                         n_bytes = 0
                 free_space = file_obj.free_space()
+                self._disk_free_sensor.set_value(free_space)
                 if free_space < FREE_DISK_THRESHOLD_STOP:
                     self._logger.error('Stopping capture because only %d bytes left on disk',
                                        free_space)
@@ -122,6 +128,8 @@ class FileWriterServer(DeviceServer):
             end_status = "error"
         finally:
             self._status_sensor.set_value(end_status)
+            self._rate_sensor.set_value(0)
+            self._dumps_sensor.set_value(0)
             # Timestamps in the SPEAD stream are relative to sync_time
             if not timestamps:
                 self._logger.warning("H5 file contains no data and hence no timestamps")
