@@ -86,7 +86,7 @@ class FileWriterServer(DeviceServer):
         n_dumps = 0
         n_bytes = 0
         self._dumps_sensor.set_value(n_dumps)
-        self._rate_sensor.set_value(0, status=Sensor.UNKNOWN)
+        self._rate_sensor.set_value(0)
         loop_time = time.time()
         free_space = file_obj.free_space()
         self._disk_free_sensor.set_value(free_space)
