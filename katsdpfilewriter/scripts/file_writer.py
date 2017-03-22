@@ -63,14 +63,14 @@ class FileWriterServer(DeviceServer):
         self._filename_sensor = Sensor.string(
                 "filename", "Final name for file being captured", "")
         self.add_sensor(self._filename_sensor)
-        self._dumps_sensor = Sensor.integer(
-                "dumps", "Number of L0 dumps captured", "", [0, 2**63], 0)
-        self.add_sensor(self._dumps_sensor)
-        self._rate_sensor = Sensor.float(
-                "input_rate", "Input data rate in Bps averaged over last 10 dumps", "Bps")
-        self.add_sensor(self._rate_sensor)
+        self._input_dumps_sensor = Sensor.integer(
+                "input-dumps-total", "Number of input dumps captured.", "", default=0)
+        self.add_sensor(self._input_dumps_sensor)
+        self._input_bytes_sensor = Sensor.integer(
+                "input-bytes-total", "Number of payload bytes received in this session.", "B", default=0)
+        self.add_sensor(self._input_bytes_sensor)
         self._disk_free_sensor = Sensor.float(
-                "disk_free", "Free disk space in bytes on target device for this file.", "B")
+                "disk-free", "Free disk space in bytes on target device for this file.", "B")
         self.add_sensor(self._disk_free_sensor)
 
     def _do_capture(self, file_obj):
@@ -85,8 +85,8 @@ class FileWriterServer(DeviceServer):
         timestamps = []
         n_dumps = 0
         n_bytes = 0
-        self._dumps_sensor.set_value(n_dumps)
-        self._rate_sensor.set_value(0)
+        self._input_dumps_sensor.set_value(n_dumps)
+        self._input_bytes_sensor.set_value(n_bytes)
         loop_time = time.time()
         free_space = file_obj.free_space()
         self._disk_free_sensor.set_value(free_space)
@@ -111,10 +111,8 @@ class FileWriterServer(DeviceServer):
                     timestamps.append(ig['timestamp'].value)
                     n_dumps += 1
                     n_bytes += vis_data.nbytes + flags.nbytes
-                    self._dumps_sensor.set_value(n_dumps)
-                    if n_dumps % 10 == 0 and n_dumps > 0:
-                        self._rate_sensor.set_value(n_bytes / (time.time() - loop_time))
-                        n_bytes = 0
+                    self._input_dumps_sensor.set_value(n_dumps)
+                    self._input_bytes_sensor.set_value(n_bytes)
                 free_space = file_obj.free_space()
                 self._disk_free_sensor.set_value(free_space)
                 if free_space < FREE_DISK_THRESHOLD_STOP:
@@ -128,8 +126,8 @@ class FileWriterServer(DeviceServer):
             end_status = "error"
         finally:
             self._status_sensor.set_value(end_status)
-            self._rate_sensor.set_value(0)
-            self._dumps_sensor.set_value(0)
+            self._input_bytes_sensor.set_value(0)
+            self._input_dumps_sensor.set_value(0)
             # Timestamps in the SPEAD stream are relative to sync_time
             if not timestamps:
                 self._logger.warning("H5 file contains no data and hence no timestamps")
@@ -164,7 +162,8 @@ class FileWriterServer(DeviceServer):
         self._device_status_sensor.set_value("ok")
         self._filename_sensor.set_value(self._final_filename)
         self._status_sensor.set_value("capturing")
-        self._dumps_sensor.set_value(0)
+        self._input_dumps_sensor.set_value(0)
+        self._input_bytes_sensor.set_value(0)
         self._file_obj = file_writer.File(self._stage_filename)
         self._start_timestamp = timestamp
         self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2, max_heaps=2, ring_heaps=2)
