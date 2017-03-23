@@ -64,7 +64,7 @@ class FileWriterServer(DeviceServer):
                 "filename", "Final name for file being captured", "")
         self.add_sensor(self._filename_sensor)
         self._input_dumps_sensor = Sensor.integer(
-                "input-dumps-total", "Number of input dumps captured.", "", default=0)
+                "input-dumps-total", "Number of input dumps captured in this session.", "", default=0)
         self.add_sensor(self._input_dumps_sensor)
         self._input_bytes_sensor = Sensor.integer(
                 "input-bytes-total", "Number of payload bytes received in this session.", "B", default=0)
@@ -99,8 +99,10 @@ class FileWriterServer(DeviceServer):
                 if 'timestamp' in updated:
                     vis_data = ig['correlator_data'].value
                     flags = ig['flags'].value
+                    weights_nbytes = 0
                     try:
                         weights = ig['weights'].value
+                        weights_nbytes = weights.nbytes
                     except KeyError:
                         weights = None
                     try:
@@ -110,7 +112,7 @@ class FileWriterServer(DeviceServer):
                     file_obj.add_data_frame(vis_data, flags, weights, weights_channel)
                     timestamps.append(ig['timestamp'].value)
                     n_dumps += 1
-                    n_bytes += vis_data.nbytes + flags.nbytes
+                    n_bytes += vis_data.nbytes + flags.nbytes + weights_nbytes
                     self._input_dumps_sensor.set_value(n_dumps)
                     self._input_bytes_sensor.set_value(n_bytes)
                 free_space = file_obj.free_space()
