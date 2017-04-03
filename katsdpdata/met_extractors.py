@@ -126,7 +126,8 @@ class TelescopeProductMetExtractor(MetExtractor):
         parser.add_argument('--proposal-id')
         parser.add_argument('--program-block-id')
         parser.add_argument('--sb-id-code')
-        parser.add_arguemnt('--issue-id')
+        parser.add_argument('--issue-id')
+        parser.add_argument('--proposal-description')
 
         known_args, other_args = parser.parse_known_args(shlex.split(self._katdata.obs_params['script_arguments']))
         #ProposalId
@@ -141,6 +142,10 @@ class TelescopeProductMetExtractor(MetExtractor):
         #IssueId
         if hasattr(known_args, 'issue_id') and known_args.issue_id:
             self.metadata['IssueId']=known_args.issue_id
+        #ProposalDescription
+        if hasattr(known_args, 'proposal-description') and known_args.issue_id:
+            self.metadata['ProposalDescription']=known_args.issue_id
+
 
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
