@@ -143,8 +143,8 @@ class TelescopeProductMetExtractor(MetExtractor):
         if hasattr(known_args, 'issue_id') and known_args.issue_id:
             self.metadata['IssueId']=known_args.issue_id
         #ProposalDescription
-        if hasattr(known_args, 'proposal-description') and known_args.issue_id:
-            self.metadata['ProposalDescription']=known_args.issue_id
+        if hasattr(known_args, 'proposal_description') and known_args.proposal_description:
+            self.metadata['ProposalDescription']=known_args.proposal_description
 
 
     def _extract_metadata_file_digest(self):
