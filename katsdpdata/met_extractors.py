@@ -1,11 +1,8 @@
 import os
-import argparse
 import subprocess
 import sys
 import time
-import re
 import pickle
-import shlex
 
 import katdal
 
@@ -122,30 +119,21 @@ class TelescopeProductMetExtractor(MetExtractor):
 
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--proposal-id')
-        parser.add_argument('--program-block-id')
-        parser.add_argument('--sb-id-code')
-        parser.add_argument('--issue-id')
-        parser.add_argument('--proposal-description')
-
-        known_args, other_args = parser.parse_known_args(shlex.split(self._katdata.obs_params['script_arguments']))
         #ProposalId
-        if hasattr(known_args, 'proposal_id') and known_args.proposal_id:
-            self.metadata['ProposalId'] = known_args.proposal_id
+        if 'proposal_id' in self._katdata.obs_params:
+            self.metadata['ProposalId'] = self._katdata.obs_params['proposal_id']
         #ProgramBlockId
-        if hasattr(known_args, 'program_block_id') and known_args.program_block_id:
-            self.metadata['ProgramBlockId'] = known_args.program_block_id
+        if 'program_block_id' in self._katdata.obs_params:
+            self.metadata['ProgramBlockId'] = self._katdata.obs_params['program_block_id']
         #ScheduleBlockId
-        if hasattr(known_args, 'sb_id_code') and known_args.sb_id_code:
-            self.metadata['ScheduleBlockIdCode']=known_args.sb_id_code
+        if 'sb_id_code' in self._katdata.obs_params:
+            self.metadata['ScheduleBlockIdCode'] = self._katdata.obs_params['sb_id_code']
         #IssueId
-        if hasattr(known_args, 'issue_id') and known_args.issue_id:
-            self.metadata['IssueId']=known_args.issue_id
+        if 'issue_id' in self._katdata.obs_params:
+            self.metadata['IssueId'] = self._katdata.obs_params['issue_id']
         #ProposalDescription
-        if hasattr(known_args, 'proposal_description') and known_args.proposal_description:
-            self.metadata['ProposalDescription']=known_args.proposal_description
-
+        if 'proposal_description' in self._katdata.obs_params:
+            self.metadata['ProposalDescription'] = self._katdata.obs_params['proposal_description']
 
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
@@ -180,21 +168,14 @@ class TelescopeProductMetExtractor(MetExtractor):
             return PulsarTimingArchiveProductMetExtractor(katfile)
         elif file_ext == 'h5': #Correlator data  Remove and put in crawler
             katdata = katdal.open(katfile)
-            #figure out some information about the experiment from the command line
-            parser = argparse.ArgumentParser()
-            parser.add_argument('--proposal-id')
-            parser.add_argument('--program-block-id')
-            parser.add_argument('--sb-id-code')
-
-            known_args, other_args = parser.parse_known_args(shlex.split(katdata.obs_params['script_arguments']))
-       
             #atleast one antenna starts with 'ant'
             if katdata.ants[0].name.startswith('ant'):
                 #todo: replace with KAT7TelescopeProductMetExtractor
                 return KatFileProductMetExtractor(katdata)
             #proposal id must mention RTS at least once
-            elif known_args.proposal_id.count('RTS') >= 1:
+            elif 'proposal_id' in katdata.obs_params and katdata.obs_params['proposal_id'].count('RTS') >= 1:
                 return RTSTelescopeProductMetExtractor(katdata)
+            #everything else must be ar1
             else:
                 return MeerKATAR1TelescopeProductMetExtractor(katdata)
 
