@@ -600,6 +600,7 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['KatfileVersion'] = "ar"
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['StartTime'] = datetime.utcfromtimestamp(int(obs_info["UTC_START"])).strftime("%Y-%m-%dT%H:%M:%SZ")
         self._metadata_extracted = True
 
 class PTUSETimingArchiveProductMetExtractor(MetExtractor):
