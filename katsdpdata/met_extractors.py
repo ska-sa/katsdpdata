@@ -129,10 +129,10 @@ class TelescopeProductMetExtractor(MetExtractor):
         if 'sb_id_code' in self._katdata.obs_params:
             self.metadata['ScheduleBlockIdCode'] = self._katdata.obs_params['sb_id_code']
         #IssueId
-        if 'issue_id' in self._katdata.obs_params:
+        if 'issue_id' in self._katdata.obs_params and self._katdata.obs_params['issue_id'] != '':
             self.metadata['IssueId'] = self._katdata.obs_params['issue_id']
         #ProposalDescription
-        if 'proposal_description' in self._katdata.obs_params:
+        if 'proposal_description' in self._katdata.obs_params and self._katdata.obs_params['proposal_description'] != '':
             self.metadata['ProposalDescription'] = self._katdata.obs_params['proposal_description']
 
     def _extract_metadata_file_digest(self):
