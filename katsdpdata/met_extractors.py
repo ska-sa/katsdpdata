@@ -572,6 +572,7 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
     ----------
     prod_name : string : the name of a heirachical product to ingest.
     """
+
     def __init__(self, prod_name):
         super(PulsarTimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
         self.product_type = 'PulsarTimingArchiveProduct'        
@@ -582,6 +583,7 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
         self.extract_archive_header()
 
     def extract_archive_header(self):
+        from datetime import datetime
         data_files = os.listdir(self.product_name)
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
@@ -600,6 +602,7 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['KatfileVersion'] = "ar"
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        self.metadata['StartTime'] = "%sT%sZ"%(obs_info["UTC_START"][:10],obs_info["UTC_START"][11:])
         self._metadata_extracted = True
 
 class PTUSETimingArchiveProductMetExtractor(MetExtractor):
