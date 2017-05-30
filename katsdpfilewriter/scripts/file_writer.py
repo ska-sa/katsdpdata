@@ -92,9 +92,36 @@ class FileWriterServer(DeviceServer):
         self._disk_free_sensor.set_value(free_space)
         # status to report once the capture stops
         end_status = "ready"
+
+        # Set up memory buffers, depending on size of input heaps
+        self._logger.info('Waiting for metadata')
+        self._telstate.wait_key('sdp_cam2telstate_status', lambda value: value == 'ready')
+        self._telstate.wait_key('sdp_l0_bls_ordering')
+        # TODO: once SDP is subsetting the band, we'll need a separate sdp_l0_n_chans.
+        try:
+            n_chans = self._telstate['cbf_n_chans']
+            n_bls = len(self._telstate['sdp_l0_bls_ordering'])
+        except KeyError as error:
+            self._logger.error('Missing telescope state key: %s', error)
+            end_status = 'bad-telstate'
+            self._rx.stop()
+        else:
+            # 10 bytes per visibility: 8 for visibility, 1 for flags, 1 for weights
+            l0_heap_size = n_bls * n_chans * 10 + n_chans * 4
+            memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8, 8)
+            self._rx.set_memory_pool(memory_pool)
+            for endpoint in self._endpoints:
+                self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host, buffer_size=l0_heap_size+4096)
+            self._status_sensor.set_value("capturing")
+            self._logger.info('Waiting for data')
+
         try:
             ig = spead2.ItemGroup()
+            first = True
             for heap in self._rx:
+                if first:
+                    self._logger.info('First heap received')
+                    first = False
                 updated = ig.update(heap)
                 if 'timestamp' in updated:
                     vis_data = ig['correlator_data'].value
@@ -163,20 +190,12 @@ class FileWriterServer(DeviceServer):
                 return ("fail", "Disk too full (only {:.2f} GiB free)".format(free_space / 1024**3))
         self._device_status_sensor.set_value("ok")
         self._filename_sensor.set_value(self._final_filename)
-        self._status_sensor.set_value("capturing")
+        self._status_sensor.set_value("waiting")
         self._input_dumps_sensor.set_value(0)
         self._input_bytes_sensor.set_value(0)
         self._file_obj = file_writer.File(self._stage_filename)
         self._start_timestamp = timestamp
         self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2, max_heaps=2, ring_heaps=2)
-         # as a temporary fix we try and allocate memory pools sized to fit the maximum expected
-         # heap size for AR1 which is 16 antennas, 32k channels, 9 bytes per vis
-        l0_heap_size = 16 * 17 * 2 * 32768 * 9
-        memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8, 8)
-        self._rx.set_memory_pool(memory_pool)
-
-        for endpoint in self._endpoints:
-            self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host, buffer_size=l0_heap_size)
         self._capture_thread = threading.Thread(
                 target=self._do_capture, name='capture', args=(self._file_obj,))
         self._capture_thread.start()
