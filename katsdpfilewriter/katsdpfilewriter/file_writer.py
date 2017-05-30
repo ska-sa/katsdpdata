@@ -130,18 +130,19 @@ class File(object):
     def _create_data(self, shape):
         """Creates the data sets for visibilities and flags."""
         shape = list(shape)  # Ensures that + works below
+        chunk_channels = min(32, shape[0])
         self._h5_file.create_dataset(
                 _CBF_DATA_DATASET, [0] + shape + [2],
                 maxshape=[None] + shape + [2], dtype=np.float32,
-                chunks=(1, 32, shape[1], 2))
+                chunks=(1, chunk_channels, shape[1], 2))
         self._h5_file.create_dataset(
                 _FLAGS_DATASET, [0] + shape,
                 maxshape=[None] + shape, dtype=np.uint8,
-                chunks=(1, 32, shape[1]))
+                chunks=(1, chunk_channels, shape[1]))
         self._h5_file.create_dataset(
                 _WEIGHTS_DATASET, [0] + shape,
                 maxshape=[None] + shape, dtype=np.uint8,
-                chunks=(1, 32, shape[1]),
+                chunks=(1, chunk_channels, shape[1]),
                 fillvalue=np.uint8(1))
         self._h5_file.create_dataset(
                 _WEIGHTS_CHANNEL_DATASET, [0] + shape[:1],
