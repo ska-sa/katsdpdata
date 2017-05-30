@@ -91,7 +91,7 @@ class FileWriterServer(DeviceServer):
         free_space = file_obj.free_space()
         self._disk_free_sensor.set_value(free_space)
         # status to report once the capture stops
-        end_status = "ready"
+        end_status = "complete"
 
         # Set up memory buffers, depending on size of input heaps
         self._logger.info('Waiting for metadata')
@@ -112,7 +112,7 @@ class FileWriterServer(DeviceServer):
             self._rx.set_memory_pool(memory_pool)
             for endpoint in self._endpoints:
                 self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host, buffer_size=l0_heap_size+4096)
-            self._status_sensor.set_value("capturing")
+            self._status_sensor.set_value("wait-data")
             self._logger.info('Waiting for data')
 
         try:
@@ -121,6 +121,7 @@ class FileWriterServer(DeviceServer):
             for heap in self._rx:
                 if first:
                     self._logger.info('First heap received')
+                    self._status_sensor.set_value("capturing")
                     first = False
                 updated = ig.update(heap)
                 if 'timestamp' in updated:
@@ -190,7 +191,7 @@ class FileWriterServer(DeviceServer):
                 return ("fail", "Disk too full (only {:.2f} GiB free)".format(free_space / 1024**3))
         self._device_status_sensor.set_value("ok")
         self._filename_sensor.set_value(self._final_filename)
-        self._status_sensor.set_value("waiting")
+        self._status_sensor.set_value("wait-metadata")
         self._input_dumps_sensor.set_value(0)
         self._input_bytes_sensor.set_value(0)
         self._file_obj = file_writer.File(self._stage_filename)
