@@ -20,7 +20,8 @@ setup(
         'spead2>=0.5.0',
         'katcp',
         'katsdptelstate',
-        'hiredis'
+        'hiredis',
+        'netifaces'
     ],
     use_katversion=True
 )

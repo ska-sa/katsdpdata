@@ -27,6 +27,7 @@ import Queue
 import numpy as np
 import signal
 import manhole
+import netifaces
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import request, return_reply, Str
 from katsdpfilewriter import telescope_model, ar1_model, file_writer
@@ -38,14 +39,23 @@ FREE_DISK_THRESHOLD_STOP = 2 * 1024**3
 FREE_DISK_THRESHOLD_START = 3 * 1024**3
 
 
+def get_interface_address(interface):
+    if interface is None:
+        return None
+    else:
+        return netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['addr']
+
+
 class FileWriterServer(DeviceServer):
     VERSION_INFO = ("sdp-file-writer", 0, 1)
     BUILD_INFO = ("sdp-file-writer", 0, 1, "rc1")
 
-    def __init__(self, logger, l0_spectral_endpoints, file_base, antenna_mask, telstate, *args, **kwargs):
+    def __init__(self, logger, l0_spectral_endpoints, l0_spectral_interface,
+                 file_base, antenna_mask, telstate, *args, **kwargs):
         super(FileWriterServer, self).__init__(*args, logger=logger, **kwargs)
         self._file_base = file_base
         self._endpoints = l0_spectral_endpoints
+        self._interface_address = get_interface_address(l0_spectral_interface)
         self._capture_thread = None
         self._telstate = telstate
         self._model = ar1_model.create_model(antenna_mask=antenna_mask)
@@ -111,7 +121,13 @@ class FileWriterServer(DeviceServer):
             memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8, 8)
             self._rx.set_memory_pool(memory_pool)
             for endpoint in self._endpoints:
-                self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host, buffer_size=l0_heap_size+4096)
+                if self._interface_address is not None:
+                    self._rx.add_udp_reader(endpoint.host, endpoint.port,
+                                            buffer_size=l0_heap_size+4096,
+                                            interface_address=self._interface_address)
+                else:
+                    self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host,
+                                            buffer_size=l0_heap_size+4096)
             self._status_sensor.set_value("wait-data")
             self._logger.info('Waiting for data')
 
@@ -266,6 +282,7 @@ def main():
 
     parser = katsdptelstate.ArgumentParser()
     parser.add_argument('--l0-spectral-spead', type=katsdptelstate.endpoint.endpoint_list_parser(7200), default=':7200', help='source port/multicast groups for spectral L0 input. [default=%(default)s]', metavar='ENDPOINTS')
+    parser.add_argument('--l0-spectral-interface', help='interface to subscribe to for L0 data. [default=auto]', metavar='INTERFACE')
     parser.add_argument('--file-base', default='.', type=str, help='base directory into which to write HDF5 files. [default=%(default)s]', metavar='DIR')
     parser.add_argument('--antenna-mask', type=comma_list(str), default='', help='List of antennas to store in the telescope model. [default=%(default)s]')
     parser.add_argument('-p', '--port', dest='port', type=int, default=2046, metavar='N', help='katcp host port. [default=%(default)s]')
@@ -277,7 +294,8 @@ def main():
         sys.exit(1)
 
     restart_queue = Queue.Queue()
-    server = FileWriterServer(logger, args.l0_spectral_spead, args.file_base, args.antenna_mask, args.telstate,
+    server = FileWriterServer(logger, args.l0_spectral_spead, args.l0_spectral_interface,
+                              args.file_base, args.antenna_mask, args.telstate,
                               host=args.host, port=args.port)
     server.set_restart_queue(restart_queue)
     server.start()
