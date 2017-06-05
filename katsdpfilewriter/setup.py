@@ -21,7 +21,8 @@ setup(
         'katcp',
         'katsdptelstate',
         'hiredis',
-        'netifaces'
+        'netifaces',
+        'futures'
     ],
     use_katversion=True
 )

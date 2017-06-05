@@ -28,6 +28,7 @@ import numpy as np
 import signal
 import manhole
 import netifaces
+import concurrent.futures
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import request, return_reply, Str
 from katsdpfilewriter import telescope_model, ar1_model, file_writer
@@ -57,6 +58,7 @@ class FileWriterServer(DeviceServer):
         self._endpoints = l0_spectral_endpoints
         self._interface_address = get_interface_address(l0_spectral_interface)
         self._capture_thread = None
+        self._capture_done_future = None
         self._telstate = telstate
         self._model = ar1_model.create_model(antenna_mask=antenna_mask)
         self._file_obj = None
@@ -83,7 +85,7 @@ class FileWriterServer(DeviceServer):
                 "disk-free", "Free disk space in bytes on target device for this file.", "B")
         self.add_sensor(self._disk_free_sensor)
 
-    def _do_capture(self, file_obj):
+    def _do_capture(self, file_obj, done_future):
         """Capture a stream from SPEAD and write to file. This is run in a
         separate thread.
 
@@ -91,6 +93,9 @@ class FileWriterServer(DeviceServer):
         ----------
         file_obj : :class:`filewriter.File`
             Output file object
+        done_future : :class:`concurrent.futures.Future`
+            Future signalled when the main thread receives a
+            :meth:`capture_done` call.
         """
         timestamps = []
         n_dumps = 0
@@ -103,19 +108,26 @@ class FileWriterServer(DeviceServer):
         # status to report once the capture stops
         end_status = "complete"
 
-        # Set up memory buffers, depending on size of input heaps
-        self._logger.info('Waiting for metadata')
-        self._telstate.wait_key('sdp_cam2telstate_status', lambda value: value == 'ready')
-        self._telstate.wait_key('sdp_l0_bls_ordering')
-        # TODO: once SDP is subsetting the band, we'll need a separate sdp_l0_n_chans.
         try:
-            n_chans = self._telstate['cbf_n_chans']
-            n_bls = len(self._telstate['sdp_l0_bls_ordering'])
-        except KeyError as error:
-            self._logger.error('Missing telescope state key: %s', error)
-            end_status = 'bad-telstate'
-            self._rx.stop()
-        else:
+            # Set up memory buffers, depending on size of input heaps
+            self._logger.info('Waiting for metadata')
+            try:
+                self._telstate.wait_key('sdp_cam2telstate_status', lambda value: value == 'ready',
+                                        cancel_future=done_future)
+                self._telstate.wait_key('sdp_l0_bls_ordering',
+                                        cancel_future=done_future)
+            except katsdptelstate.CancelledError:
+                self._logger.warn('session terminated while waiting for metadata')
+                return
+            # TODO: once SDP is subsetting the band, we'll need a separate sdp_l0_n_chans.
+            try:
+                n_chans = self._telstate['cbf_n_chans']
+                n_bls = len(self._telstate['sdp_l0_bls_ordering'])
+            except KeyError as error:
+                self._logger.error('Missing telescope state key: %s', error)
+                end_status = 'bad-telstate'
+                return
+
             # 10 bytes per visibility: 8 for visibility, 1 for flags, 1 for weights
             l0_heap_size = n_bls * n_chans * 10 + n_chans * 4
             memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8, 8)
@@ -130,8 +142,6 @@ class FileWriterServer(DeviceServer):
                                             buffer_size=l0_heap_size+4096)
             self._status_sensor.set_value("wait-data")
             self._logger.info('Waiting for data')
-
-        try:
             ig = spead2.ItemGroup()
             first = True
             for heap in self._rx:
@@ -213,8 +223,10 @@ class FileWriterServer(DeviceServer):
         self._file_obj = file_writer.File(self._stage_filename)
         self._start_timestamp = timestamp
         self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2, max_heaps=2, ring_heaps=2)
+        self._capture_done_future = concurrent.futures.Future()
         self._capture_thread = threading.Thread(
-                target=self._do_capture, name='capture', args=(self._file_obj,))
+                target=self._do_capture, name='capture',
+                args=(self._file_obj, self._capture_done_future))
         self._capture_thread.start()
         self._logger.info("Starting capture to %s", self._stage_filename)
         return ("ok", "Capture initialised to {0}".format(self._stage_filename))
@@ -234,9 +246,11 @@ class FileWriterServer(DeviceServer):
         if self._capture_thread is None:
             return ("fail", "Not capturing")
         self._rx.stop()
+        self._capture_done_future.set_result(None)  # Aborts metadata wait
         self._capture_thread.join()
         self._capture_thread = None
         self._rx = None
+        self._capture_done_future = None
         self._logger.info("Joined capture thread")
 
         self._status_sensor.set_value("finalising")
