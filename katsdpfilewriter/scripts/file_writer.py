@@ -117,7 +117,7 @@ class FileWriterServer(DeviceServer):
                 self._telstate.wait_key('sdp_l0_bls_ordering',
                                         cancel_future=done_future)
             except katsdptelstate.CancelledError:
-                self._logger.warn('session terminated while waiting for metadata')
+                self._logger.warn('Session terminated while waiting for metadata')
                 return
             # TODO: once SDP is subsetting the band, we'll need a separate sdp_l0_n_chans.
             try:
