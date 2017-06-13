@@ -20,6 +20,7 @@ setup(
         'spead2>=0.5.0',
         'katcp',
         'katsdptelstate',
+        'katsdpservices',
         'hiredis',
         'netifaces',
         'futures'

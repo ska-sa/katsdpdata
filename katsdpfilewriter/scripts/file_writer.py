@@ -31,6 +31,7 @@ import netifaces
 import concurrent.futures
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import request, return_reply, Str
+import katsdpservices
 from katsdpfilewriter import telescope_model, ar1_model, file_writer
 
 
@@ -38,13 +39,6 @@ from katsdpfilewriter import telescope_model, ar1_model, file_writer
 FREE_DISK_THRESHOLD_STOP = 2 * 1024**3
 #: Bytes free at which a new capture will be refused
 FREE_DISK_THRESHOLD_START = 3 * 1024**3
-
-
-def get_interface_address(interface):
-    if interface is None:
-        return None
-    else:
-        return netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['addr']
 
 
 class FileWriterServer(DeviceServer):
@@ -56,7 +50,7 @@ class FileWriterServer(DeviceServer):
         super(FileWriterServer, self).__init__(*args, logger=logger, **kwargs)
         self._file_base = file_base
         self._endpoints = l0_spectral_endpoints
-        self._interface_address = get_interface_address(l0_spectral_interface)
+        self._interface_address = katsdpservices.get_interface_address(l0_spectral_interface)
         self._capture_thread = None
         self._capture_done_future = None
         self._telstate = telstate
@@ -282,19 +276,11 @@ def comma_list(type_):
     return convert
 
 def main():
-    if len(logging.root.handlers) > 0: logging.root.removeHandler(logging.root.handlers[0])
-    formatter = logging.Formatter("%(asctime)s.%(msecs)03dZ - %(filename)s:%(lineno)s - %(levelname)s - %(message)s",
-                                  datefmt="%Y-%m-%d %H:%M:%S")
-    formatter.converter = time.gmtime
-    sh = logging.StreamHandler()
-    sh.setFormatter(formatter)
-    logging.root.addHandler(sh)
-
-    logger = logging.getLogger("katsdpfilewriter")
-    logger.setLevel(logging.INFO)
+    katsdpservices.setup_logging()
     logging.getLogger('spead2').setLevel(logging.WARNING)
+    katsdpservices.setup_restart()
 
-    parser = katsdptelstate.ArgumentParser()
+    parser = katsdpservices.ArgumentParser()
     parser.add_argument('--l0-spectral-spead', type=katsdptelstate.endpoint.endpoint_list_parser(7200), default=':7200', help='source port/multicast groups for spectral L0 input. [default=%(default)s]', metavar='ENDPOINTS')
     parser.add_argument('--l0-spectral-interface', help='interface to subscribe to for L0 data. [default=auto]', metavar='INTERFACE')
     parser.add_argument('--file-base', default='.', type=str, help='base directory into which to write HDF5 files. [default=%(default)s]', metavar='DIR')
