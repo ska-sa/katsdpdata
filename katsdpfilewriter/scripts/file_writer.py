@@ -277,6 +277,7 @@ def comma_list(type_):
 
 def main():
     katsdpservices.setup_logging()
+    logger = logging.getLogger("katsdpfilewriter")
     logging.getLogger('spead2').setLevel(logging.WARNING)
     katsdpservices.setup_restart()
 
