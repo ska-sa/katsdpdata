@@ -27,5 +27,6 @@ tornado
 Twisted
 unittest2
 zope.interface
+git+ssh://git@github.com/ska-sa/katsdpservices
 git+ssh://git@github.com/ska-sa/katsdptelstate
 git+ssh://git@github.com/ska-sa/katversion
