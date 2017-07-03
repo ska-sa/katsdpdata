@@ -627,7 +627,7 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
         import subprocess
         import re
         from astropy.time import Time
-        cmd = ["psrstat","%s/%s"%(self.product_name,sort[0])]
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd"]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
         m = re.search('ext:stt_imjd\s+Start\sMJD\s+(\d+?)\n',output)
