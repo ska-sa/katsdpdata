@@ -625,15 +625,12 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
         data_files = os.listdir(self.product_name)
         sort = sorted(data_files)
         import subprocess
-        import re
         from astropy.time import Time
-        cmd = ["psrstat","%s/%s"%(self.product_name,sort[0])]
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd"]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
-        m = re.search('ext:stt_imjd\s+Start\sMJD\s+(\d+?)\n',output)
-        imjd = m.group(1)
-        m = re.search('ext:stt_smjd\s+Start\ssecond\s+(\d+?)\n',output)
-        smjd = m.group(1)
+        imjd = output.split(' ')[2]
+        smjd = output.split(' ')[1]
         start_time = Time([float(imjd) + float(smjd) / 3600.0 / 24.0],format='mjd')
         start_time.format = 'isot'
         startTime =start_time.value[0][:-4]+'Z'
