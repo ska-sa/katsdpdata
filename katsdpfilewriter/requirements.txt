@@ -5,8 +5,10 @@ Cython
 h5py
 fakeredis
 funcsigs
+future
 futures
 katcp
+katversion
 hiredis==0.2.0
 linecache2
 manhole
@@ -17,16 +19,12 @@ numpy
 pbr
 pkginfo
 ply
-ProxyTypes
 singledispatch
 six
 spead2
 redis
 traceback2
 tornado
-Twisted
 unittest2
-zope.interface
 git+ssh://git@github.com/ska-sa/katsdpservices
 git+ssh://git@github.com/ska-sa/katsdptelstate
-git+ssh://git@github.com/ska-sa/katversion
