@@ -16,8 +16,6 @@ traceback2
 linecache2
 ply
 nose
-twisted
-zope.interface
 mock
 funcsigs
 pbr
@@ -27,6 +25,6 @@ katcp
 backports-abc
 backports.ssl-match-hostname
 certifi
+future
 futures
-ProxyTypes
 astropy==1.2.1
