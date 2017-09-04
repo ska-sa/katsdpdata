@@ -7,6 +7,9 @@ import logging
 import h5py
 import numpy as np
 
+from katdal.h5datav3 import FLAG_NAMES
+
+
 # the version number is intrinsically linked to the telescope model, as this
 # is the arbiter of file structure and format
 HDF5_VERSION = "3.0"
@@ -106,7 +109,7 @@ def set_telescope_state(h5_file, tstate, base_path=_TSTATE_DATASET):
 
 
 class File(object):
-    def __init__(self, filename):
+    def __init__(self, filename, stream_name=None):
         """Initialises an HDF5 output file as appropriate for this version of
         the telescope model."""
         # Need to use at least version 1.8, so that >64K attributes
@@ -114,10 +117,11 @@ class File(object):
         # way to explicitly request 1.8; this should be revisited after 1.10
         # ships.
         h5_file = h5py.File(filename, mode="w", libver='latest')
-        h5_file['/'].create_group('Data')
+        data_group = h5_file['/'].create_group('Data')
+        if stream_name is not None:
+            data_group.attrs['stream_name'] = stream_name
         h5_file['/'].attrs['version'] = HDF5_VERSION
         self._h5_file = h5_file
-        self._created_data = False
 
     def set_timestamps(self, timestamps):
         """Write all timestamps for the file in one go. This must only be
@@ -127,8 +131,8 @@ class File(object):
         ds.attrs['timestamp_reference'] = 'centroid'
         self._h5_file.flush()
 
-    def _create_data(self, shape):
-        """Creates the data sets for visibilities and flags."""
+    def create_data(self, shape):
+        """Creates the data sets for visibilities, weights and flags."""
         shape = list(shape)  # Ensures that + works below
         chunk_channels = min(32, shape[0])
         self._h5_file.create_dataset(
@@ -138,7 +142,8 @@ class File(object):
         self._h5_file.create_dataset(
                 _FLAGS_DATASET, [0] + shape,
                 maxshape=[None] + shape, dtype=np.uint8,
-                chunks=(1, chunk_channels, shape[1]))
+                chunks=(1, chunk_channels, shape[1]),
+                fillvalue=np.uint8(2**FLAG_NAMES.index('data_lost')))
         self._h5_file.create_dataset(
                 _WEIGHTS_DATASET, [0] + shape,
                 maxshape=[None] + shape, dtype=np.uint8,
@@ -149,11 +154,11 @@ class File(object):
                 maxshape=[None] + shape[:1], dtype=np.float32,
                 chunks=(1, shape[0]),
                 fillvalue=np.float32(1))
-        self._created_data = True
 
-    def add_data_frame(self, vis, flags, weights=None, weights_channel=None):
-        """Add a single visibility/flags frame to the file. The datasets are
-        created on first use.
+    def add_data_heap(self, vis, flags, weights, weights_channel, time_idx, channel0):
+        """Add a single visibility/flags heap to the file (which may contain
+        only a subinterval of the channels). The datasets must have already
+        been created by :meth:`create_data`.
 
         Parameters
         ----------
@@ -161,38 +166,37 @@ class File(object):
             Visibilities
         flags : numpy array, uint8, dimensions channels and baselines
             Flags
-        weights : numpy array, uint8, dimensions channels and baselines, optional
+        weights : numpy array, uint8, dimensions channels and baselines
             Detailed weights, which must be scaled by `weights_channel`
             to get the actual weights
-        weights_channel : numpy array, float32, dimensions channels, optional
+        weights_channel : numpy array, float32, dimensions channels
             Coarse weights
+        time_idx : int
+            File position along the time axis
+        channel0 : int
+            Offset of first channel in the data arrays
         """
-        # create datasets if they do not already exist
-        if not self._created_data:
-            self._create_data(vis.shape)
-
         # resize datasets
         h5_cbf = self._h5_file[_CBF_DATA_DATASET]
         h5_flags = self._h5_file[_FLAGS_DATASET]
         h5_weights = self._h5_file[_WEIGHTS_DATASET]
         h5_weights_channel = self._h5_file[_WEIGHTS_CHANNEL_DATASET]
-        idx = h5_cbf.shape[0]
-        h5_cbf.resize(idx+1, axis=0)
-        h5_flags.resize(idx+1, axis=0)
-        h5_weights.resize(idx+1, axis=0)
-        h5_weights_channel.resize(idx+1, axis=0)
+        if h5_cbf.shape[0] <= time_idx:
+            h5_cbf.resize(time_idx+1, axis=0)
+            h5_flags.resize(time_idx+1, axis=0)
+            h5_weights.resize(time_idx+1, axis=0)
+            h5_weights_channel.resize(time_idx+1, axis=0)
+        channel_slice = np.s_[channel0 : channel0 + vis.shape[0]]
 
         # Complex values are written to file as an extra dimension of size 2,
         # rather than as structs. Revisit this later to see if either the HDF5
         # file format can be changed to store complex data (rather than
         # having a real/imag axis for reals).
         vis_pairs = _split_array(vis, np.float32)
-        h5_cbf[idx] = vis_pairs
-        h5_flags[idx] = flags
-        if weights is not None:
-            h5_weights[idx] = weights
-        if weights_channel is not None:
-            h5_weights_channel[idx] = weights_channel
+        h5_cbf[time_idx, channel_slice] = vis_pairs
+        h5_flags[time_idx, channel_slice] = flags
+        h5_weights[time_idx, channel_slice] = weights
+        h5_weights_channel[time_idx, channel_slice] = weights_channel
         self._h5_file.flush()
 
     def set_metadata(self, model_data, base_path="/TelescopeModel"):

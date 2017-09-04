@@ -45,12 +45,13 @@ class FileWriterServer(DeviceServer):
     VERSION_INFO = ("sdp-file-writer", 0, 1)
     BUILD_INFO = ("sdp-file-writer", 0, 1, "rc1")
 
-    def __init__(self, logger, l0_spectral_endpoints, l0_spectral_interface,
+    def __init__(self, logger, l0_endpoints, l0_interface, l0_name,
                  file_base, antenna_mask, telstate, *args, **kwargs):
         super(FileWriterServer, self).__init__(*args, logger=logger, **kwargs)
         self._file_base = file_base
-        self._endpoints = l0_spectral_endpoints
-        self._interface_address = katsdpservices.get_interface_address(l0_spectral_interface)
+        self._endpoints = l0_endpoints
+        self._stream_name = l0_name
+        self._interface_address = katsdpservices.get_interface_address(l0_interface)
         self._capture_thread = None
         self._capture_done_future = None
         self._telstate = telstate
@@ -70,8 +71,11 @@ class FileWriterServer(DeviceServer):
                 "filename", "Final name for file being captured", "")
         self.add_sensor(self._filename_sensor)
         self._input_dumps_sensor = Sensor.integer(
-                "input-dumps-total", "Number of input dumps captured in this session.", "", default=0)
+                "input-dumps-total", "Number of (possibly partial) input dumps captured in this session.", "", default=0)
         self.add_sensor(self._input_dumps_sensor)
+        self._input_heaps_sensor = Sensor.integer(
+                "input-heaps-total", "Number of input heaps captured in this session.", "", default=0)
+        self.add_sensor(self._input_heaps_sensor)
         self._input_bytes_sensor = Sensor.integer(
                 "input-bytes-total", "Number of payload bytes received in this session.", "B", default=0)
         self.add_sensor(self._input_bytes_sensor)
@@ -93,8 +97,10 @@ class FileWriterServer(DeviceServer):
         """
         timestamps = []
         n_dumps = 0
+        n_heaps = 0
         n_bytes = 0
         self._input_dumps_sensor.set_value(n_dumps)
+        self._input_heaps_sensor.set_value(n_heaps)
         self._input_bytes_sensor.set_value(n_bytes)
         loop_time = time.time()
         free_space = file_obj.free_space()
@@ -103,37 +109,6 @@ class FileWriterServer(DeviceServer):
         end_status = "complete"
 
         try:
-            # Set up memory buffers, depending on size of input heaps
-            self._logger.info('Waiting for metadata')
-            try:
-                self._telstate.wait_key('sdp_cam2telstate_status', lambda value: value == 'ready',
-                                        cancel_future=done_future)
-                self._telstate.wait_key('sdp_l0_bls_ordering',
-                                        cancel_future=done_future)
-            except katsdptelstate.CancelledError:
-                self._logger.warn('Session terminated while waiting for metadata')
-                return
-            # TODO: once SDP is subsetting the band, we'll need a separate sdp_l0_n_chans.
-            try:
-                n_chans = self._telstate['cbf_n_chans']
-                n_bls = len(self._telstate['sdp_l0_bls_ordering'])
-            except KeyError as error:
-                self._logger.error('Missing telescope state key: %s', error)
-                end_status = 'bad-telstate'
-                return
-
-            # 10 bytes per visibility: 8 for visibility, 1 for flags, 1 for weights
-            l0_heap_size = n_bls * n_chans * 10 + n_chans * 4
-            memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8, 8)
-            self._rx.set_memory_pool(memory_pool)
-            for endpoint in self._endpoints:
-                if self._interface_address is not None:
-                    self._rx.add_udp_reader(endpoint.host, endpoint.port,
-                                            buffer_size=l0_heap_size+4096,
-                                            interface_address=self._interface_address)
-                else:
-                    self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host,
-                                            buffer_size=l0_heap_size+4096)
             self._status_sensor.set_value("wait-data")
             self._logger.info('Waiting for data')
             ig = spead2.ItemGroup()
@@ -147,21 +122,19 @@ class FileWriterServer(DeviceServer):
                 if 'timestamp' in updated:
                     vis_data = ig['correlator_data'].value
                     flags = ig['flags'].value
-                    weights_nbytes = 0
-                    try:
-                        weights = ig['weights'].value
-                        weights_nbytes = weights.nbytes
-                    except KeyError:
-                        weights = None
-                    try:
-                        weights_channel = ig['weights_channel'].value
-                    except KeyError:
-                        weights_channel = None
-                    file_obj.add_data_frame(vis_data, flags, weights, weights_channel)
-                    timestamps.append(ig['timestamp'].value)
-                    n_dumps += 1
-                    n_bytes += vis_data.nbytes + flags.nbytes + weights_nbytes
-                    self._input_dumps_sensor.set_value(n_dumps)
+                    weights = ig['weights'].value
+                    weights_channel = ig['weights_channel'].value
+                    channel0 = ig['frequency'].value
+                    timestamp = ig['timestamp'].value
+                    if not timestamps or timestamp != timestamps[-1]:
+                        timestamps.append(timestamp)
+                        n_dumps += 1
+                        self._input_dumps_sensor.set_value(n_dumps)
+                    time_idx = len(timestamps) - 1
+                    file_obj.add_data_heap(vis_data, flags, weights, weights_channel, time_idx, channel0)
+                    n_heaps += 1
+                    n_bytes += vis_data.nbytes + flags.nbytes + weights.nbytes + weights_channel.nbytes
+                    self._input_heaps_sensor.set_value(n_heaps)
                     self._input_bytes_sensor.set_value(n_bytes)
                 free_space = file_obj.free_space()
                 self._disk_free_sensor.set_value(free_space)
@@ -177,6 +150,7 @@ class FileWriterServer(DeviceServer):
         finally:
             self._status_sensor.set_value(end_status)
             self._input_bytes_sensor.set_value(0)
+            self._input_heaps_sensor.set_value(0)
             self._input_dumps_sensor.set_value(0)
             # Timestamps in the SPEAD stream are relative to sync_time
             if not timestamps:
@@ -214,9 +188,35 @@ class FileWriterServer(DeviceServer):
         self._status_sensor.set_value("wait-metadata")
         self._input_dumps_sensor.set_value(0)
         self._input_bytes_sensor.set_value(0)
-        self._file_obj = file_writer.File(self._stage_filename)
         self._start_timestamp = timestamp
-        self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2, max_heaps=2, ring_heaps=2)
+        # Set up memory buffers, depending on size of input heaps
+        try:
+            n_chans = self._telstate[self._stream_name + '_n_chans']
+            n_chans_per_substream = self._telstate[self._stream_name + '_n_chans_per_substream']
+            n_bls = self._telstate[self._stream_name + '_n_bls']
+        except KeyError as error:
+            self._logger.error('Missing telescope state key: %s', error)
+            end_status = 'bad-telstate'
+            return ("fail", "Missing telescope state key: {}".format(error))
+        self._file_obj = file_writer.File(self._stage_filename, self._stream_name)
+        self._file_obj.create_data((n_chans, n_bls))
+
+        # 10 bytes per visibility: 8 for visibility, 1 for flags, 1 for weights; plus weights_channel
+        l0_heap_size = n_bls * n_chans_per_substream * 10 + n_chans_per_substream * 4
+        n_substreams = n_chans // n_chans_per_substream
+        self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2,
+                                      max_heaps=2 * n_substreams, ring_heaps=2 * n_substreams)
+        memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8 * n_substreams, 8 * n_substreams)
+        self._rx.set_memory_pool(memory_pool)
+        for endpoint in self._endpoints:
+            if self._interface_address is not None:
+                self._rx.add_udp_reader(endpoint.host, endpoint.port,
+                                        buffer_size=l0_heap_size+4096,
+                                        interface_address=self._interface_address)
+            else:
+                self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host,
+                                        buffer_size=l0_heap_size+4096)
+
         self._capture_done_future = concurrent.futures.Future()
         self._capture_thread = threading.Thread(
                 target=self._do_capture, name='capture',
@@ -282,8 +282,9 @@ def main():
     katsdpservices.setup_restart()
 
     parser = katsdpservices.ArgumentParser()
-    parser.add_argument('--l0-spectral-spead', type=katsdptelstate.endpoint.endpoint_list_parser(7200), default=':7200', help='source port/multicast groups for spectral L0 input. [default=%(default)s]', metavar='ENDPOINTS')
-    parser.add_argument('--l0-spectral-interface', help='interface to subscribe to for L0 data. [default=auto]', metavar='INTERFACE')
+    parser.add_argument('--l0-spead', type=katsdptelstate.endpoint.endpoint_list_parser(7200), default=':7200', help='source port/multicast groups for spectral L0 input. [default=%(default)s]', metavar='ENDPOINTS')
+    parser.add_argument('--l0-interface', help='interface to subscribe to for L0 data. [default=auto]', metavar='INTERFACE')
+    parser.add_argument('--l0-name', default='sdp_l0', help='telstate prefix for L0 metadata. [default=%(default)s]', metavar='NAME')
     parser.add_argument('--file-base', default='.', type=str, help='base directory into which to write HDF5 files. [default=%(default)s]', metavar='DIR')
     parser.add_argument('--antenna-mask', type=comma_list(str), default='', help='List of antennas to store in the telescope model. [default=%(default)s]')
     parser.add_argument('-p', '--port', dest='port', type=int, default=2046, metavar='N', help='katcp host port. [default=%(default)s]')
@@ -295,7 +296,7 @@ def main():
         sys.exit(1)
 
     restart_queue = Queue.Queue()
-    server = FileWriterServer(logger, args.l0_spectral_spead, args.l0_spectral_interface,
+    server = FileWriterServer(logger, args.l0_spead, args.l0_interface, args.l0_name,
                               args.file_base, args.antenna_mask, args.telstate,
                               host=args.host, port=args.port)
     server.set_restart_queue(restart_queue)

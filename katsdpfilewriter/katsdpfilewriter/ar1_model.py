@@ -6,6 +6,8 @@ kattelmod
 """
 
 from .telescope_model import TelescopeComponent, TelescopeModel
+from katdal.h5datav3 import FLAG_NAMES, FLAG_DESCRIPTIONS
+
 
 # Component Definitions
 
@@ -73,14 +75,5 @@ def create_model(antenna_mask=[]):
 
     model = TelescopeModel()
     model.add_components(components)
-    model.set_flags_description([
-        ('reserved0', 'reserved - bit 0'),
-        ('static', 'predefined static flag list'),
-        ('cam', 'flag based on live CAM information'),
-        ('data_lost', 'no data was received'),
-        ('ingest_rfi', 'RFI detected in ingest'),
-        ('predicted_rfi', 'RFI predicted from space based pollutants'),
-        ('cal_rfi', 'RFI detected in calibration'),
-        ('reserved7', 'reserved - bit 7')
-    ])
+    model.set_flags_description(zip(FLAG_NAMES, FLAG_DESCRIPTIONS))
     return model
