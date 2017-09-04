@@ -8,6 +8,8 @@ funcsigs
 future
 futures
 katcp
+katdal==0.8
+katpoint==0.7
 katversion
 hiredis==0.2.0
 linecache2

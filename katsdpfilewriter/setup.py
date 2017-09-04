@@ -19,6 +19,7 @@ setup(
         'numpy',
         'spead2>=0.5.0',
         'katcp',
+        'katdal',
         'katsdptelstate',
         'katsdpservices',
         'hiredis',
