@@ -21,6 +21,7 @@ numpy
 pbr
 pkginfo
 ply
+pyephem
 singledispatch
 six
 spead2
