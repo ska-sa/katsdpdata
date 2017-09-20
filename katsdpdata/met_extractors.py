@@ -111,6 +111,7 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['RefAntenna'] = self._katdata.ref_ant
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(self._katdata.start_time))
         self.metadata['Targets'] = list(set([i.name for i in self._katdata.catalogue.targets if i.name not in ['None', 'Nothing', 'azel', 'radec']]))
+        self.metadata["DecRA"]=["%f,%f"%(t.radec()[1],t.radec()[0]) for t in self._katdata.catalogue.targets if t.name not in ['None', 'Nothing']]
 
         try:
             self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
@@ -222,7 +223,7 @@ class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_file_digest()
             self._metadata_extracted = True
         else:
-            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+            E_1_20170918171126_J1644m4559
 
 class KatFileProductMetExtractor(KAT7TelescopeProductMetExtractor):
     def __init__(self, katdata):
@@ -535,7 +536,7 @@ class PulsarSearchProductMetExtractor(MetExtractor):
         hduPrimary = data[0].header
         hduSubint = data[2].header
         radec = hoursToDegrees(hduPrimary["RA"],hduPrimary["DEC"])
-        self.metadata["DecRA"]="%f,%f"%(radec[1],radec[0])
+        self.metadata["DecRA"]=["%f,%f"%(radec[1],radec[0])]
         self.metadata["STT_CRD1"]=str(hduPrimary["STT_CRD1"])
         self.metadata["STT_CRD2"]=str(hduPrimary["STT_CRD2"])
         self.metadata["STP_CRD1"]=str(hduPrimary["STP_CRD1"])
@@ -585,6 +586,13 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
     def extract_archive_header(self):
         from datetime import datetime
         data_files = os.listdir(self.product_name)
+        data_files = os.listdir(self.product_name)
+        sort = sorted(data_files)
+        import subprocess
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:ra,ext:dec"]
+        psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        output, err = psrstat_process.communicate()
+        radec = hoursToDegrees(output.split(' ')[1], output.split(' ')[2])
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
@@ -603,6 +611,7 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['StartTime'] = "%sT%sZ"%(obs_info["UTC_START"][:10],obs_info["UTC_START"][11:])
+        self.metadata["DecRA"]=["%f,%f"%(radec[1],radec[0])]
         self._metadata_extracted = True
 
 class PTUSETimingArchiveProductMetExtractor(MetExtractor):
@@ -626,9 +635,10 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
         sort = sorted(data_files)
         import subprocess
         from astropy.time import Time
-        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd"]
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd,ext:ra,ext:dec"]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
+        radec = hoursToDegrees(output.split(' ')[3], output.split(' ')[4])
         imjd = output.split(' ')[2]
         smjd = output.split(' ')[1]
         start_time = Time([float(imjd) + float(smjd) / 3600.0 / 24.0],format='mjd')
@@ -652,5 +662,6 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['StartTime'] = startTime
+        self.metadata["DecRA"]=["%f,%f"%(radec[1],radec[0])]
         self._metadata_extracted = True
 
