@@ -126,16 +126,23 @@ class FileWriterServer(DeviceServer):
                     weights_channel = ig['weights_channel'].value
                     channel0 = ig['frequency'].value
                     timestamp = ig['timestamp'].value
-                    if not timestamps or timestamp != timestamps[-1]:
-                        timestamps.append(timestamp)
-                        n_dumps += 1
-                        self._input_dumps_sensor.set_value(n_dumps)
-                    time_idx = len(timestamps) - 1
-                    file_obj.add_data_heap(vis_data, flags, weights, weights_channel, time_idx, channel0)
-                    n_heaps += 1
-                    n_bytes += vis_data.nbytes + flags.nbytes + weights.nbytes + weights_channel.nbytes
-                    self._input_heaps_sensor.set_value(n_heaps)
-                    self._input_bytes_sensor.set_value(n_bytes)
+                    if not timestamps or timestamp >= timestamps[-1]:
+                        if not timestamps or timestamp != timestamps[-1]:
+                            timestamps.append(timestamp)
+                            n_dumps += 1
+                            self._input_dumps_sensor.set_value(n_dumps)
+                        time_idx = len(timestamps) - 1
+                        file_obj.add_data_heap(vis_data, flags, weights, weights_channel,
+                                               time_idx, channel0)
+                        n_heaps += 1
+                        n_bytes += vis_data.nbytes + flags.nbytes + weights.nbytes \
+                            + weights_channel.nbytes
+                        self._input_heaps_sensor.set_value(n_heaps)
+                        self._input_bytes_sensor.set_value(n_bytes)
+                    else:
+                        self._logger.warning(
+                            'Received timestamp from the past, discarding (%s < %s)',
+                            timestamp, timestamps[-1])
                 free_space = file_obj.free_space()
                 self._disk_free_sensor.set_value(free_space)
                 if free_space < FREE_DISK_THRESHOLD_STOP:
