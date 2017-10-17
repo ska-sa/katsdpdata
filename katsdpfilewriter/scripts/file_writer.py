@@ -53,7 +53,8 @@ class FileWriterServer(DeviceServer):
         self._stream_name = l0_name
         self._interface_address = katsdpservices.get_interface_address(l0_interface)
         self._capture_thread = None
-        self._capture_done_future = None
+        #: Signalled when about to stop the thread. Never waited for, just a thread-safe flag.
+        self._stopping = threading.Event()
         self._telstate = telstate
         self._model = ar1_model.create_model(antenna_mask=antenna_mask)
         self._file_obj = None
@@ -76,6 +77,9 @@ class FileWriterServer(DeviceServer):
         self._input_heaps_sensor = Sensor.integer(
                 "input-heaps-total", "Number of input heaps captured in this session.", "", default=0)
         self.add_sensor(self._input_heaps_sensor)
+        self._input_incomplete_heaps_sensor = Sensor.integer(
+                "input-incomplete-heaps-total", "Number of incomplete heaps that were dropped.", "", default=0)
+        self.add_sensor(self._input_incomplete_heaps_sensor)
         self._input_bytes_sensor = Sensor.integer(
                 "input-bytes-total", "Number of payload bytes received in this session.", "B", default=0)
         self.add_sensor(self._input_bytes_sensor)
@@ -83,7 +87,7 @@ class FileWriterServer(DeviceServer):
                 "disk-free", "Free disk space in bytes on target device for this file.", "B")
         self.add_sensor(self._disk_free_sensor)
 
-    def _do_capture(self, file_obj, done_future):
+    def _do_capture(self, file_obj):
         """Capture a stream from SPEAD and write to file. This is run in a
         separate thread.
 
@@ -91,17 +95,16 @@ class FileWriterServer(DeviceServer):
         ----------
         file_obj : :class:`filewriter.File`
             Output file object
-        done_future : :class:`concurrent.futures.Future`
-            Future signalled when the main thread receives a
-            :meth:`capture_done` call.
         """
         timestamps = []
         n_dumps = 0
         n_heaps = 0
         n_bytes = 0
+        n_incomplete_heaps = 0
         self._input_dumps_sensor.set_value(n_dumps)
         self._input_heaps_sensor.set_value(n_heaps)
         self._input_bytes_sensor.set_value(n_bytes)
+        self._input_incomplete_heaps_sensor.set_value(n_incomplete_heaps)
         loop_time = time.time()
         free_space = file_obj.free_space()
         self._disk_free_sensor.set_value(free_space)
@@ -118,7 +121,19 @@ class FileWriterServer(DeviceServer):
                     self._logger.info('First heap received')
                     self._status_sensor.set_value("capturing")
                     first = False
-                updated = ig.update(heap)
+                if isinstance(heap, spead2.recv.IncompleteHeap):
+                    # Don't warn if we've already been asked to stop. There may
+                    # be some heaps still in the network at the time we were
+                    # asked to stop.
+                    if not self._stopping.is_set():
+                        self._logger.warning(
+                            "dropped incomplete heap %d (%d/%d bytes of payload)",
+                            heap.cnt, heap.received_length, heap.heap_length)
+                        n_incomplete_heaps += 1
+                        self._input_incomplete_heaps_sensor.set_value(n_incomplete_heaps)
+                    updated = {}
+                else:
+                    updated = ig.update(heap)
                 if 'timestamp' in updated:
                     vis_data = ig['correlator_data'].value
                     flags = ig['flags'].value
@@ -212,7 +227,8 @@ class FileWriterServer(DeviceServer):
         l0_heap_size = n_bls * n_chans_per_substream * 10 + n_chans_per_substream * 4
         n_substreams = n_chans // n_chans_per_substream
         self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2,
-                                      max_heaps=2 * n_substreams, ring_heaps=2 * n_substreams)
+                                      max_heaps=2 * n_substreams, ring_heaps=2 * n_substreams,
+                                      contiguous_only=False)
         memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8 * n_substreams, 8 * n_substreams)
         self._rx.set_memory_pool(memory_pool)
         for endpoint in self._endpoints:
@@ -224,10 +240,10 @@ class FileWriterServer(DeviceServer):
                 self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host,
                                         buffer_size=l0_heap_size+4096)
 
-        self._capture_done_future = concurrent.futures.Future()
+        self._stopping.clear()
         self._capture_thread = threading.Thread(
                 target=self._do_capture, name='capture',
-                args=(self._file_obj, self._capture_done_future))
+                args=(self._file_obj,))
         self._capture_thread.start()
         self._logger.info("Starting capture to %s", self._stage_filename)
         return ("ok", "Capture initialised to {0}".format(self._stage_filename))
@@ -246,12 +262,11 @@ class FileWriterServer(DeviceServer):
         """
         if self._capture_thread is None:
             return ("fail", "Not capturing")
+        self._stopping.set()   # Prevents warnings about incomplete heaps as the stop occurs
         self._rx.stop()
-        self._capture_done_future.set_result(None)  # Aborts metadata wait
         self._capture_thread.join()
         self._capture_thread = None
         self._rx = None
-        self._capture_done_future = None
         self._logger.info("Joined capture thread")
 
         self._status_sensor.set_value("finalising")
