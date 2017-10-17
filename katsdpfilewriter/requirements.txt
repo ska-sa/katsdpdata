@@ -25,7 +25,7 @@ ply
 pyephem
 singledispatch
 six
-# spead2
+spead2
 redis
 traceback2
 tornado
