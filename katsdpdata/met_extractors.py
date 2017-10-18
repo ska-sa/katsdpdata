@@ -120,31 +120,31 @@ class TelescopeProductMetExtractor(MetExtractor):
 
     def _extract_location_from_katdata(self):
 
-        self.metadata["RaDec_path"]=[]
-        self.metadata["RaDec"]=[]
-        self.metadata["Azel_path"]=[]
-        self.metadata["Azel"]=[]
+        self.metadata["DecRa_path"]=[]
+        self.metadata["DecRa"]=[]
+        self.metadata["ElAz_path"]=[]
+        self.metadata["ElAz"]=[]
+        
+        for i, scan, target in f.scans():
+            f.select(scans=i)
+            t = f.catalogue.targets[f.target_indices[0]]
+            if (target.body_type != 'radec'):
+                self.metadata["DecRa_path"] += ["%f,%f"%(dec,katpoint.wrap_angle(ra,360)) for ra,dec in zip(f.ra[:,0],f.dec[:,0])]
 
-        try:
-            for i, scan, target in f.scans():
-                f.select(scans=i)
-                t = f.catalogue.targets[f.target_indices[0]]
-                if (target.body_type != 'radec'):
-                    d["RaDec_path"] += ["%f,%f"%(dec,katpoint.wrap_angle(ra,360)) for ra,dec in zip(f.ra[:,0],f.dec[:,0])]
+            else:
+                self.metadata["DecRa"].append("%f,%f"%(numpy.mean(f.dec),numpy.mean(katpoint.wrap_angle(f.ra,360))))
 
+            if (target.body_type != 'azel'):
+                if max(f.el) <= 90 and min(f.el) >= -90:
+                    self.metadata["ElAz_path"] += ["%f,%f"%(el,katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
                 else:
-                    d["RaDec"].append("%f,%f"%(numpy.mean(f.dec),numpy.mean(katpoint.wrap_angle(f.ra,360))))
+                    self.metadata["ElAz_path"] += ["%f,%f"%(numpy.clip(el,-90,90),katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
 
-                if (target.body_type != 'azel'):
-                    d["Azel_path"] += ["%f,%f"%(dec,katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
-
+            else:
+                if -90 <= numpy.mean(f.el) <= 90:
+                    self.metadata["ElAz"].append("%f,%f"%(numpy.mean(f.el),numpy.mean(katpoint.wrap_angle(f.az,360))))
                 else:
-                    d["Azel"].append("%f,%f"%(numpy.mean(f.el),numpy.mean(katpoint.wrap_angle(f.az,360))))
-
-        except ValueError as e:
-            failed = open("failed_loc.csv","a+")
-            failed.write("%s,%s\n"%(file_loc, str(e)))
-            failed.close()
+                    self.metadata["ElAz"].append("%f,%f"%(numpy.mean(numpy.clip(f.el,-90,90)),numpy.mean(katpoint.wrap_angle(f.az,360))))
 
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
@@ -549,11 +549,11 @@ class BeaformerProductMetExtractor(MetExtractor):
 
     def _extract_locations(self):
         print self.metadata
-        if 'KatpointTargets' in self.metadata:
-            self.metadata["RaDec_path"]=[]
-            self.metadata["RaDec"]=[]
-            self.metadata["Azel_path"]=[]
-            self.metadata["Azel"]=[]
+        if 'KatpointTargets' in self.metadata and "StartTime" in self.metadata and 'Duration' in self.metadata:
+            self.metadata["DecRa_path"]=[]
+            self.metadata["DecRa"]=[]
+            self.metadata["ElAz_path"]=[]
+            self.metadata["ElAz"]=[]
             
             for t in self.metadata['KatpointTargets']:
                 target = katpoint.Target(t)
@@ -561,17 +561,22 @@ class BeaformerProductMetExtractor(MetExtractor):
                     try:
                         start = time.mktime(datetime.datetime.strptime(self.metadata["StartTime"], '%Y-%m-%dT%H:%M:%SZ').timetuple())
                         for ts in range(int(start), int(start + float(self.metadata['Duration'])), 10) + [start + float(self.metadata['Duration']),]:
-                            self.metadata["RaDec_path"].append("%f,%f"%(target.radec(ts)[1],target.radec(ts)[0]))
+                            self.metadata["DecRa_path"].append("%f,%f"%(target.radec(ts)[1],target.radec(ts)[0]))
                     except ValueError as e:
                         print e
 
                 else:
-                    self.metadata["RaDec"].append("%f,%f"%(target.radec()[1],target.radec()[0]))
+                    self.metadata["DecRa"].append("%f,%f"%(target.radec()[1],target.radec()[0]))
 
                 if (target.body_type == 'azel'):
-                    self.metadata["Azel"].append("%f,%f"%(target.azel(ts)[1],target.azel(ts)[0]))
+                    self.metadata["ElAz"].append("%f,%f"%(target.azel(ts)[1],target.azel(ts)[0]))
         else:
-            raise ("No Katpoint Targets")
+            print "Does not have required metadata"
+            raise NotEnoughMetadata
+
+class NotEnoughMetadata(Exception):
+    """Raised if there is not enough metadata to calculate paths"""
+    pass
 
 class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
     """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
