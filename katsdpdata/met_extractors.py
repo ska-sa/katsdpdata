@@ -3,9 +3,11 @@ import subprocess
 import sys
 import time
 import pickle
-
+import katpoint
 import katdal
-
+import time
+import datetime
+import numpy
 from katcp import BlockingClient, Message
 from xml.etree import ElementTree
 
@@ -105,17 +107,54 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['ExperimentID'] = self._katdata.experiment_id
         self.metadata['FileSize'] = str(os.path.getsize(self._katdata.file.filename))
         self.metadata['KatfileVersion'] = self._katdata.version
-        self.metadata['KatpointTargets'] = list(set([str(i).replace('tags=','') for i in self._katdata.catalogue.targets if i.name not in ['None', 'Nothing']]))
+        self.metadata['KatpointTargets'] = [t.description for t in self._katdata.catalogue.targets if t.name not in ['None', 'Nothing']]
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
         self.metadata['Observer'] = self._katdata.observer
         self.metadata['RefAntenna'] = self._katdata.ref_ant
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(self._katdata.start_time))
-        self.metadata['Targets'] = list(set([i.name for i in self._katdata.catalogue.targets if i.name not in ['None', 'Nothing', 'azel', 'radec']]))
+        self.metadata['Targets'] = [t.name for t in self._katdata.catalogue.targets if t.name not in ['None', 'Nothing', 'azel', 'radec']]
 
         try:
             self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
         except KeyError:
             pass
+
+    def _extract_location_from_katdata(self):
+
+        self.metadata["DecRa_path"]=[]
+        self.metadata["DecRa"]=[]
+        self.metadata["ElAz_path"]=[]
+        self.metadata["ElAz"]=[]
+
+        f = self._katdata
+        f.select(scans="track,scan")
+        f.select(ants=f.ref_ant)
+
+        for i, scan, target in f.scans():
+            f.select(scans=i)
+            t = f.catalogue.targets[f.target_indices[0]]
+            if (target.body_type != 'radec'):
+                self.metadata["DecRa_path"] += ["%f,%f"%(dec,katpoint.wrap_angle(ra,360)) for ra,dec in zip(f.ra[:,0],f.dec[:,0])]
+
+            else:
+                self.metadata["DecRa"].append("%f,%f"%(numpy.mean(f.dec),numpy.mean(katpoint.wrap_angle(f.ra,360))))
+
+            if (target.body_type != 'azel'):
+                if max(f.el) <= 90 and min(f.el) >= -90:
+                    self.metadata["ElAz_path"] += ["%f,%f"%(el,katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
+                else:
+                    self.metadata["ElAz_path"] += ["%f,%f"%(numpy.clip(el,-90,90),katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
+
+            else:
+                if -90 <= numpy.mean(f.el) <= 90:
+                    self.metadata["ElAz"].append("%f,%f"%(numpy.mean(f.el),numpy.mean(katpoint.wrap_angle(f.az,360))))
+                else:
+                    self.metadata["ElAz"].append("%f,%f"%(numpy.mean(numpy.clip(f.el,-90,90)),numpy.mean(katpoint.wrap_angle(f.az,360))))
+
+            if len(self.metadata["DecRa_path"]) > 2000:
+                self.metadata["DecRa_path"] = self.metadata["DecRa_path"][::len(self.metadata["DecRa_path"])/2000 + 1] + [self.metadata["DecRa_path"][-1],]
+            if len(self.metadata["ElAz_path"]) > 2000:
+                self.metadata["ElAz_path"] = self.metadata["ElAz_path"][::len(self.metadata["ElAz_path"])/2000 + 1] + [self.metadata["ElAz_path"][-1],]
 
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
@@ -220,9 +259,10 @@ class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_from_katdata()
             self._extract_metadata_for_project()
             self._extract_metadata_file_digest()
+            self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
-            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+           print "Metadata already extracted. Set the metadata_extracted attribute to False and run again." 
 
 class KatFileProductMetExtractor(KAT7TelescopeProductMetExtractor):
     def __init__(self, katdata):
@@ -278,6 +318,7 @@ class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_for_auto_reduction()
             self._extract_metadata_file_digest()
             self._extract_metadata_for_project()
+            self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
@@ -308,8 +349,16 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
         #override product_type
         self.product_type = 'MeerKATAR1TelescopeProduct'
 
-    def _extract_sub_array_product_id(self):
-        self.metadata['SubarrayProductId'] = self._katdata.file['TelescopeState'].attrs['subarray_product_id']
+    def _extract_sub_array_details(self):
+        try:
+            self.metadata['SubarrayProductId'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['subarray_product_id'])
+            self.metadata['SubarrayNumber'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_sub_nr'])
+            self.metadata['SubarrayProduct'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_product'])
+
+        except IndexError:
+            self.metadata['SubarrayProductId'] = self._katdata.file['TelescopeState'].attrs['subarray_product_id']
+            self.metadata['SubarrayNumber'] = self._katdata.file['TelescopeState'].attrs['sub_sub_nr']
+            self.metadata['SubarrayProduct'] = self._katdata.file['TelescopeState'].attrs['sub_product']
 
     def _extract_metadata_for_auto_reduction(self):
         """Populate self.metadata with information scraped from self"""
@@ -335,8 +384,9 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_product_type()
             self._extract_metadata_from_katdata()
             self._extract_metadata_for_project()
-            self._extract_sub_array_product_id()
+            self._extract_sub_array_details()
             self._extract_metadata_for_auto_reduction()
+            self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
@@ -462,7 +512,10 @@ class ObitReductionProductMetExtractor(MetExtractor):
     Parameters
     ----------
     prod_name : string : the name of a heirachical product to ingest.
-    """
+    def __init__(self, prod_name):
+            super(PulsarSearchProductMetExtractor, self).__init__(prod_name+'.met')
+                    self.product_type = 'PulsarSearchProduct'
+                            self.product_name = prod_name"""
     def __init__(self, prod_name):
         votable_file = next((p for p in os.listdir(prod_name) if p.endswith('_VOTable.xml')), None)
         tree = ElementTree.parse(os.path.join(prod_name, votable_file))
@@ -497,7 +550,50 @@ class ObitReductionProductMetExtractor(MetExtractor):
                 met[k] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.strptime(v, '%Y-%m-%d'))
         self.metadata.update(met)
 
-class PulsarSearchProductMetExtractor(MetExtractor):
+class BeaformerProductMetExtractor(MetExtractor):
+
+    def __init__(self, prod_name):
+        super(BeaformerProductMetExtractor, self).__init__(prod_name+'.met')
+        self.product_type = 'PulsarSearchProduct'
+        self.product_name = prod_name
+
+    def _extract_locations(self):
+        print self.metadata
+        if 'KatpointTargets' in self.metadata and "StartTime" in self.metadata and 'Duration' in self.metadata:
+            self.metadata["DecRa_path"]=[]
+            self.metadata["DecRa"]=[]
+            self.metadata["ElAz_path"]=[]
+            self.metadata["ElAz"]=[]
+            
+            for t in self.metadata['KatpointTargets']:
+                target = katpoint.Target(t)
+                if (target.body_type != 'radec'):
+                    try:
+                        start = time.mktime(datetime.datetime.strptime(self.metadata["StartTime"], '%Y-%m-%dT%H:%M:%SZ').timetuple())
+                        for ts in range(int(start), int(start + float(self.metadata['Duration'])), 10) + [start + float(self.metadata['Duration']),]:
+                            self.metadata["DecRa_path"].append("%f,%f"%(target.radec(ts)[1],target.radec(ts)[0]))
+                    except ValueError as e:
+                        print e
+
+                else:
+                    self.metadata["DecRa"].append("%f,%f"%(target.radec()[1],target.radec()[0]))
+
+                if (target.body_type == 'azel'):
+                    self.metadata["ElAz"].append("%f,%f"%(target.azel(ts)[1],target.azel(ts)[0]))
+
+                if len(self.metadata["DecRa_path"]) > 2000:
+                    self.metadata["DecRa_path"] = self.metadata["DecRa_path"][::len(self.metadata["DecRa_path"])/2000 + 1] + [self.metadata["DecRa_path"][-1],]
+                if len(self.metadata["ElAz_path"]) > 2000:
+                    self.metadata["ElAz_path"] = self.metadata["ElAz_path"][::len(self.metadata["ElAz_path"])/2000 + 1] + [self.metadata["ElAz_path"][-1],]
+        else:
+            print "Does not have required metadata"
+            raise NotEnoughMetadata
+
+class NotEnoughMetadata(Exception):
+    """Raised if there is not enough metadata to calculate paths"""
+    pass
+
+class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
     """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
 
     Parameters
@@ -505,21 +601,29 @@ class PulsarSearchProductMetExtractor(MetExtractor):
     prod_name : string : the name of a heirachical product to ingest.
     """
     def __init__(self, prod_name):
-        super(PulsarSearchProductMetExtractor, self).__init__(prod_name+'.met')
+        super(PulsarSearchProductMetExtractor, self).__init__(prod_name)
         self.product_type = 'PulsarSearchProduct'
         self.product_name = prod_name
     
     def extract_metadata(self):
+        print "extracting product type"
         self._extract_metadata_product_type()
+        print "extracting fits"
         self.extract_fits_header()
+        print "extracting location"
+        self._extract_locations()
    
     def extract_fits_header(self):
+        print "fits header"
         import pyfits
         data_files = os.listdir(self.product_name)
         count = 0
-	while data_files[count][-2:] != 'sf':
-	    count+=1
-	data = pyfits.open("%s/%s"%(self.product_name,data_files[count]), memmap=True, ignore_missing_end=True)
+    
+        print data_files
+        while data_files[count][-2:] != 'sf':
+            print data_files[count][-2:]
+            count+=1
+        data = pyfits.open("%s/%s"%(self.product_name,data_files[count]), memmap=True, ignore_missing_end=True)
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
@@ -531,11 +635,9 @@ class PulsarSearchProductMetExtractor(MetExtractor):
         self.metadata["Description"]=obs_info["description"]
         self.metadata["ExperimentID"]=obs_info["experiment_id"]
         self.metadata["CAS.ProductTypeName"]='PulsarSearchProduct'
-
+    
         hduPrimary = data[0].header
         hduSubint = data[2].header
-        radec = hoursToDegrees(hduPrimary["RA"],hduPrimary["DEC"])
-        self.metadata["DecRA"]="%f,%f"%(radec[1],radec[0])
         self.metadata["STT_CRD1"]=str(hduPrimary["STT_CRD1"])
         self.metadata["STT_CRD2"]=str(hduPrimary["STT_CRD2"])
         self.metadata["STP_CRD1"]=str(hduPrimary["STP_CRD1"])
@@ -549,10 +651,34 @@ class PulsarSearchProductMetExtractor(MetExtractor):
         self.metadata['ExperimentID'] = obs_info["experiment_id"]
         self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
         self.metadata['KatfileVersion'] = "sf"
-        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
         self.metadata['Observer'] = obs_info["observer"]
         self.metadata['StartTime'] = "%sZ"%hduPrimary["DATE"]
-        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')] 
+        import ast
+        self.metadata['Targets'] = ast.literal_eval(obs_info["targets"])
+   
+        import subprocess
+        import katpoint
+        cmd = ["psrcat","-c","'RAJ DECJ'", "-o", "short_csv", " ".join([t for t in self.metadata['Targets'] if not t.startswith('azel')])]
+        psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        output, err = psrstat_process.communicate()
+        self.metadata['KatpointTargets'] = []
+
+        for line in zip([t for t in self.metadata['Targets'] if not t.startswith('azel') and not t.startswith('Azel')],output.split('\n')[2:]):
+            rds = line[1].split(';')
+            t = katpoint.Target("%s, radec,%s,%s"%(line[0],rds[1],rds[2]))
+            self.metadata['KatpointTargets'].append(t.description)
+            self.metadata['Azel'] = []
+
+        for t in [t for t in self.metadata['Targets'] if t.startswith('azel') or t.startswith('Azel')]:
+            try:
+                target = katpoint.Target(t)
+                self.metadata['KatpointTargets'].append(target.description)
+            except ValueError:
+                print e
+                pass
+                    
+        print "fits extracted"
+        print self.metadata
         self._metadata_extracted = True
 
 #input string of ra and dec in hours and return floats with the degree values
@@ -565,7 +691,7 @@ def hoursToDegrees(ra,dec):
 
     return raDeg,decDeg
          
-class PulsarTimingArchiveProductMetExtractor(MetExtractor):
+class PulsarTimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
     """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
 
     Parameters
@@ -574,19 +700,23 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
     """
 
     def __init__(self, prod_name):
-        super(PulsarTimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
+        super(PulsarTimingArchiveProductMetExtractor, self).__init__(prod_name)
         self.product_type = 'PulsarTimingArchiveProduct'        
         self.product_name = prod_name
  
     def extract_metadata(self):
         self._extract_metadata_product_type()
         self.extract_archive_header()
+        self._extract_locations()
 
     def extract_archive_header(self):
         from datetime import datetime
         data_files = os.listdir(self.product_name)
+        data_files = os.listdir(self.product_name)
+        sort = sorted(data_files)
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
+
         self.metadata["Observer"]=obs_info["observer"]
         self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
         self.metadata["Targets"]=obs_info["targets"]
@@ -600,12 +730,25 @@ class PulsarTimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['Description'] = obs_info["description"]
         self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
         self.metadata['KatfileVersion'] = "ar"
-        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
-        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        import ast
+        self.metadata['Targets'] = ast.literal_eval(obs_info["targets"])
         self.metadata['StartTime'] = "%sT%sZ"%(obs_info["UTC_START"][:10],obs_info["UTC_START"][11:])
+
+        import subprocess
+        import katpoint
+        cmd = ["psrcat","-c","RAJ DECJ", "-o", "short_csv", " ".join(self.metadata['Targets'])]
+        psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        output, err = psrstat_process.communicate()
+
+        self.metadata['KatpointTargets'] = []
+        for line in zip(self.metadata['Targets'],output.split('\n')[2:]):
+            rds = line[1].split(';')
+            t = katpoint.Target("%s, radec,%s,%s"%(line[0],rds[1],rds[2]))
+            self.metadata['KatpointTargets'].append(t.description)
+
         self._metadata_extracted = True
 
-class PTUSETimingArchiveProductMetExtractor(MetExtractor):
+class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
     """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
 
     Parameters
@@ -613,22 +756,24 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
     prod_name : string : the name of a heirachical product to ingest.
     """
     def __init__(self, prod_name):
-        super(PTUSETimingArchiveProductMetExtractor, self).__init__(prod_name+'.met')
+        super(PTUSETimingArchiveProductMetExtractor, self).__init__(prod_name)
         self.product_type = 'PTUSETimingArchiveProduct'
         self.product_name = prod_name
 
     def extract_metadata(self):
         self._extract_metadata_product_type()
         self._extract_archive_header()
+        self._extract_locations()
 
     def _extract_archive_header(self):
         data_files = os.listdir(self.product_name)
         sort = sorted(data_files)
         import subprocess
         from astropy.time import Time
-        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd"]
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd,ext:ra,ext:dec"]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
+        radec = hoursToDegrees(output.split(' ')[3], output.split(' ')[4])
         imjd = output.split(' ')[2]
         smjd = output.split(' ')[1]
         start_time = Time([float(imjd) + float(smjd) / 3600.0 / 24.0],format='mjd')
@@ -649,8 +794,11 @@ class PTUSETimingArchiveProductMetExtractor(MetExtractor):
         self.metadata['Description'] = obs_info["description"]
         self.metadata['FileSize'] = str(sum(os.path.getsize(f) for f in os.listdir(self.product_name) if os.path.isfile(f)))
         self.metadata['KatfileVersion'] = "ar"
-        self.metadata['KatpointTargets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
-        self.metadata['Targets'] = [a.replace("'","") for a in obs_info["targets"][1:-1].split(',')]
+        import ast
+        self.metadata['Targets'] = ast.literal_eval(obs_info["targets"])
         self.metadata['StartTime'] = startTime
-        self._metadata_extracted = True
 
+        import katpoint
+        t = katpoint.Target("%s, radec, %s, %s"%(self.metadata["Targets"][0],radec[0],radec[1]))
+        self.metadata['KatpointTargets'] = [t.description]
+        self._metadata_extracted = True

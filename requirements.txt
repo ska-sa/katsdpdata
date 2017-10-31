@@ -28,3 +28,4 @@ certifi
 future
 futures
 astropy==1.2.1
+pyfits==3.4
