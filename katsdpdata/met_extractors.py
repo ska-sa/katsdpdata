@@ -7,6 +7,7 @@ import katpoint
 import katdal
 import time
 import datetime
+import numpy
 from katcp import BlockingClient, Message
 from xml.etree import ElementTree
 
@@ -124,7 +125,11 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata["DecRa"]=[]
         self.metadata["ElAz_path"]=[]
         self.metadata["ElAz"]=[]
-        
+
+        f = self._katdata
+        f.select(scans="track,scan")
+        f.select(ants=f.ref_ant)
+
         for i, scan, target in f.scans():
             f.select(scans=i)
             t = f.catalogue.targets[f.target_indices[0]]
@@ -145,6 +150,11 @@ class TelescopeProductMetExtractor(MetExtractor):
                     self.metadata["ElAz"].append("%f,%f"%(numpy.mean(f.el),numpy.mean(katpoint.wrap_angle(f.az,360))))
                 else:
                     self.metadata["ElAz"].append("%f,%f"%(numpy.mean(numpy.clip(f.el,-90,90)),numpy.mean(katpoint.wrap_angle(f.az,360))))
+
+            if len(self.metadata["DecRa_path"]) > 2000:
+                self.metadata["DecRa_path"] = self.metadata["DecRa_path"][::len(self.metadata["DecRa_path"])/2000 + 1] + [self.metadata["DecRa_path"][-1],]
+            if len(self.metadata["ElAz_path"]) > 2000:
+                self.metadata["ElAz_path"] = self.metadata["ElAz_path"][::len(self.metadata["ElAz_path"])/2000 + 1] + [self.metadata["ElAz_path"][-1],]
 
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
@@ -252,7 +262,7 @@ class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
-            E_1_20170918171126_J1644m4559
+           print "Metadata already extracted. Set the metadata_extracted attribute to False and run again." 
 
 class KatFileProductMetExtractor(KAT7TelescopeProductMetExtractor):
     def __init__(self, katdata):
@@ -570,6 +580,11 @@ class BeaformerProductMetExtractor(MetExtractor):
 
                 if (target.body_type == 'azel'):
                     self.metadata["ElAz"].append("%f,%f"%(target.azel(ts)[1],target.azel(ts)[0]))
+
+                if len(self.metadata["DecRa_path"]) > 2000:
+                    self.metadata["DecRa_path"] = self.metadata["DecRa_path"][::len(self.metadata["DecRa_path"])/2000 + 1] + [self.metadata["DecRa_path"][-1],]
+                if len(self.metadata["ElAz_path"]) > 2000:
+                    self.metadata["ElAz_path"] = self.metadata["ElAz_path"][::len(self.metadata["ElAz_path"])/2000 + 1] + [self.metadata["ElAz_path"][-1],]
         else:
             print "Does not have required metadata"
             raise NotEnoughMetadata
