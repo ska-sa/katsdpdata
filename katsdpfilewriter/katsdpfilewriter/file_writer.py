@@ -86,7 +86,7 @@ def set_telescope_model(h5_file, model_data, base_path="/TelescopeModel"):
                 logger.warning("Exception thrown while storing sensor %s", sensor.name, exc_info=True)
 
 
-def set_telescope_state(h5_file, tstate, base_path=_TSTATE_DATASET):
+def set_telescope_state(h5_file, tstate, base_path=_TSTATE_DATASET, start_timestamp=0):
     """Write raw pickled telescope state to an HDF5 file."""
     tstate_group = h5_file.create_group(base_path)
     tstate_group.attrs['subarray_product_id'] = tstate.get('subarray_product_id','none')
@@ -96,7 +96,8 @@ def set_telescope_state(h5_file, tstate, base_path=_TSTATE_DATASET):
 
     for key in tstate_keys:
         if not tstate.is_immutable(key):
-            sensor_values = tstate.get_range(key, st=0, return_pickle=True)
+            sensor_values = tstate.get_range(key, st=start_timestamp,
+                                             include_previous=True, return_pickle=True)
              # retrieve all values for a particular key
             # swap value, timestamp to timestamp, value
             sensor_values = [(timestamp, value) for (value, timestamp) in sensor_values]
@@ -217,7 +218,8 @@ class File(object):
 
         self._h5_file.create_dataset(_FLAGS_DESCRIPTION_DATASET, data=model_data.flags_description)
         set_telescope_model(self._h5_file, model_data, base_path)
-        set_telescope_state(self._h5_file, model_data._telstate)
+        set_telescope_state(self._h5_file, model_data._telstate,
+                            start_timestamp=model_data._start_timestamp)
         self._h5_file.flush()
 
     def free_space(self):
