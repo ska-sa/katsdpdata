@@ -3,7 +3,7 @@ backports.ssl-match-hostname
 certifi
 Cython
 h5py
-fakeredis
+fakenewsredis
 funcsigs
 future
 futures
