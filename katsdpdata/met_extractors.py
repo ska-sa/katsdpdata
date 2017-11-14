@@ -48,6 +48,7 @@ class MetExtractor(object):
 
     def _extract_metadata_product_type(self):
         self.metadata['ProductType'] = self.product_type
+        self.metadata['CAS.ProductTypeName'] = self.product_type
 
     def __str__(self):
         xml_tree = ElementTree.Element('cas:metadata')
