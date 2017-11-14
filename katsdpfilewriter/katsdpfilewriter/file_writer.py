@@ -49,6 +49,18 @@ def _split_array(array, dtype):
     return np.asarray(np.lib.stride_tricks.DummyArray(interface, base=array))
 
 
+def _array_encode(value):
+    """Convert array of Unicode values to UTF-8 encoding for storage in HDF5"""
+    if isinstance(value, bytes) or isinstance(value, unicode):
+        # h5py has special handling for these: see h5py._hl.base.guess_dtype.
+        return value
+    value = np.asarray(value)
+    if value.dtype.kind == 'U':
+        return np.core.defchararray.encode(value, 'utf-8')
+    else:
+        return value
+
+
 def set_telescope_model(h5_file, model_data, base_path="/TelescopeModel"):
     """Sets the tree of telescope model data on an HDF5 file."""
     for component in model_data.components.values():
@@ -63,7 +75,7 @@ def set_telescope_model(h5_file, model_data, base_path="/TelescopeModel"):
             try:
                 value = model_data.get_attribute_value(attribute)
                 if value is not None:
-                    c_group.attrs[attribute.name] = value
+                    c_group.attrs[attribute.name] = _array_encode(value)
             except Exception:
                 logger.warning("Exception thrown while storing attribute %s", attribute.name, exc_info=True)
         for sensor in sorted(component.sensors, key=lambda sensor: sensor.name):
