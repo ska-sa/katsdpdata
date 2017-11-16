@@ -218,9 +218,9 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libpython2.7.so $HOME/ve/lib/python2.7/libpy
 
 # Downloading all source codes
 WORKDIR $PSRHOME
-RUN wget http://www.imcce.fr/fr/presentation/equipes/ASD/inpop/calceph/calceph-2.3.0.tar.gz && \
-    tar -xvvf calceph-2.3.0.tar.gz -C $PSRHOME && \
-    wget http://www.atnf.csiro.au/people/pulsar/psrcat/downloads/psrcat_pkg.tar.gz && \
+RUN wget --no-check-certificate https://www.imcce.fr/content/medias/recherche/equipes/asd/calceph/calceph-2.3.2.tar.gz && \
+    tar -xvvf calceph-2.3.2.tar.gz -C $PSRHOME && \
+    wget --no-check-certificate http://www.atnf.csiro.au/people/pulsar/psrcat/downloads/psrcat_pkg.tar.gz && \
     tar -xvf psrcat_pkg.tar.gz -C $PSRHOME && \
     git clone https://bitbucket.org/psrsoft/tempo2.git && \
     git clone git://git.code.sf.net/p/tempo/tempo && \
@@ -238,7 +238,7 @@ ENV PGPLOT_DEV /xs
 
 
 # calceph
-ENV CALCEPH $PSRHOME/calceph-2.3.0
+ENV CALCEPH $PSRHOME/calceph-2.3.2
 ENV PATH $PATH:$CALCEPH/install/bin
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:$CALCEPH/install/lib
 ENV C_INCLUDE_PATH $C_INCLUDE_PATH:$CALCEPH/install/include
