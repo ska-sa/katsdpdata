@@ -191,9 +191,9 @@ class FileWriterServer(DeviceServer):
                 file_obj.set_timestamps(timestamps)
                 self._logger.info('Set %d timestamps', len(timestamps))
 
-    @request()
+    @request(Str(optional=True))
     @return_reply(Str())
-    def request_capture_init(self, req):
+    def request_capture_init(self, req, program_block_id=None):
         """Start listening for L0 data and write it to HDF5 file."""
         if self._capture_thread is not None:
             self._logger.info("Ignoring capture_init because already capturing")
