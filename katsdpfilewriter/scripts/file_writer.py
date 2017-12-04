@@ -235,7 +235,7 @@ class FileWriterServer(DeviceServer):
         # 10 bytes per visibility: 8 for visibility, 1 for flags, 1 for weights; plus weights_channel
         l0_heap_size = n_bls * n_chans_per_substream * 10 + n_chans_per_substream * 4
         n_substreams = n_chans // n_chans_per_substream
-        self._rx = spead2.recv.Stream(spead2.ThreadPool(), bug_compat=spead2.BUG_COMPAT_PYSPEAD_0_5_2,
+        self._rx = spead2.recv.Stream(spead2.ThreadPool(),
                                       max_heaps=2 * n_substreams, ring_heaps=2 * n_substreams,
                                       contiguous_only=False)
         memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8 * n_substreams, 8 * n_substreams)
