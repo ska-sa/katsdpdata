@@ -55,7 +55,7 @@ class FileWriterServer(DeviceServer):
         self._capture_thread = None
         #: Signalled when about to stop the thread. Never waited for, just a thread-safe flag.
         self._stopping = threading.Event()
-        self._telstate = telstate
+        self._telstate = telstate.view(l0_name)
         self._model = ar1_model.create_model(antenna_mask=self.get_antenna_mask())
         self._file_obj = None
         self._start_timestamp = None
@@ -64,7 +64,7 @@ class FileWriterServer(DeviceServer):
     def get_antenna_mask(self):
         """Extract list of antennas from baseline list"""
         antennas = set()
-        bls_ordering = self._telstate[self._stream_name + '_bls_ordering']
+        bls_ordering = self._telstate['bls_ordering']
         for a, b in bls_ordering:
             antennas.add(a[:-1])
             antennas.add(b[:-1])
@@ -187,7 +187,7 @@ class FileWriterServer(DeviceServer):
             if not timestamps:
                 self._logger.warning("H5 file contains no data and hence no timestamps")
             else:
-                timestamps = np.array(timestamps) + self._telstate.cbf_sync_time
+                timestamps = np.array(timestamps) + self._telstate['sync_time']
                 file_obj.set_timestamps(timestamps)
                 self._logger.info('Set %d timestamps', len(timestamps))
 
@@ -222,9 +222,9 @@ class FileWriterServer(DeviceServer):
         self._start_timestamp = timestamp
         # Set up memory buffers, depending on size of input heaps
         try:
-            n_chans = self._telstate[self._stream_name + '_n_chans']
-            n_chans_per_substream = self._telstate[self._stream_name + '_n_chans_per_substream']
-            n_bls = self._telstate[self._stream_name + '_n_bls']
+            n_chans = self._telstate['n_chans']
+            n_chans_per_substream = self._telstate['n_chans_per_substream']
+            n_bls = self._telstate['n_bls']
         except KeyError as error:
             self._logger.error('Missing telescope state key: %s', error)
             end_status = 'bad-telstate'
@@ -280,7 +280,7 @@ class FileWriterServer(DeviceServer):
 
         self._status_sensor.set_value("finalising")
         self._file_obj.set_metadata(telescope_model.TelstateModelData(
-                self._model, self._telstate, self._start_timestamp))
+                self._model, self._telstate.root(), self._start_timestamp))
         self._file_obj.close()
         self._file_obj = None
         self._start_timestamp = None
