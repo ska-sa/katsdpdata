@@ -19,8 +19,7 @@ class AntennaPositioner(TelescopeComponent):
                  'pos_request_scan_azim', 'pos_request_scan_elev',
                  'pos_actual_scan_azim', 'pos_actual_scan_elev',
                  'dig_noise_diode', 'ap_indexer_position',
-                 'rsc_rxl_serial_number', 'rsc_rxs_serial_number',
-                 'rsc_rxu_serial_number', 'rsc_rxx_serial_number'], True)
+                 'rx_serial_number'], True)
         self.add_attributes(['observer'], True)
         self.add_attributes(['description'], False)
 
@@ -30,10 +29,6 @@ class CorrelatorBeamformer(TelescopeComponent):
         super(CorrelatorBeamformer, self).__init__(*args, **kwargs)
         self.add_sensors(['target'], True)
         self.add_sensors(['auto_delay_enabled'], False)
-        self.add_attributes(
-                ['n_chans', 'n_accs', 'n_bls', 'bls_ordering', 'bandwidth',
-                 'sync_time', 'int_time', 'scale_factor_timestamp'], True)
-        self.add_attributes(['center_freq'], False)
 
 
 class Enviro(TelescopeComponent):
@@ -57,12 +52,6 @@ class Observation(TelescopeComponent):
         self.add_sensors(['script_log'], False)
 
 
-class SDP(TelescopeComponent):
-    def __init__(self, *args, **kwargs):
-        super(SDP, self).__init__(*args, **kwargs)
-        self.add_attributes(['l0_int_time'], True)
-
-
 def create_model(antenna_mask=[]):
     components = []
     for ant_name in antenna_mask:
@@ -70,8 +59,7 @@ def create_model(antenna_mask=[]):
     cbf = CorrelatorBeamformer(name='cbf')
     env = Enviro(name='anc')
     obs = Observation(name='obs')
-    sdp = SDP(name='sdp')
-    components.extend([cbf, env, obs, sdp])
+    components.extend([cbf, env, obs])
 
     model = TelescopeModel()
     model.add_components(components)
