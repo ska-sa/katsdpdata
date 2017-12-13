@@ -193,7 +193,7 @@ class FileWriterServer(DeviceServer):
 
     @request(Str(optional=True))
     @return_reply(Str())
-    def request_capture_init(self, req, program_block_id=None):
+    def request_capture_init(self, req, capture_block_id=None):
         """Start listening for L0 data and write it to HDF5 file."""
         if self._capture_thread is not None:
             self._logger.info("Ignoring capture_init because already capturing")
