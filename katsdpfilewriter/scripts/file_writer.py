@@ -271,9 +271,14 @@ class FileWriterServer(DeviceServer):
         """
         if self._capture_thread is None:
             return ("fail", "Not capturing")
+        self._logger.info("Waiting for capture thread")
+        self._capture_thread.join(timeout=5)
         self._stopping.set()   # Prevents warnings about incomplete heaps as the stop occurs
-        self._rx.stop()
-        self._capture_thread.join()
+        if self._capture_thread.isAlive():  # The join timed out
+            self._logger.info("Stopping receiver")
+            self._rx.stop()
+            self._logger.info("Waiting for capture thread")
+            self._capture_thread.join()
         self._capture_thread = None
         self._rx = None
         self._logger.info("Joined capture thread")
