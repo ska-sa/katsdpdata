@@ -17,7 +17,7 @@ setup(
     install_requires=[
         'h5py',
         'numpy',
-        'spead2>=1.4.0',
+        'spead2>=1.5.0',     # For stop_on_stop_item
         'katcp',
         'katdal',
         'katsdptelstate',
