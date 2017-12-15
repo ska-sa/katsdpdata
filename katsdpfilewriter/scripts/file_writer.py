@@ -110,6 +110,7 @@ class FileWriterServer(DeviceServer):
         n_heaps = 0
         n_bytes = 0
         n_incomplete_heaps = 0
+        n_stop = 0    # Number of stop heaps received (need one per endpoint)
         self._input_dumps_sensor.set_value(n_dumps)
         self._input_heaps_sensor.set_value(n_heaps)
         self._input_bytes_sensor.set_value(n_bytes)
@@ -130,6 +131,13 @@ class FileWriterServer(DeviceServer):
                     self._logger.info('First heap received')
                     self._status_sensor.set_value("capturing")
                     first = False
+                if heap.is_end_of_stream():
+                    n_stop += 1
+                    if n_stop == len(self._endpoints):
+                        self._rx.stop()
+                        break
+                    else:
+                        continue
                 if isinstance(heap, spead2.recv.IncompleteHeap):
                     # Don't warn if we've already been asked to stop. There may
                     # be some heaps still in the network at the time we were
@@ -240,6 +248,7 @@ class FileWriterServer(DeviceServer):
                                       contiguous_only=False)
         memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8 * n_substreams, 8 * n_substreams)
         self._rx.set_memory_pool(memory_pool)
+        self._rx.stop_on_stop_item = False
         for endpoint in self._endpoints:
             if self._interface_address is not None:
                 self._rx.add_udp_reader(endpoint.host, endpoint.port,
@@ -271,9 +280,14 @@ class FileWriterServer(DeviceServer):
         """
         if self._capture_thread is None:
             return ("fail", "Not capturing")
+        self._logger.info("Waiting for capture thread (5s timeout)")
+        self._capture_thread.join(timeout=5)
         self._stopping.set()   # Prevents warnings about incomplete heaps as the stop occurs
-        self._rx.stop()
-        self._capture_thread.join()
+        if self._capture_thread.isAlive():  # The join timed out
+            self._logger.info("Stopping receiver")
+            self._rx.stop()
+            self._logger.info("Waiting for capture thread")
+            self._capture_thread.join()
         self._capture_thread = None
         self._rx = None
         self._logger.info("Joined capture thread")
