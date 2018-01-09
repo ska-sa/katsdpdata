@@ -101,6 +101,7 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['Antennas'] = [a.name for a in self._katdata.ants]
         self.metadata['CenterFrequency'] = str(self._katdata.channel_freqs[self._katdata.channels[-1]/2])
         self.metadata['ChannelWidth'] = str(self._katdata.channel_width)
+        self.metadata['Bandwidth'] = str(max(self._katdata.freqs) - min(self._katdata.freqs) + self._katdata.channel_width
         self.metadata['Description'] = self._katdata.description
         self.metadata['Details'] = str(self._katdata)
         self.metadata['DumpPeriod'] = '%.4f' % (self._katdata.dump_period)
@@ -645,6 +646,7 @@ class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
         self.metadata["STP_CRD2"]=str(hduPrimary["STP_CRD2"])
         self.metadata["TRK_MODE"]=str(hduPrimary["TRK_MODE"])
         self.metadata["CAL_MODE"]=str(hduPrimary["CAL_MODE"])
+        self.metadata["Bandwidth"]=str(hduPrimary["OBSBW"])
         self.metadata["NPOL"]=str(hduSubint["NPOL"])
         self.metadata["POL_TYPE"]=str(hduSubint["POL_TYPE"])
         self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
@@ -747,6 +749,12 @@ class PulsarTimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
             t = katpoint.Target("%s, radec,%s,%s"%(line[0],rds[1],rds[2]))
             self.metadata['KatpointTargets'].append(t.description)
 
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","bw"]
+        psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        output, err = psrstat_process.communicate()
+        bandwidth = output.split(' ')
+        self.metadata['Bandwidth'] = bandwidth
+
         self._metadata_extracted = True
 
 class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
@@ -771,7 +779,7 @@ class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         sort = sorted(data_files)
         import subprocess
         from astropy.time import Time
-        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd,ext:ra,ext:dec"]
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd,ext:ra,ext:dec,bw"]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
         radec = hoursToDegrees(output.split(' ')[3], output.split(' ')[4])
@@ -780,10 +788,12 @@ class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         start_time = Time([float(imjd) + float(smjd) / 3600.0 / 24.0],format='mjd')
         start_time.format = 'isot'
         startTime =start_time.value[0][:-4]+'Z'
+        bandwidth=output.split(' ')[5]
         
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
+        self.metadata["Bandwidth"]=bandwidth
         self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
         self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
         self.metadata["Duration"]=obs_info["target_duration"]
