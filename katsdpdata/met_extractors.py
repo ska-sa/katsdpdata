@@ -101,7 +101,9 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['Antennas'] = [a.name for a in self._katdata.ants]
         self.metadata['CenterFrequency'] = str(self._katdata.channel_freqs[self._katdata.channels[-1]/2])
         self.metadata['ChannelWidth'] = str(self._katdata.channel_width)
-        self.metadata['Bandwidth'] = str(max(self._katdata.freqs) - min(self._katdata.freqs) + self._katdata.channel_width
+        self.metadata['MinFreq'] = str(min(self._katdata.freqs))
+        self.metadata['MaxFreq'] = str(max(self._katdata.freqs) + self._katdata.channel_width)
+        self.metadata['Bandwidth'] = str(max(self._katdata.freqs) - min(self._katdata.freqs) + self._katdata.channel_width)
         self.metadata['Description'] = self._katdata.description
         self.metadata['Details'] = str(self._katdata)
         self.metadata['DumpPeriod'] = '%.4f' % (self._katdata.dump_period)
@@ -647,6 +649,8 @@ class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
         self.metadata["TRK_MODE"]=str(hduPrimary["TRK_MODE"])
         self.metadata["CAL_MODE"]=str(hduPrimary["CAL_MODE"])
         self.metadata["Bandwidth"]=str(hduPrimary["OBSBW"])
+        self.metadata["MinFreq"]  = str(hduPrimary["OBSFREQ"] - hduPrimary["OBSBW"] / 2)
+        self.metadata["MaxFreq"]  = str(hduPrimary["OBSFREQ"] + hduPrimary["OBSBW"] / 2)
         self.metadata["NPOL"]=str(hduSubint["NPOL"])
         self.metadata["POL_TYPE"]=str(hduSubint["POL_TYPE"])
         self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
@@ -749,12 +753,16 @@ class PulsarTimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
             t = katpoint.Target("%s, radec,%s,%s"%(line[0],rds[1],rds[2]))
             self.metadata['KatpointTargets'].append(t.description)
 
-        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","bw"]
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","bw,freq"]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
-        bandwidth = output.split(' ')
+        bandwidth = output.split(' ')[1]
+        centre_freq = output.split(' ')[2]
+        min_freq = float(centre_freq) - float(bandwidth)/2
+        max_freq = float(centre_freq) + float(bandwidth)/2
         self.metadata['Bandwidth'] = bandwidth
-
+        self.metadata["Min_Freq"]=str(min_freq)
+        self.metadata["Max_Freq"]=str(max_freq)
         self._metadata_extracted = True
 
 class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
@@ -779,7 +787,7 @@ class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         sort = sorted(data_files)
         import subprocess
         from astropy.time import Time
-        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd,ext:ra,ext:dec,bw"]
+        cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","ext:stt_smjd,ext:stt_imjd,ext:ra,ext:dec,bw,freq"]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
         radec = hoursToDegrees(output.split(' ')[3], output.split(' ')[4])
@@ -789,11 +797,16 @@ class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         start_time.format = 'isot'
         startTime =start_time.value[0][:-4]+'Z'
         bandwidth=output.split(' ')[5]
+        centre_freq = output.split(' ')[6]
+        min_freq = float(centre_freq) - float(bandwidth)/2
+        max_freq = float(centre_freq) + float(bandwidth)/2
         
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
         self.metadata["Bandwidth"]=bandwidth
+        self.metadata["Min_Freq"]=str(min_freq)
+        self.metadata["Max_Freq"]=str(max_freq)
         self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
         self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
         self.metadata["Duration"]=obs_info["target_duration"]
