@@ -648,9 +648,9 @@ class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
         self.metadata["STP_CRD2"]=str(hduPrimary["STP_CRD2"])
         self.metadata["TRK_MODE"]=str(hduPrimary["TRK_MODE"])
         self.metadata["CAL_MODE"]=str(hduPrimary["CAL_MODE"])
-        self.metadata["Bandwidth"]=str(hduPrimary["OBSBW"])
-        self.metadata["MinFreq"]  = str(hduPrimary["OBSFREQ"] - hduPrimary["OBSBW"] / 2)
-        self.metadata["MaxFreq"]  = str(hduPrimary["OBSFREQ"] + hduPrimary["OBSBW"] / 2)
+        self.metadata["Bandwidth"]=str(hduPrimary["OBSBW"] * 1000000)
+        self.metadata["MinFreq"]  = str((hduPrimary["OBSFREQ"] - hduPrimary["OBSBW"] / 2) * 1000000)
+        self.metadata["MaxFreq"]  = str((hduPrimary["OBSFREQ"] + hduPrimary["OBSBW"] / 2) * 1000000)
         self.metadata["NPOL"]=str(hduSubint["NPOL"])
         self.metadata["POL_TYPE"]=str(hduSubint["POL_TYPE"])
         self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
@@ -756,13 +756,15 @@ class PulsarTimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         cmd = ["psrstat","-Q","%s/%s"%(self.product_name,sort[0]),"-c","bw,freq"]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
-        bandwidth = output.split(' ')[1]
+        bandwidth = float(output.split(' ')[1])
         centre_freq = output.split(' ')[2]
-        min_freq = float(centre_freq) - float(bandwidth)/2
-        max_freq = float(centre_freq) + float(bandwidth)/2
-        self.metadata['Bandwidth'] = bandwidth
+        min_freq = (float(centre_freq) - bandwidth/2) * 1000000
+        max_freq = (float(centre_freq) + bandwidth/2) * 1000000
         self.metadata["Min_Freq"]=str(min_freq)
         self.metadata["Max_Freq"]=str(max_freq)
+        bandwidth = bandwidth * 1000000
+        self.metadata['Bandwidth'] = str(bandwidth)
+
         self._metadata_extracted = True
 
 class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
@@ -796,15 +798,16 @@ class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         start_time = Time([float(imjd) + float(smjd) / 3600.0 / 24.0],format='mjd')
         start_time.format = 'isot'
         startTime =start_time.value[0][:-4]+'Z'
-        bandwidth=output.split(' ')[5]
+        bandwidth=float(output.split(' ')[5])
         centre_freq = output.split(' ')[6]
-        min_freq = float(centre_freq) - float(bandwidth)/2
-        max_freq = float(centre_freq) + float(bandwidth)/2
+        min_freq = (float(centre_freq) - bandwidth/2) * 1000000
+        max_freq = (float(centre_freq) + bandwidth/2) * 1000000
+        bandwidth=bandwidth * 1000000
         
         obs_info_file = open ("%s/obs_info.dat"%self.product_name)
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
-        self.metadata["Bandwidth"]=bandwidth
+        self.metadata["Bandwidth"]=str(bandwidth)
         self.metadata["Min_Freq"]=str(min_freq)
         self.metadata["Max_Freq"]=str(max_freq)
         self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
