@@ -760,8 +760,8 @@ class PulsarTimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         centre_freq = output.split(' ')[2]
         min_freq = (float(centre_freq) - bandwidth/2) * 1000000
         max_freq = (float(centre_freq) + bandwidth/2) * 1000000
-        self.metadata["Min_Freq"]=str(min_freq)
-        self.metadata["Max_Freq"]=str(max_freq)
+        self.metadata["MinFreq"]=str(min_freq)
+        self.metadata["MaxFreq"]=str(max_freq)
         bandwidth = bandwidth * 1000000
         self.metadata['Bandwidth'] = str(bandwidth)
 
@@ -808,8 +808,8 @@ class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         obs_info = dict([a.split(';') for a in obs_info_file.read().split('\n')[:-1]])
         self.metadata["Observer"]=obs_info["observer"]
         self.metadata["Bandwidth"]=str(bandwidth)
-        self.metadata["Min_Freq"]=str(min_freq)
-        self.metadata["Max_Freq"]=str(max_freq)
+        self.metadata["MinFreq"]=str(min_freq)
+        self.metadata["MaxFreq"]=str(max_freq)
         self.metadata["ProgramBlockId"]=obs_info["program_block_id"]
         self.metadata["ScheduleBlockIdCode"]=obs_info["sb_id_code"]
         self.metadata["Duration"]=obs_info["target_duration"]
