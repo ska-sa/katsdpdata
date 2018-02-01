@@ -22,7 +22,7 @@ if os.path.isfile(metfilename):
     sys.exit(0)
 
 #met extractor specific
-if product_name[:10] = "MeerKATAR1":
+if product_name[:10] == "MeerKATAR1":
     met_extractor = MeerKATAR1ReductionProductMetExtractor(product_name)
 else:
     met_extractor = CalibrationProductMetExtractor(product_name)

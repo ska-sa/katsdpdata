@@ -839,7 +839,7 @@ class CalibrationProductMetExtractor(MetExtractor):
     prod_name : string : the name of a heirachical product to ingest.
     """
     def __init__(self, prod_name):
-        super(MetExtractor, self).__init__(prod_name)
+        super(CalibrationProductMetExtractor, self).__init__("%s.%s"%(prod_name,"met"))
         self.product_type = 'MeerKATMeerKATAR1ReductionProduct'
         self.product_name = prod_name
 
