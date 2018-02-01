@@ -3,6 +3,7 @@ import os
 import sys
 
 from katsdpdata.met_extractors import MeerKATAR1ReductionProductMetExtractor
+from katsdpdata.met_extractors import CalibrationProductMetExtractor
 from optparse import OptionParser
 
 usage = 'Usage: %prog product_name'
@@ -21,6 +22,9 @@ if os.path.isfile(metfilename):
     sys.exit(0)
 
 #met extractor specific
-met_extractor = MeerKATAR1ReductionProductMetExtractor(product_name)
+if product_name[:10] = "MeerKATAR1":
+    met_extractor = MeerKATAR1ReductionProductMetExtractor(product_name)
+else:
+    met_extractor = CalibrationProductMetExtractor(product_name)
 met_extractor.extract_metadata()
 met_extractor.write_metadatafile()

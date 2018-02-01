@@ -829,3 +829,25 @@ class PTUSETimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         t = katpoint.Target("%s, radec, %s, %s"%(self.metadata["Targets"][0],radec[0],radec[1]))
         self.metadata['KatpointTargets'] = [t.description]
         self._metadata_extracted = True
+
+
+class CalibrationProductMetExtractor(MetExtractor):
+    """A class for handling calibration report metadata extraction.
+
+    Parameters
+    ----------
+    prod_name : string : the name of a heirachical product to ingest.
+    """
+    def __init__(self, prod_name):
+        super(MetExtractor, self).__init__(prod_name)
+        self.product_type = 'MeerKATMeerKATAR1ReductionProduct'
+        self.product_name = prod_name
+
+    def extract_metadata(self):
+        if not self._metadata_extracted:
+            self._extract_metadata_product_type()
+            self.metadata['ReductionName'] = "Calibration Report"
+            self.metadata['ScheduleBlockIdCode'] = self.product_name[-13:]
+            self._metadata_extracted = True
+        else:
+            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
