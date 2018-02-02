@@ -23,8 +23,10 @@ if os.path.isfile(metfilename):
 
 #met extractor specific
 if product_name[:10] == "MeerKATAR1":
+    print "reduction"
     met_extractor = MeerKATAR1ReductionProductMetExtractor(product_name)
 else:
+    print "cal"
     met_extractor = CalibrationProductMetExtractor(product_name)
 met_extractor.extract_metadata()
 met_extractor.write_metadatafile()

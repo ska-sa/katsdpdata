@@ -840,7 +840,7 @@ class CalibrationProductMetExtractor(MetExtractor):
     """
     def __init__(self, prod_name):
         super(CalibrationProductMetExtractor, self).__init__("%s.%s"%(prod_name,"met"))
-        self.product_type = 'MeerKATMeerKATAR1ReductionProduct'
+        self.product_type = 'MeerKATAR1ReductionProduct'
         self.product_name = prod_name
 
     def extract_metadata(self):
