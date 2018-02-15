@@ -18,6 +18,7 @@ setup(
     install_requires=[
         'h5py',
         'numpy',
+        'dask[array]',
         'spead2>=1.5.0',     # For stop_on_stop_item
         'katcp',
         'katdal',
