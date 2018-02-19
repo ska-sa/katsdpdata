@@ -37,18 +37,17 @@ class Enviro(TelescopeComponent):
                  'mean_wind_speed', 'wind_direction'])
 
 
-class Digitiser(TelescopeComponent):
-    def __init__(self, *args, **kwargs):
-        super(Digitiser, self).__init__(*args, **kwargs)
-        self.add_sensors(['overflow'])
-
-
 class Observation(TelescopeComponent):
     def __init__(self, *args, **kwargs):
         super(Observation, self).__init__(*args, **kwargs)
-        self.add_attributes(['params'], True)
         self.add_sensors(['label'], True)
         self.add_sensors(['script_log'], False)
+
+
+class ScienceDataProcessor(TelescopeComponent):
+    def __init__(self, *args, **kwargs):
+        super(ScienceDataProcessor, self).__init__(*args, **kwargs)
+        self.add_attributes(['capture_block_id'], True)
 
 
 def create_model(antenna_mask=[]):
@@ -58,7 +57,8 @@ def create_model(antenna_mask=[]):
     cbf = CorrelatorBeamformer(name='cbf')
     env = Enviro(name='anc')
     obs = Observation(name='obs')
-    components.extend([cbf, env, obs])
+    sdp = ScienceDataProcessor(name='sdp')
+    components.extend([cbf, env, obs, sdp])
 
     model = TelescopeModel()
     model.add_components(components)
