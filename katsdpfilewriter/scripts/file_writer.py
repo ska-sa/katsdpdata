@@ -241,7 +241,8 @@ class FileWriterServer(DeviceServer):
         except KeyError as error:
             self._logger.error('Missing telescope state key: %s', error)
             return ("fail", "Missing telescope state key: {}".format(error))
-        self._file_obj = file_writer.File(self._stage_filename, self._stream_name)
+        self._file_obj = file_writer.File(self._stage_filename,
+                                          capture_block_id, self._stream_name)
         self._file_obj.create_data((n_chans, n_bls))
 
         # 10 bytes per visibility: 8 for visibility, 1 for flags, 1 for weights; plus weights_channel

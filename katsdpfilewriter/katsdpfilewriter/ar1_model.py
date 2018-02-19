@@ -44,12 +44,6 @@ class Observation(TelescopeComponent):
         self.add_sensors(['script_log'], False)
 
 
-class ScienceDataProcessor(TelescopeComponent):
-    def __init__(self, *args, **kwargs):
-        super(ScienceDataProcessor, self).__init__(*args, **kwargs)
-        self.add_attributes(['capture_block_id'], True)
-
-
 def create_model(antenna_mask=[]):
     components = []
     for ant_name in antenna_mask:
@@ -57,8 +51,7 @@ def create_model(antenna_mask=[]):
     cbf = CorrelatorBeamformer(name='cbf')
     env = Enviro(name='anc')
     obs = Observation(name='obs')
-    sdp = ScienceDataProcessor(name='sdp')
-    components.extend([cbf, env, obs, sdp])
+    components.extend([cbf, env, obs])
 
     model = TelescopeModel()
     model.add_components(components)
