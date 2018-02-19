@@ -14,27 +14,27 @@ The status sensor has the following states:
 """
 
 from __future__ import print_function, division
-import spead2
-import spead2.recv
-import katsdptelstate
+
 import time
-import os.path
 import os
 import sys
 import threading
 import logging
 import Queue
-import numpy as np
 import signal
+
+import numpy as np
 import manhole
-import netifaces
-import concurrent.futures
+import spead2
+import spead2.recv
+import katsdptelstate
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import request, return_reply, Str
 import katsdpservices
 from katsdpfilewriter import telescope_model, ar1_model, file_writer
 
 
+logger = logging.getLogger(__name__)
 #: Bytes free at which a running capture will be stopped
 FREE_DISK_THRESHOLD_STOP = 2 * 1024**3
 #: Bytes free at which a new capture will be refused
@@ -82,19 +82,24 @@ class FileWriterServer(DeviceServer):
                 "filename", "Final name for file being captured", "")
         self.add_sensor(self._filename_sensor)
         self._input_dumps_sensor = Sensor.integer(
-                "input-dumps-total", "Number of (possibly partial) input dumps captured in this session.", "", default=0)
+                "input-dumps-total",
+                "Number of (possibly partial) input dumps captured in this session.", "", default=0)
         self.add_sensor(self._input_dumps_sensor)
         self._input_heaps_sensor = Sensor.integer(
-                "input-heaps-total", "Number of input heaps captured in this session.", "", default=0)
+                "input-heaps-total",
+                "Number of input heaps captured in this session.", "", default=0)
         self.add_sensor(self._input_heaps_sensor)
         self._input_incomplete_heaps_sensor = Sensor.integer(
-                "input-incomplete-heaps-total", "Number of incomplete heaps that were dropped.", "", default=0)
+                "input-incomplete-heaps-total",
+                "Number of incomplete heaps that were dropped.", "", default=0)
         self.add_sensor(self._input_incomplete_heaps_sensor)
         self._input_bytes_sensor = Sensor.integer(
-                "input-bytes-total", "Number of payload bytes received in this session.", "B", default=0)
+                "input-bytes-total",
+                "Number of payload bytes received in this session.", "B", default=0)
         self.add_sensor(self._input_bytes_sensor)
         self._disk_free_sensor = Sensor.float(
-                "disk-free", "Free disk space in bytes on target device for this file.", "B")
+                "disk-free",
+                "Free disk space in bytes on target device for this file.", "B")
         self.add_sensor(self._disk_free_sensor)
 
     def _do_capture(self, file_obj):
@@ -116,7 +121,6 @@ class FileWriterServer(DeviceServer):
         self._input_heaps_sensor.set_value(n_heaps)
         self._input_bytes_sensor.set_value(n_bytes)
         self._input_incomplete_heaps_sensor.set_value(n_incomplete_heaps)
-        loop_time = time.time()
         free_space = file_obj.free_space()
         self._disk_free_sensor.set_value(free_space)
         # status to report once the capture stops
@@ -219,7 +223,7 @@ class FileWriterServer(DeviceServer):
             free_space = stat.f_bsize * stat.f_bavail
             if free_space < FREE_DISK_THRESHOLD_START:
                 self._logger.error("Insufficient disk space to start capture (%d < %d)",
-                                  free_space, FREE_DISK_THRESHOLD_START)
+                                   free_space, FREE_DISK_THRESHOLD_START)
                 self._device_status_sensor.set_value("fail", "error")
                 return ("fail", "Disk too full (only {:.2f} GiB free)".format(free_space / 1024**3))
         self._device_status_sensor.set_value("ok")
@@ -236,7 +240,6 @@ class FileWriterServer(DeviceServer):
             n_bls = self._telstate_l0['n_bls']
         except KeyError as error:
             self._logger.error('Missing telescope state key: %s', error)
-            end_status = 'bad-telstate'
             return ("fail", "Missing telescope state key: {}".format(error))
         self._file_obj = file_writer.File(self._stage_filename, self._stream_name)
         self._file_obj.create_data((n_chans, n_bls))
@@ -247,7 +250,8 @@ class FileWriterServer(DeviceServer):
         self._rx = spead2.recv.Stream(spead2.ThreadPool(),
                                       max_heaps=2 * n_substreams, ring_heaps=2 * n_substreams,
                                       contiguous_only=False)
-        memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096, 8 * n_substreams, 8 * n_substreams)
+        memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size+4096,
+                                        8 * n_substreams, 8 * n_substreams)
         self._rx.set_memory_pool(memory_pool)
         self._rx.stop_on_stop_item = False
         for endpoint in self._endpoints:
@@ -316,6 +320,7 @@ class FileWriterServer(DeviceServer):
         self._status_sensor.set_value("idle")
         return result
 
+
 def comma_list(type_):
     """Return a function which splits a string on commas and converts each element to
     `type_`."""
@@ -324,6 +329,7 @@ def comma_list(type_):
         return [type_(x) for x in arg.split(',')]
     return convert
 
+
 def main():
     katsdpservices.setup_logging()
     logger = logging.getLogger("katsdpfilewriter")
@@ -331,12 +337,24 @@ def main():
     katsdpservices.setup_restart()
 
     parser = katsdpservices.ArgumentParser()
-    parser.add_argument('--l0-spead', type=katsdptelstate.endpoint.endpoint_list_parser(7200), default=':7200', help='source port/multicast groups for spectral L0 input. [default=%(default)s]', metavar='ENDPOINTS')
-    parser.add_argument('--l0-interface', help='interface to subscribe to for L0 data. [default=auto]', metavar='INTERFACE')
-    parser.add_argument('--l0-name', default='sdp_l0', help='telstate prefix for L0 metadata. [default=%(default)s]', metavar='NAME')
-    parser.add_argument('--file-base', default='.', type=str, help='base directory into which to write HDF5 files. [default=%(default)s]', metavar='DIR')
-    parser.add_argument('-p', '--port', dest='port', type=int, default=2046, metavar='N', help='katcp host port. [default=%(default)s]')
-    parser.add_argument('-a', '--host', dest='host', type=str, default="", metavar='HOST', help='katcp host address. [default=all hosts]')
+    parser.add_argument('--l0-spead',
+                        type=katsdptelstate.endpoint.endpoint_list_parser(7200),
+                        default=':7200',
+                        help='source port/multicast groups for spectral L0 input. [default=%(default)s]',
+                        metavar='ENDPOINTS')
+    parser.add_argument('--l0-interface',
+                        help='interface to subscribe to for L0 data. [default=auto]',
+                        metavar='INTERFACE')
+    parser.add_argument('--l0-name', default='sdp_l0',
+                        help='telstate prefix for L0 metadata. [default=%(default)s]',
+                        metavar='NAME')
+    parser.add_argument('--file-base', default='.', type=str,
+                        help='base directory into which to write HDF5 files. [default=%(default)s]',
+                        metavar='DIR')
+    parser.add_argument('-p', '--port', dest='port', type=int, default=2046,
+                        help='katcp host port. [default=%(default)s]', metavar='N')
+    parser.add_argument('-a', '--host', dest='host', type=str, default="",
+                        help='katcp host address. [default=all hosts]', metavar='HOST')
     parser.set_defaults(telstate='localhost')
     args = parser.parse_args()
     if not os.access(args.file_base, os.W_OK):
@@ -351,8 +369,7 @@ def main():
     server.start()
     logger.info("Started file writer server.")
 
-
-    manhole.install(oneshot_on='USR1', locals={'server':server, 'args':args})
+    manhole.install(oneshot_on='USR1', locals={'server': server, 'args': args})
      # allow remote debug connections and expose server and args
 
     def graceful_exit(_signo=None, _stack_frame=None):
@@ -386,6 +403,7 @@ def main():
         server.capture_done()
         server.stop()
         server.join()
+
 
 if __name__ == '__main__':
     main()
