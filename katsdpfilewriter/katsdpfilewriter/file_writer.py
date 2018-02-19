@@ -12,7 +12,7 @@ from katdal.h5datav3 import FLAG_NAMES
 
 # the version number is intrinsically linked to the telescope model, as this
 # is the arbiter of file structure and format
-HDF5_VERSION = "3.0"
+HDF5_VERSION = "3.9"
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

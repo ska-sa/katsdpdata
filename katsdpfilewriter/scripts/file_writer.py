@@ -59,6 +59,7 @@ class FileWriterServer(DeviceServer):
         self._model = ar1_model.create_model(antenna_mask=self.get_antenna_mask())
         self._file_obj = None
         self._start_timestamp = None
+        self._capture_block_id = None
         self._rx = None
 
     def get_antenna_mask(self):
@@ -206,11 +207,10 @@ class FileWriterServer(DeviceServer):
         if self._capture_thread is not None:
             self._logger.info("Ignoring capture_init because already capturing")
             return ("fail", "Already capturing")
-        timestamp = time.time()
         self._final_filename = os.path.join(
-                self._file_base, "{0}.h5".format(int(timestamp)))
+                self._file_base, "{0}.h5".format(capture_block_id))
         self._stage_filename = os.path.join(
-                self._file_base, "{0}.writing.h5".format(int(timestamp)))
+                self._file_base, "{0}.writing.h5".format(capture_block_id))
         try:
             stat = os.statvfs(os.path.dirname(self._stage_filename))
         except OSError:
@@ -227,7 +227,8 @@ class FileWriterServer(DeviceServer):
         self._status_sensor.set_value("wait-metadata")
         self._input_dumps_sensor.set_value(0)
         self._input_bytes_sensor.set_value(0)
-        self._start_timestamp = timestamp
+        self._start_timestamp = time.time()
+        self._capture_block_id = capture_block_id
         # Set up memory buffers, depending on size of input heaps
         try:
             n_chans = self._telstate_l0['n_chans']
@@ -293,11 +294,14 @@ class FileWriterServer(DeviceServer):
         self._logger.info("Joined capture thread")
 
         self._status_sensor.set_value("finalising")
-        self._file_obj.set_metadata(telescope_model.TelstateModelData(
-                self._model, self._telstate_l0.root(), self._start_timestamp))
+        telstate_cb = self._telstate_l0.view(self._capture_block_id)
+        model_data = telescope_model.TelstateModelData(self._model, telstate_cb,
+                                                       self._start_timestamp)
+        self._file_obj.set_metadata(model_data)
         self._file_obj.close()
         self._file_obj = None
         self._start_timestamp = None
+        self._capture_block_id = None
         self._logger.info("Finalised file")
 
         # File is now closed, so rename it
