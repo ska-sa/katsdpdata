@@ -34,7 +34,6 @@ import katsdpservices
 from katsdpfilewriter import telescope_model, ar1_model, file_writer
 
 
-logger = logging.getLogger(__name__)
 #: Bytes free at which a running capture will be stopped
 FREE_DISK_THRESHOLD_STOP = 2 * 1024**3
 #: Bytes free at which a new capture will be refused
@@ -331,7 +330,7 @@ def comma_list(type_):
     return convert
 
 
-def main():
+if __name__ == '__main__':
     katsdpservices.setup_logging()
     logger = logging.getLogger("katsdpfilewriter")
     logging.getLogger('spead2').setLevel(logging.WARNING)
@@ -404,7 +403,3 @@ def main():
         server.capture_done()
         server.stop()
         server.join()
-
-
-if __name__ == '__main__':
-    main()
