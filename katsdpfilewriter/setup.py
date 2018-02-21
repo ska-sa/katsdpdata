@@ -8,8 +8,7 @@ setup(
     packages=find_packages(),
     scripts=[
         "scripts/file_writer.py",
-        "scripts/vis_writer.py",
-        "scripts/meta_writer.py"
+        "scripts/vis_writer.py"
         ],
     dependency_links=[
         'git+ssh://git@github.com/ska-sa/katsdptelstate#egg=katsdptelstate',

@@ -1,9 +1,6 @@
-argparse==1.2.1
 backports-abc
 backports.ssl-match-hostname
-boto==2.48.0
 certifi
-coverage==3.7.1
 Cython
 h5py
 fakenewsredis
@@ -15,7 +12,6 @@ katdal==0.8
 katpoint==0.7
 katversion
 hiredis
-httpretty>=0.7.0,<=0.8.6
 ipaddress
 linecache2
 manhole
@@ -23,16 +19,11 @@ mock
 netifaces
 nose
 numpy
-paramiko>=1.10.0
 pbr
 pkginfo
 ply
 pyephem
-PyYAML>=3.10
 redis
-requests>=1.2.3,<=2.0.1
-rsa==3.1.4
-simplejson==3.6.5
 singledispatch
 six
 spead2
