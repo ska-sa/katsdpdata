@@ -299,6 +299,15 @@ class FileWriterServer(DeviceServer):
 
         self._status_sensor.set_value("finalising")
         telstate_cb = self._telstate_l0.view(self._capture_block_id)
+        # Move the start time back to the first script log entry to get the
+        # full obs script log into the data file. This is where capture_init
+        # used to happen in the session in the days before v3.9 format anyway.
+        try:
+            log_start_time = telstate_cb.get_range('obs_script_log', st=0)[0][1]
+        except (KeyError, IndexError):
+            pass
+        else:
+            self._start_timestamp = min(log_start_time, self._start_timestamp)
         model_data = telescope_model.TelstateModelData(self._model, telstate_cb,
                                                        self._start_timestamp)
         self._file_obj.set_metadata(model_data)
