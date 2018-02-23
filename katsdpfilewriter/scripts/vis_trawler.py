@@ -21,12 +21,12 @@ def main(directory, c_start=1, c_range=8):
     upload_size = sum(os.path.getsize(f)
                       for f in glob.glob('{}/*/*'.format(directory))
                       if os.path.isfile(f)) / 1e6
-    print "Uploading {} MB of data".format(upload_size)
+    print("Uploading {} MB of data".format(upload_size))
     for x in range(c_range):
         st = time.time()
         parallel_upload(directory, x+c_start)
         et = time.time() - st
-        print "Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, x+c_start)
+        print("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, x+c_start))
 
 
 def map_wrap(f):
@@ -48,16 +48,16 @@ def transfer_files(i, file_list):
             bucket = conn.create_bucket(bucket_name)
         key = bucket.new_key(key_name)
         key.set_contents_from_string(np.load(filename).tobytes())
-    # print "Process {} uploaded {} keys".format(i, len(file_list))
+    # print("Process {} uploaded {} keys".format(i, len(file_list)))
 
 
 def parallel_upload(directory, x):
     cores = x * multiprocessing.cpu_count()
-    print "Using {} cores".format(cores)
+    print("Using {} cores".format(cores))
 
     all_files = glob.glob('{}/*/*'.format(directory))
     files = [all_files[i::cores] for i in range(cores)]
-    print "Processing {} files".format(len(all_files))
+    print("Processing {} files".format(len(all_files)))
     st = time.time()
     with multimap(cores) as pmap:
         for _ in pmap(transfer_files,
@@ -65,7 +65,7 @@ def parallel_upload(directory, x):
             pass
 
     et = time.time() - st
-    print "Elapsed: {}".format(et)
+    print("Elapsed: {}".format(et))
 
 
 @contextlib.contextmanager
@@ -93,6 +93,6 @@ if __name__ == "__main__":
                       help='Starting multiplier for core testing. Default 7')
     (options, args) = parser.parse_args()
     if len(args) < 1:
-        print __doc__
+        print(__doc__)
         sys.exit()
     main(args[0], c_start=int(options.c_start), c_range=int(options.c_range))
