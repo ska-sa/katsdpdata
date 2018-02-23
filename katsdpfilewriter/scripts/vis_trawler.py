@@ -9,6 +9,9 @@ import glob
 import contextlib
 import functools
 import multiprocessing
+import katsdpservices
+import logging
+
 from multiprocessing.pool import IMapIterator
 from optparse import OptionParser
 
@@ -21,12 +24,12 @@ def main(directory, c_start=1, c_range=8):
     upload_size = sum(os.path.getsize(f)
                       for f in glob.glob('{}/*/*'.format(directory))
                       if os.path.isfile(f)) / 1e6
-    print("Uploading {} MB of data".format(upload_size))
+    logger.info("Uploading {} MB of data".format(upload_size))
     for x in range(c_range):
         st = time.time()
         parallel_upload(directory, x+c_start)
         et = time.time() - st
-        print("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, x+c_start))
+        logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, x+c_start))
 
 
 def map_wrap(f):
@@ -48,16 +51,16 @@ def transfer_files(i, file_list):
             bucket = conn.create_bucket(bucket_name)
         key = bucket.new_key(key_name)
         key.set_contents_from_string(np.load(filename).tobytes())
-    # print("Process {} uploaded {} keys".format(i, len(file_list)))
+    # logger.info("Process {} uploaded {} keys".format(i, len(file_list)))
 
 
 def parallel_upload(directory, x):
     cores = x * multiprocessing.cpu_count()
-    print("Using {} cores".format(cores))
+    logger.info("Using {} cores".format(cores))
 
     all_files = glob.glob('{}/*/*'.format(directory))
     files = [all_files[i::cores] for i in range(cores)]
-    print("Processing {} files".format(len(all_files)))
+    logger.info("Processing {} files".format(len(all_files)))
     st = time.time()
     with multimap(cores) as pmap:
         for _ in pmap(transfer_files,
@@ -65,7 +68,7 @@ def parallel_upload(directory, x):
             pass
 
     et = time.time() - st
-    print("Elapsed: {}".format(et))
+    logger.info("Elapsed: {}".format(et))
 
 
 @contextlib.contextmanager
@@ -86,6 +89,10 @@ def multimap(cores=None):
 
 
 if __name__ == "__main__":
+    katsdpservices.setup_logging()
+    logger = logging.getLogger("katsdpvistrawler")
+    katsdpservices.setup_restart()
+
     parser = OptionParser(usage="vis_trawler.py <capture_stream_directory>")
     parser.add_option("-r", "--c_range", default=1,
                       help='Range of core multipliers to test. Default 1')
