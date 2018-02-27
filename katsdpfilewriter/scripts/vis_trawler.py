@@ -16,7 +16,9 @@ import boto
 import boto.s3.connection
 import numpy as np
 
-x = 1
+S3_HOST = '10.98.56.16'
+S3_PORT = 7480
+X = 1
 
 def main(directory):
     upload_size = sum(os.path.getsize(f)
@@ -24,13 +26,13 @@ def main(directory):
                       if os.path.isfile(f)) / 1e6
     logger.info("Uploading {} MB of data".format(upload_size))
     st = time.time()
-    parallel_upload(directory, x)
+    parallel_upload(directory, X)
     et = time.time() - st
-    logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, x))
+    logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, X))
 
 
 def transfer_files(i, file_list):
-    conn = boto.connect_s3(host='10.98.56.16', port=7480, is_secure=False,
+    conn = boto.connect_s3(host=S3_HOST, port=S3_PORT, is_secure=False,
                            calling_format=boto.s3.connection.OrdinaryCallingFormat())
     bucket = None
     for filename in file_list:
@@ -43,8 +45,8 @@ def transfer_files(i, file_list):
     # logger.info("Process {} uploaded {} keys".format(i, len(file_list)))
 
 
-def parallel_upload(directory, x):
-    cores = x * multiprocessing.cpu_count()
+def parallel_upload(directory, X):
+    cores = X * multiprocessing.cpu_count()
     logger.info("Using {} cores".format(cores))
 
     all_files = glob.glob('{}/*/*'.format(directory))
