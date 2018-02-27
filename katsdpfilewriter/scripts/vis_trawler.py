@@ -31,18 +31,18 @@ def main(directory):
     logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, X))
 
 
-def transfer_files(i, file_list):
+def transfer_files(file_list):
     conn = boto.connect_s3(host=S3_HOST, port=S3_PORT, is_secure=False,
                            calling_format=boto.s3.connection.OrdinaryCallingFormat())
     bucket = None
     for filename in file_list:
-        bucket_name, key_name = filename.split('/', 1)
+        bucket_name, key_name = os.path.relpath(filename, trawl_dir).split('/',1)
         key_name = os.path.splitext(key_name)[0]
         if not bucket or bucket.name != bucket_name:
             bucket = conn.create_bucket(bucket_name)
         key = bucket.new_key(key_name)
         key.set_contents_from_string(np.load(filename).tobytes())
-    # logger.info("Process {} uploaded {} keys".format(i, len(file_list)))
+    # logger.info("Process {} uploaded {} keys".format(i, len(file_list))
 
 
 def parallel_upload(directory, X):
