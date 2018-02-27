@@ -21,7 +21,6 @@ import numpy as np
 import katsdpservices
 
 GLOB = '*.npy'
-X = 1
 CBID_REGEX = '^[0-9]{9}.*$'
 MAX_TRANSFER = 1000
 
@@ -31,7 +30,7 @@ def main():
                  if d.is_dir() and re.match(CBID_REGEX, os.path.relpath(d.path, trawl_dir))]
     #TODO: add checks for completed cbids
     trawl_keys = [os.path.relpath(d, trawl_dir) for d in cbid_dirs]
-    trawl_vals = [glob.glob(d+'**/'+GLOB) for d in cbid_dirs]
+    trawl_vals = [glob.glob(os.path.join(d,'**',GLOB)) for d in cbid_dirs]
     uploads = dict(zip(trawl_keys, trawl_vals))
     file_list = list(itertools.chain(*[uploads[i]
                      for i in sorted(uploads.keys())]))[0:MAX_TRANSFER]
@@ -40,10 +39,10 @@ def main():
     if upload_size > 0:
         logger.info("Uploading {} MB of data".format(upload_size / 1e6))
         log_time = {}
-        results = parallel_upload(file_list, X, log_time=log_time)
+        results = parallel_upload(file_list, x, log_time=log_time)
         #TODO: check results for completion and exceptions
         logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".
-                    format(log_time['PARALLEL_UPLOAD'], upload_size / log_time['PARALLEL_UPLOAD'], X))
+                    format(log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD'], x))
     else:
          logger.info("No data to upload ({} MB)".format(upload_size / 1e6))
 
@@ -99,18 +98,19 @@ if __name__ == "__main__":
 
     parser = OptionParser(usage="vis_trawler.py <trawl_directory>")
     parser.add_option('--s3-host', default='localhost',
-                        help='S3 gateway host address [default=%(default)s]')
+                        help='S3 gateway host address [default = %default]')
     parser.add_option('--s3-port', default=7480,
-                        help='S3 gateway port [default=%(default)s]')
+                        help='S3 gateway port [default = %default]')
+    parser.add_option('-m', '--multiplier', default=2,
+                        help='Workers == m*num_cores [default = %default]')
     (options, args) = parser.parse_args()
-
     if len(args) < 1 or not os.path.isdir(args[0]):
         print(__doc__)
         sys.exit()
 
     #set global arguments
     trawl_dir = args[0]
+    x = int(options.multiplier)
     s3_host = options.s3_host
     s3_port = options.s3_port
-
     main()
