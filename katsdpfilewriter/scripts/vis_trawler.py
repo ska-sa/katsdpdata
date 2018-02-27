@@ -45,7 +45,23 @@ def transfer_files(file_list):
     # logger.info("Process uploaded {} keys".format(len(file_list)))
 
 
-def parallel_upload(file_list, x):
+def timeit(func):
+    """Taken from an example from the internet."""
+    def wrapper(*args, **kwargs):
+        ts = time.time()
+        result = func(*args, **kwargs)
+        te = time.time()
+        if 'log_time' in kw:
+            name = kw.get('log_name', func.__name__.upper())
+            kw['log_time'][name] = int(te - ts)
+        else:
+            print('{} {} ms').format(func.__name__, (te - ts))
+        return result
+    return wrapper
+
+
+@timeit
+def parallel_upload(file_list, x, **kwargs):
     workers = x * multiprocessing.cpu_count()
     logger.info("Using {} workers".format(workers))
     files = [file_list[i::workers] for i in range(workers)]
