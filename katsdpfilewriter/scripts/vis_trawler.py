@@ -55,7 +55,7 @@ def timeit(func):
             name = kw.get('log_name', func.__name__.upper())
             kw['log_time'][name] = int(te - ts)
         else:
-            print('{} {} ms').format(func.__name__, (te - ts))
+            logger.info(('{} {} ms').format(func.__name__, (te - ts)))
         return result
     return wrapper
 
