@@ -2,13 +2,15 @@
 
 """Very crude parallel file uploader to trawl NPY files into S3."""
 
+import concurrent.futures
+import glob
+import itertools
+import logging
+import multiprocessing
 import os
+import re
 import sys
 import time
-import glob
-import multiprocessing
-import katsdpservices
-import logging
 
 from optparse import OptionParser
 
@@ -16,19 +18,36 @@ import boto
 import boto.s3.connection
 import numpy as np
 
+import katsdpservices
+
 S3_HOST = '10.98.56.16'
 S3_PORT = 7480
+GLOB = '*.npy'
 X = 1
+CBID_REGEX = '^[0-9]{9}.*$'
+MAX_TRANSFER = 1000
 
-def main(directory):
+
+def main():
+    cbid_dirs = [d.path for d in os.scandir(trawl_dir)
+                 if d.is_dir() and re.match(CBID_REGEX, os.path.relpath(d.path, trawl_dir))]
+    #TODO: add checks for completed cbids
+    trawl_keys = [os.path.relpath(d, trawl_dir) for d in cbid_dirs]
+    trawl_vals = [glob.glob(d+'**/'+GLOB) for d in cbid_dirs]
+    uploads = dict(zip(trawl_keys, trawl_vals))
+    file_list = list(itertools.chain(*[uploads[i]
+                     for i in sorted(uploads.keys())]))[0:MAX_TRANSFER]
     upload_size = sum(os.path.getsize(f)
-                      for f in glob.glob('{}/*/*'.format(directory))
-                      if os.path.isfile(f)) / 1e6
-    logger.info("Uploading {} MB of data".format(upload_size))
-    st = time.time()
-    parallel_upload(directory, X)
-    et = time.time() - st
-    logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, X))
+                      for f in file_list if os.path.isfile(f))
+    if upload_size > 0:
+        logger.info("Uploading {} MB of data".format(upload_size / 1e6))
+        log_time = {}
+        results = parallel_upload(file_list, X, log_time=log_time)
+        #TODO: check results for completion and exceptions
+        logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".
+                    format(log_time['PARALLEL_UPLOAD'], upload_size / log_time['PARALLEL_UPLOAD'], X))
+    else:
+         logger.info("No data to upload ({} MB)".format(upload_size / 1e6))
 
 
 def transfer_files(file_list):
@@ -51,9 +70,9 @@ def timeit(func):
         ts = time.time()
         result = func(*args, **kwargs)
         te = time.time()
-        if 'log_time' in kw:
-            name = kw.get('log_name', func.__name__.upper())
-            kw['log_time'][name] = int(te - ts)
+        if 'log_time' in kwargs:
+            name = kwargs.get('log_name', func.__name__.upper())
+            kwargs['log_time'][name] = int(te - ts)
         else:
             logger.info(('{} {} ms').format(func.__name__, (te - ts)))
         return result
@@ -76,12 +95,14 @@ def parallel_upload(file_list, x, **kwargs):
 
 if __name__ == "__main__":
     katsdpservices.setup_logging()
+    logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("katsdpvistrawler")
     katsdpservices.setup_restart()
 
-    parser = OptionParser(usage="vis_trawler.py <capture_stream_directory>")
+    parser = OptionParser(usage="vis_trawler.py <trawl_directory>")
     (options, args) = parser.parse_args()
-    if len(args) < 1:
+    if len(args) < 1 or not os.path.isdir(args[0]):
         print(__doc__)
         sys.exit()
-    main(args[0])
+    trawl_dir = args[0]
+    main()
