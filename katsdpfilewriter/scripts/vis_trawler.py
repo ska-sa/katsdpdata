@@ -20,8 +20,6 @@ import numpy as np
 
 import katsdpservices
 
-S3_HOST = '10.98.56.16'
-S3_PORT = 7480
 GLOB = '*.npy'
 X = 1
 CBID_REGEX = '^[0-9]{9}.*$'
@@ -51,7 +49,7 @@ def main():
 
 
 def transfer_files(file_list):
-    conn = boto.connect_s3(host=S3_HOST, port=S3_PORT, is_secure=False,
+    conn = boto.connect_s3(host=s3_host, port=s3_port, is_secure=False,
                            calling_format=boto.s3.connection.OrdinaryCallingFormat())
     bucket = None
     for filename in file_list:
@@ -100,9 +98,19 @@ if __name__ == "__main__":
     katsdpservices.setup_restart()
 
     parser = OptionParser(usage="vis_trawler.py <trawl_directory>")
+    parser.add_option('--s3-host', default='localhost',
+                        help='S3 gateway host address [default=%(default)s]')
+    parser.add_option('--s3-port', default=7480,
+                        help='S3 gateway port [default=%(default)s]')
     (options, args) = parser.parse_args()
+
     if len(args) < 1 or not os.path.isdir(args[0]):
         print(__doc__)
         sys.exit()
+
+    #set global arguments
     trawl_dir = args[0]
+    s3_host = options.s3_host
+    s3_port = options.s3_port
+
     main()
