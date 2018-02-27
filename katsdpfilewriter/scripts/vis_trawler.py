@@ -42,7 +42,7 @@ def transfer_files(file_list):
             bucket = conn.create_bucket(bucket_name)
         key = bucket.new_key(key_name)
         key.set_contents_from_string(np.load(filename).tobytes())
-    # logger.info("Process {} uploaded {} keys".format(i, len(file_list))
+    # logger.info("Process uploaded {} keys".format(len(file_list)))
 
 
 def parallel_upload(directory, X):
