@@ -45,21 +45,17 @@ def transfer_files(file_list):
     # logger.info("Process uploaded {} keys".format(len(file_list)))
 
 
-def parallel_upload(directory, X):
-    cores = X * multiprocessing.cpu_count()
-    logger.info("Using {} cores".format(cores))
-
-    all_files = glob.glob('{}/*/*'.format(directory))
-    files = [all_files[i::cores] for i in range(cores)]
-    logger.info("Processing {} files".format(len(all_files)))
-    st = time.time()
-    #with multimap(cores) as pmap:
-    #    for _ in pmap(transfer_files,
-    #                  ((i, file_list) for (i, file_list) in enumerate(files))):
-    #        pass
-
-    et = time.time() - st
-    logger.info("Elapsed: {}".format(et))
+def parallel_upload(file_list, x):
+    workers = x * multiprocessing.cpu_count()
+    logger.info("Using {} workers".format(workers))
+    files = [file_list[i::workers] for i in range(workers)]
+    logger.info("Processing {} files".format(len(file_list)))
+    future = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        for f in files:
+            future.append(executor.submit(transfer_files, f))
+        executor.shutdown(wait=True)
+    return [f.result() for f in future]
 
 
 if __name__ == "__main__":
