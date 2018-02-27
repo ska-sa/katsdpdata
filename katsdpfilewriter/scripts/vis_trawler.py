@@ -6,13 +6,10 @@ import os
 import sys
 import time
 import glob
-import contextlib
-import functools
 import multiprocessing
 import katsdpservices
 import logging
 
-from multiprocessing.pool import IMapIterator
 from optparse import OptionParser
 
 import boto
@@ -32,14 +29,6 @@ def main(directory, c_start=1, c_range=8):
         logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, x+c_start))
 
 
-def map_wrap(f):
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        return apply(f, *args, **kwargs)
-    return wrapper
-
-
-@map_wrap
 def transfer_files(i, file_list):
     conn = boto.connect_s3(host='10.98.56.16', port=7480, is_secure=False,
                            calling_format=boto.s3.connection.OrdinaryCallingFormat())
@@ -62,30 +51,13 @@ def parallel_upload(directory, x):
     files = [all_files[i::cores] for i in range(cores)]
     logger.info("Processing {} files".format(len(all_files)))
     st = time.time()
-    with multimap(cores) as pmap:
-        for _ in pmap(transfer_files,
-                      ((i, file_list) for (i, file_list) in enumerate(files))):
-            pass
+    #with multimap(cores) as pmap:
+    #    for _ in pmap(transfer_files,
+    #                  ((i, file_list) for (i, file_list) in enumerate(files))):
+    #        pass
 
     et = time.time() - st
     logger.info("Elapsed: {}".format(et))
-
-
-@contextlib.contextmanager
-def multimap(cores=None):
-    """
-    Borrowed from the interwebs...
-    """
-    if cores is None:
-        cores = max(multiprocessing.cpu_count() - 1, 1)
-    def wrapper(func):
-        def wrap(self, timeout=None):
-            return func(self, timeout=timeout if timeout is not None else 1e100)
-        return wrap
-    IMapIterator.next = wrapper(IMapIterator.next)
-    pool = multiprocessing.Pool(cores)
-    yield pool.imap
-    pool.terminate()
 
 
 if __name__ == "__main__":
