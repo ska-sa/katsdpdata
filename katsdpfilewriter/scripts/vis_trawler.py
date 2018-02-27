@@ -16,17 +16,17 @@ import boto
 import boto.s3.connection
 import numpy as np
 
+x = 1
 
-def main(directory, c_start=1, c_range=8):
+def main(directory):
     upload_size = sum(os.path.getsize(f)
                       for f in glob.glob('{}/*/*'.format(directory))
                       if os.path.isfile(f)) / 1e6
     logger.info("Uploading {} MB of data".format(upload_size))
-    for x in range(c_range):
-        st = time.time()
-        parallel_upload(directory, x+c_start)
-        et = time.time() - st
-        logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, x+c_start))
+    st = time.time()
+    parallel_upload(directory, x)
+    et = time.time() - st
+    logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".format(et, upload_size / et, x))
 
 
 def transfer_files(i, file_list):
@@ -66,12 +66,8 @@ if __name__ == "__main__":
     katsdpservices.setup_restart()
 
     parser = OptionParser(usage="vis_trawler.py <capture_stream_directory>")
-    parser.add_option("-r", "--c_range", default=1,
-                      help='Range of core multipliers to test. Default 1')
-    parser.add_option("-s", "--c_start", default=7,
-                      help='Starting multiplier for core testing. Default 7')
     (options, args) = parser.parse_args()
     if len(args) < 1:
         print(__doc__)
         sys.exit()
-    main(args[0], c_start=int(options.c_start), c_range=int(options.c_range))
+    main(args[0])
