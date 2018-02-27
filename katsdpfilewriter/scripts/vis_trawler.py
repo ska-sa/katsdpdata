@@ -30,7 +30,7 @@ def main():
                  if d.is_dir() and re.match(CBID_REGEX, os.path.relpath(d.path, trawl_dir))]
     #TODO: add checks for completed cbids
     trawl_keys = [os.path.relpath(d, trawl_dir) for d in cbid_dirs]
-    trawl_vals = [glob.glob(os.path.join(d,'**',GLOB)) for d in cbid_dirs]
+    trawl_vals = [glob.glob(os.path.join(d,'**',GLOB), recursive=True) for d in cbid_dirs]
     uploads = dict(zip(trawl_keys, trawl_vals))
     file_list = list(itertools.chain(*[uploads[i]
                      for i in sorted(uploads.keys())]))[0:MAX_TRANSFER]
