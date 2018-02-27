@@ -50,6 +50,7 @@ def main():
 def transfer_files(file_list):
     conn = boto.connect_s3(host=s3_host, port=s3_port, is_secure=False,
                            calling_format=boto.s3.connection.OrdinaryCallingFormat())
+    logger.debug("Connected on {}".format(conn))
     bucket = None
     for filename in file_list:
         bucket_name, key_name = os.path.relpath(filename, trawl_dir).split('/',1)
