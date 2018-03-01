@@ -24,9 +24,9 @@ import katsdpservices
 GLOB = '*.npy'
 CBID_REGEX = '^[0-9]{9}.*$'
 MAX_TRANSFER = 1000
+CPU_MULTIPLIER = 10
 
-
-def main():
+def main(trawl_dir, boto_dict):
     cbid_dirs = [d.path for d in os.scandir(trawl_dir)
                  if d.is_dir() and re.match(CBID_REGEX, os.path.relpath(d.path, trawl_dir))]
     #TODO: add checks for completed cbids
@@ -40,28 +40,25 @@ def main():
     if upload_size > 0:
         logger.info("Uploading {} MB of data".format(upload_size / 1e6))
         log_time = {}
-        results = parallel_upload(file_list, x, log_time=log_time)
+        results = parallel_upload(file_list, log_time=log_time)
         #TODO: check results for completion and exceptions
-        logger.info("Upload complete in {}s ({} MBps) - Core multiplier {}".
-                    format(log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD'], x))
+        logger.info("Upload complete in {}s ({} MBps)".
+                    format(log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
     else:
          logger.info("No data to upload ({} MB)".format(upload_size / 1e6))
 
-
-def transfer_files(file_list):
-    conn = boto.connect_s3(host=s3_host, port=s3_port, is_secure=False,
-                           calling_format=boto.s3.connection.OrdinaryCallingFormat())
-    logger.debug("Connected on {}".format(conn))
+def transfer_files(trawl_dir, boto_dict, file_list):
+    s3_conn = get_s3_connection(boto_dict, fail_on_boto=True)
     bucket = None
     for filename in file_list:
         bucket_name, key_name = os.path.relpath(filename, trawl_dir).split('/',1)
-        key_name = os.path.splitext(key_name)[0]
+        file_size = os.path.getsize(filename)
         if not bucket or bucket.name != bucket_name:
-            bucket = conn.create_bucket(bucket_name)
+            bucket = s3_create_bucket(s3_conn, bucket_name)
         key = bucket.new_key(key_name)
-        key.set_contents_from_string(np.load(filename).tobytes())
+        res = key.set_contents_from_string(np.load(filename).tobytes())
+        #TODO: compare file_size to ret to see if the file was transferred and then delete source file.
     # logger.info("Process uploaded {} keys".format(len(file_list)))
-
 
 def timeit(func):
     """Taken from an example from the internet."""
@@ -79,17 +76,17 @@ def timeit(func):
 
 
 @timeit
-def parallel_upload(file_list, x, **kwargs):
-    workers = x * multiprocessing.cpu_count()
+def parallel_upload(file_list, boto_dict, trawl_dir, **kwargs):
+    workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
     logger.info("Using {} workers".format(workers))
     files = [file_list[i::workers] for i in range(workers)]
     logger.info("Processing {} files".format(len(file_list)))
-    future = []
+    procs = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for f in files:
-            future.append(executor.submit(transfer_files, f))
+            procs.append(executor.submit(transfer_files, f))
         executor.shutdown(wait=True)
-    return [f.result() for f in future]
+    return [p.result() for p in procs]
 
 #cut and paste with modification from katsdpmetawriter/scripts/meta_writer.py
 def make_boto_dict(s3_args):
@@ -160,16 +157,14 @@ if __name__ == "__main__":
                         help='S3 gateway host address [default = %default]')
     parser.add_option('--s3-port', default=7480,
                         help='S3 gateway port [default = %default]')
-    parser.add_option('-m', '--multiplier', default=2,
-                        help='Workers == m*num_cores [default = %default]')
     (options, args) = parser.parse_args()
     if len(args) < 1 or not os.path.isdir(args[0]):
         print(__doc__)
         sys.exit()
 
-    #set global arguments
-    trawl_dir = args[0]
-    x = int(options.multiplier)
-    s3_host = options.s3_host
-    s3_port = options.s3_port
-    main()
+    boto_dict = make_boto_dict(options)
+    s3_conn = get_s3_connection(boto_dict, fail_on_boto=True)
+    user_id = s3_conn.get_canonical_user_id()
+    s3_conn.close()
+    logger.info("Successfully tested connection to S3 endpoint as {}.".format(user_id))
+    main(trawl_dir=args[0], boto_dict=boto_dict)
