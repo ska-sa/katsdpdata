@@ -10,6 +10,7 @@ import multiprocessing
 import os
 import re
 import sys
+import socket
 import time
 
 from optparse import OptionParser
@@ -131,6 +132,22 @@ def get_s3_connection(boto_dict, fail_on_boto=False):
         if fail_on_boto:
             raise
     return None
+
+def s3_create_bucket(s3_conn, bucket_name):
+    """Create an s3 bucket, if it fails on a 403 or 409 error, print an error 
+    message and reraise the exception. 
+    Returns
+    ------
+    s3_bucket : boto.s3.bucket.Bucket
+        An S3 Bucket object
+    """
+    try:
+        s3_bucket = s3_conn.create_bucket(bucket_name)
+    except boto.exception.S3ResponseError as e:
+        if e.status == 403 or e.status == 409:
+            logger.error("Error status {}. Supplied access key ({}) has no permissions on this server.".format(e.status, s3_conn.access_key))
+        raise
+    return s3_bucket
 
 if __name__ == "__main__":
     katsdpservices.setup_logging()
