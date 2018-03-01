@@ -15,17 +15,11 @@ setup(
     ],
     setup_requires=['katversion'],
     install_requires=[
-        'h5py',
         'numpy',
-        'dask[array]',
-        'spead2>=1.5.0',     # For stop_on_stop_item
-        'katcp',
-        'katdal',
+        'spead2>=1.7.1',     # asyncio needed
+        'aiokatcp>=0.3',     # eval_func needed
         'katsdptelstate',
-        'katsdpservices',
-        'hiredis',
-        'netifaces',
-        'futures'
+        'katsdpservices'
     ],
     use_katversion=True
 )
