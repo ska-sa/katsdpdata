@@ -40,7 +40,7 @@ def main(trawl_dir, boto_dict):
     if upload_size > 0:
         logger.info("Uploading {} MB of data".format(upload_size / 1e6))
         log_time = {}
-        results = parallel_upload(file_list, log_time=log_time)
+        results = parallel_upload(trawl_dir, boto_dict, file_list, log_time=log_time)
         #TODO: check results for completion and exceptions
         logger.info("Upload complete in {}s ({} MBps)".
                     format(log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
@@ -52,6 +52,7 @@ def transfer_files(trawl_dir, boto_dict, file_list):
     bucket = None
     for filename in file_list:
         bucket_name, key_name = os.path.relpath(filename, trawl_dir).split('/',1)
+        key_name = os.path.splitext(key_name)[0]
         file_size = os.path.getsize(filename)
         if not bucket or bucket.name != bucket_name:
             bucket = s3_create_bucket(s3_conn, bucket_name)
@@ -76,7 +77,7 @@ def timeit(func):
 
 
 @timeit
-def parallel_upload(file_list, boto_dict, trawl_dir, **kwargs):
+def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
     workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
     logger.info("Using {} workers".format(workers))
     files = [file_list[i::workers] for i in range(workers)]
@@ -84,7 +85,7 @@ def parallel_upload(file_list, boto_dict, trawl_dir, **kwargs):
     procs = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for f in files:
-            procs.append(executor.submit(transfer_files, f))
+            procs.append(executor.submit(transfer_files, trawl_dir, boto_dict,f))
         executor.shutdown(wait=True)
     return [p.result() for p in procs]
 
