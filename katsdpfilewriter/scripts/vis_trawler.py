@@ -22,7 +22,7 @@ import numpy as np
 import katsdpservices
 
 GLOB = '*.npy'
-CBID_REGEX = '^[0-9]{9}.*$'
+CBID_REGEX = '^[0-9]{10}_.*$'
 MAX_TRANSFER = 1000
 CPU_MULTIPLIER = 10
 
