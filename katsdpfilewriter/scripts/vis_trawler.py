@@ -4,7 +4,6 @@
 
 import concurrent.futures
 import glob
-import itertools
 import logging
 import multiprocessing
 import os
@@ -22,43 +21,81 @@ import numpy as np
 import katsdpservices
 
 GLOB = '*.npy'
-CBID_REGEX = '^[0-9]{10}_.*$'
+CBID_STREAM_REGEX = '^[0-9]{10}_.*$'
 MAX_TRANSFER = 1000
 CPU_MULTIPLIER = 10
 
 def main(trawl_dir, boto_dict):
     cbid_dirs = [d.path for d in os.scandir(trawl_dir)
-                 if d.is_dir() and re.match(CBID_REGEX, os.path.relpath(d.path, trawl_dir))]
-    #TODO: add checks for completed cbids
-    trawl_keys = [os.path.relpath(d, trawl_dir) for d in cbid_dirs]
-    trawl_vals = [glob.glob(os.path.join(d,'**',GLOB), recursive=True) for d in cbid_dirs]
-    uploads = dict(zip(trawl_keys, trawl_vals))
-    file_list = list(itertools.chain(*[uploads[i]
-                     for i in sorted(uploads.keys())]))[0:MAX_TRANSFER]
+                 if d.is_dir() and re.match(CBID_STREAM_REGEX, os.path.relpath(d.path, trawl_dir))]
+    cbid_details = [get_cbid_dict(trawl_dir, d) for d in sorted(cbid_dirs)]
+
+    for c in cbid_details:
+        if c['npy_count'] == 0 and c['complete'] and c['rdb_lite']:
+            transfer_files(trawl_dir, boto_dict, [c['rdb_lite'], c['rdb_full']])
+    #upload batch of numpy files
+    upload_list = gen_upload_manifest(cbid_details)
     upload_size = sum(os.path.getsize(f)
-                      for f in file_list if os.path.isfile(f))
+                      for f in upload_list if os.path.isfile(f))
     if upload_size > 0:
         logger.info("Uploading {} MB of data".format(upload_size / 1e6))
         log_time = {}
-        results = parallel_upload(trawl_dir, boto_dict, file_list, log_time=log_time)
+        results = parallel_upload(trawl_dir, boto_dict, upload_list, log_time=log_time)
         #TODO: check results for completion and exceptions
         logger.info("Upload complete in {}s ({} MBps)".
                     format(log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
     else:
          logger.info("No data to upload ({} MB)".format(upload_size / 1e6))
 
+def gen_upload_manifest(uploads, limit=MAX_TRANSFER):
+    upload_list = []
+    for u in uploads:
+        upload_list.extend(u['npy_uploads'])
+    return upload_list[0:MAX_TRANSFER]
+
+def get_cbid_dict(trawl_dir, cbid_dir):
+    def get_complete_token(cbid_dir):
+        if os.path.isfile(os.path.join(cbid_dir, 'complete')):
+            return  os.path.join(cbid_dir, 'complete')
+        return None
+    def get_rdb_lite(cbid_dir):
+        rdb_dir = re.match('^.*[0-9]{10}', cbid_dir).group()
+        rdb_lite =  "{}.rdb".format(os.path.split(cbid_dir)[-1])
+        if os.path.isfile(os.path.join(rdb_dir, rdb_lite)):
+            return os.path.join(rdb_dir, rdb_lite)
+        return None
+    def get_rdb_full(cbid_dir):
+        rdb_dir = re.match('^.*[0-9]{10}', cbid_dir).group()
+        rdb_full =  "{}.full.rdb".format(os.path.split(cbid_dir)[-1])
+        if os.path.isfile(os.path.join(rdb_dir, rdb_full)):
+            return os.path.join(rdb_dir, rdb_full)
+        return None
+    cbid_key = os.path.relpath(cbid_dir, trawl_dir)
+    npy_uploads = glob.glob(os.path.join(cbid_dir,'**',GLOB), recursive=True)
+    complete_token = get_complete_token(cbid_dir)
+    rdb_lite = get_rdb_lite(cbid_dir)
+    rdb_full = get_rdb_full(cbid_dir)
+    return {'cbid':cbid_key, 'npy_uploads':npy_uploads, 'npy_count':len(npy_uploads), 'complete':complete_token, 'rdb_lite':rdb_lite, 'rdb_full':rdb_full}
+
 def transfer_files(trawl_dir, boto_dict, file_list):
     s3_conn = get_s3_connection(boto_dict, fail_on_boto=True)
     bucket = None
     for filename in file_list:
         bucket_name, key_name = os.path.relpath(filename, trawl_dir).split('/',1)
-        key_name = os.path.splitext(key_name)[0]
         file_size = os.path.getsize(filename)
         if not bucket or bucket.name != bucket_name:
             bucket = s3_create_bucket(s3_conn, bucket_name)
-        key = bucket.new_key(key_name)
-        res = key.set_contents_from_string(np.load(filename).tobytes())
-        #TODO: compare file_size to ret to see if the file was transferred and then delete source file.
+        if os.path.splitext(filename)[1] == ".npy":
+            key_name = os.path.splitext(key_name)[0]
+            key = bucket.new_key(key_name)
+            res = key.set_contents_from_string(np.load(filename).tobytes())
+            if res == file_size-128:
+                os.unlink(filename)
+        else:
+            key = bucket.new_key(key_name)
+            res = key.set_contents_from_filename(filename)
+            if res == file_size:
+                os.unlink(filename)
     # logger.info("Process uploaded {} keys".format(len(file_list)))
 
 def timeit(func):
@@ -74,7 +111,6 @@ def timeit(func):
             logger.info(('{} {} ms').format(func.__name__, (te - ts)))
         return result
     return wrapper
-
 
 @timeit
 def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
