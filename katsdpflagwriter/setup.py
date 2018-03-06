@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from setuptools import setup, find_packages
 
 setup(
@@ -17,7 +17,7 @@ setup(
     install_requires=[
         'numpy',
         'spead2>=1.7.1',     # asyncio needed
-        'aiokatcp>=0.3',     # eval_func needed
+        'aiokatcp>=0.3',     # status_func needed
         'katsdptelstate',
         'katsdpservices'
     ],
