@@ -847,7 +847,7 @@ class CalibrationProductMetExtractor(MetExtractor):
         if not self._metadata_extracted:
             self._extract_metadata_product_type()
             self.metadata['ReductionName'] = "Calibration Report"
-            self.metadata['CaptureBlockId'] = self.product_name[:10] + ".h5"
+            self.metadata['CaptureBlockId'] = self.product_name.split('/')[-1][:10]
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
