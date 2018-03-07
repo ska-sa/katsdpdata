@@ -91,6 +91,8 @@ class TelescopeProductMetExtractor(MetExtractor):
         super(TelescopeProductMetExtractor, self).__init__(metfilename)
 
     def _extract_metadata_from_katdata(self):
+       oelf.capture_block
+       self.capture_block
         """Populate self.metadata: Get information using katdal"""
         self.metadata['Antennas'] = [a.name for a in self._katdata.ants]
         self.metadata['CenterFrequency'] = str(self._katdata.channel_freqs[self._katdata.channels[-1]/2])
@@ -183,7 +185,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         A valid katdal oject.
     """
     def __init__(self, katdata):
-       metfilename = '{}.met'.format(katdata.name.split(' | ')[1])
+       metfilename = '{}.met'.format(katdata.source.data.name)
        super(MeerKATTelescopeProductMetExtractor, self).__init__(katdata, metfilename)
        self.product_type = 'MeerKATTelescopeProduct'
 
@@ -199,10 +201,18 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_product_type()
             self._extract_metadata_from_katdata()
             self._extract_metadata_for_project()
+            self._extract_metadata_for_capture_stream()
             #self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+
+   def _extract_metadata_for_capture_stream(self):
+        """Extract CaptureStreamId, CaptureBlockId and StreamId.
+        """
+        self.metadata['CaptureStreamId'] = self._katdata.source.data.name
+        self.metadata['CaptureBlockId'] = self._katdata.source.data.name.split('_',1)[0]
+        self.metadata['StreamId'] = self._katdata.source.data.name.split('_',1)[1]
 
     def _extract_metadata_product_type(self):
         """Override base method. Extract product type to CAS.ProductTypeName.
