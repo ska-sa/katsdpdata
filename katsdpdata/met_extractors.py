@@ -79,11 +79,7 @@ class MetExtractor(object):
             raise MetExtractorException('No metadata extracted.')
 
 class TelescopeProductMetExtractor(MetExtractor):
-    """A class for handling telescope systems metadata extraction. This class contains
-    a factory method which returns the correct met extractor object to use. The following 
-    systems are currently supported: KAT7, RTS, MeerKAT AR1.
-
-    Use the static 'factory' method from this class.
+    """A parent class to specifically handel file based MeerKAT telescope metadata extraction from a katdal object.
 
     Parameters
     ----------
@@ -214,7 +210,11 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         self.metadata['CAS.ProductTypeName'] = self.product_type
 
 class FileBasedTelescopeProductMetExtractor(TelescopeProductMetExtractor):
-    """A parent class to specifically handel file based MeerKAT telescope metadata extraction from a katdal object.
+    """A class for handling telescope systems metadata extraction. This class contains
+    a factory method which returns the correct met extractor object to use. The following 
+    systems are currently supported: KAT7, RTS, MeerKAT AR1.
+
+    Use the static 'factory' method from this class.
 
     Parameters
     ----------
