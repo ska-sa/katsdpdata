@@ -1,0 +1,13 @@
+aiokatcp==0.3
+decorator==4.2.1          # via aiokatcp
+fakenewsredis
+ipaddress
+katversion
+netifaces
+nose
+numpy
+redis
+six
+spead2==1.7.1
+git+ssh://git@github.com/ska-sa/katsdpservices
+git+ssh://git@github.com/ska-sa/katsdptelstate
