@@ -5,7 +5,6 @@ import time
 import pickle
 import katpoint
 import katdal
-import time
 import datetime
 import numpy
 from katcp import BlockingClient, Message
@@ -91,10 +90,9 @@ class TelescopeProductMetExtractor(MetExtractor):
     katdata : object : katdal object 
         A valid katdal oject.
     """
-    def __init__(self, katdata):
+    def __init__(self, katdata, metfilename):
         self._katdata = katdata
-        self.katfile = os.path.abspath(self._katdata.file.filename)
-        super(TelescopeProductMetExtractor, self).__init__('%s.%s' % (self.katfile, 'met',))
+        super(TelescopeProductMetExtractor, self).__init__(metfilename)
 
     def _extract_metadata_from_katdata(self):
         """Populate self.metadata: Get information using katdal"""
@@ -109,7 +107,10 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['DumpPeriod'] = '%.4f' % (self._katdata.dump_period)
         self.metadata['Duration'] = str(round(self._katdata.end_time-self._katdata.start_time, 2))
         self.metadata['ExperimentID'] = self._katdata.experiment_id
-        self.metadata['FileSize'] = str(os.path.getsize(self._katdata.file.filename))
+        if self._katdata.file:
+            self.metadata['FileSize'] = str(os.path.getsize(self._katdata.file.filename))
+        else:
+            self.metadata['FileSize'] = str(self._katdata.size)
         self.metadata['KatfileVersion'] = self._katdata.version
         self.metadata['KatpointTargets'] = [t.description for t in self._katdata.catalogue.targets if t.name not in ['None', 'Nothing']]
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
@@ -124,7 +125,6 @@ class TelescopeProductMetExtractor(MetExtractor):
             pass
 
     def _extract_location_from_katdata(self):
-
         self.metadata["DecRa_path"]=[]
         self.metadata["DecRa"]=[]
         self.metadata["ElAz_path"]=[]
@@ -178,6 +178,53 @@ class TelescopeProductMetExtractor(MetExtractor):
         if 'proposal_description' in self._katdata.obs_params and self._katdata.obs_params['proposal_description'] != '':
             self.metadata['ProposalDescription'] = self._katdata.obs_params['proposal_description']
 
+class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
+    """A class for handling MeerKAT telescope metadata extraction from a katdal object.
+
+    Parameters
+    ----------
+    katdata : object : katdal object
+        A valid katdal oject.
+    """
+    def __init__(self, katdata):
+       metfilename = '{}.met'.format(katdata.name.split(' | ')[1])
+       super(MeerKATTelescopeProductMetExtractor, self).__init__(katdata, metfilename)
+       self.product_type = 'MeerKATTelescopeProduct'
+
+    def extract_metadata(self):
+        """Metadata to extract for this product. Test value of self.__metadata_extracted. If
+        True, this method has already been run once. If False, extract metadata.
+        This includes:
+            * extracting the product type
+            * extracting basic hdf5 information
+            * extacting project related information
+        """
+        if not self._metadata_extracted:
+            self._extract_metadata_product_type()
+            self._extract_metadata_from_katdata()
+            self._extract_metadata_for_project()
+            #self._extract_location_from_katdata()
+            self._metadata_extracted = True
+        else:
+           print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+
+    def _extract_metadata_product_type(self):
+        """Override base method. Extract product type to CAS.ProductTypeName.
+        """
+        self.metadata['CAS.ProductTypeName'] = self.product_type
+
+class FileBasedTelescopeProductMetExtractor(TelescopeProductMetExtractor):
+    """A parent class to specifically handel file based MeerKAT telescope metadata extraction from a katdal object.
+
+    Parameters
+    ----------
+    katdata : object : katdal object
+        A valid katdal oject.
+    """
+    def __init__(self, katdata):
+        self.katfile = os.path.abspath(katdata.file.filename)
+        super(FileBasedTelescopeProductMetExtractor, self).__init__(katdata, '%s.%s' % (self.katfile, 'met',))
+
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
         md5_filename = os.path.abspath(self.katfile + '.md5')
@@ -222,7 +269,7 @@ class TelescopeProductMetExtractor(MetExtractor):
             else:
                 return MeerKATAR1TelescopeProductMetExtractor(katdata)
 
-class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
+class KAT7TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
     """Used for extracting metadata for a KAT7 Telescope product. As well as extracting data from a
     katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise
     empty string.
@@ -273,7 +320,7 @@ class KatFileProductMetExtractor(KAT7TelescopeProductMetExtractor):
         super(KatFileProductMetExtractor, self).__init__(katdata)
         self.product_type = 'KatFile'
 
-class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
+class RTSTelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
     """Used for extracting metadata for a RTSTelescopeProduct. As well as extracting data from a
     katdal, a further metadata key 'ReductionName' is created.
 
@@ -327,7 +374,7 @@ class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
-class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
+class MeerKATAR1TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
     """Used for extracting metadata for a MeerKATAR1TelescopeProduct.
 
     Parameters
@@ -399,17 +446,14 @@ class MeerkatTelescopeTapeProductMetExtractor(TelescopeProductMetExtractor):
     """Used for extracting metadata for a MeerkatTelescopeTapeProduct. As well as extracting data
     from a katfile, a further metadata key 'TapeBufferDirectory' must be gotten from a katcp server
     sensor.
-
     Parameters
     ----------
     katfile : string : name of the katfile to open.
         Filename for access handler to a HDF5 katdata.
-
     Attributes
     ----------
     product_type : string : Specify product type for OODT Filemananger ingest
         set to 'MeerkatTelescopeTapeProduct'
-
     Hidden Attributes
     -----------------
     _sensor_host : string : ip address of the vis-store-tape
@@ -717,7 +761,6 @@ class PulsarTimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         self._extract_locations()
 
     def extract_archive_header(self):
-        from datetime import datetime
         data_files = os.listdir(self.product_name)
         data_files = os.listdir(self.product_name)
         sort = sorted(data_files)
