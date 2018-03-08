@@ -33,6 +33,7 @@ import asyncio
 import signal
 import time
 import enum
+import pathlib
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 
@@ -40,6 +41,7 @@ import boto
 import boto.s3.connection
 import katsdpservices
 import katsdpmetawriter
+import katsdptelstate
 from katsdptelstate.rdb_writer import RDBWriter
 from aiokatcp import DeviceServer, Sensor, FailReply
 
@@ -157,11 +159,19 @@ def _write_rdb(ctx, telstate, dump_filename, capture_block_id, stream_name, boto
     if lite:
         keys = get_lite_keys(telstate, capture_block_id, stream_name)
     dump_folder = os.path.dirname(dump_filename)
-    os.makedirs(dump_folder, exist_ok=True)
     logger.info("Writing %s keys to local RDB dump %s", str(len(keys)) if lite else "all", dump_filename)
 
+    temp_telstate = katsdptelstate.TelescopeState()
+    # Clear since the fake redis backend is a singleton
+    temp_telstate.clear()
+    temp_telstate.add('stream_name', stream_name)
+    temp_telstate.add('capture_block_id', capture_block_id)
+    temp_telstate.add('stream_type', katsdpservices.stream_type(stream_name))
+
     rdbw = RDBWriter(client=telstate._r)
-    (written, key_errors) = rdbw.save(dump_filename, keys=keys)
+    supplemental_dumps = rdbw.encode_supplemental_keys(temp_telstate._r, temp_telstate.keys())
+    (written, key_errors) = rdbw.save(dump_filename, keys=keys, supplemental_dumps=supplemental_dumps)
+
     if not written:
         logger.error("No valid telstate keys found for %s_%s", capture_block_id, stream_name)
         return (None, key_errors)
@@ -270,6 +280,7 @@ class MetaWriterServer(DeviceServer):
         """
         additional_name = "full." if not lite else ""
         dump_folder = os.path.join(self._rdb_path, capture_block_id)
+        os.makedirs(dump_folder, exist_ok=True)
         dump_filename = os.path.join(dump_folder, "{}_{}.{}rdb.uploading".format(capture_block_id, stream_name, additional_name))
         st = time.time()
         (rate_b, key_errors) = await self.loop.run_in_executor(self._executor, _write_rdb, ctx, self._telstate, dump_filename, capture_block_id, stream_name, self._boto_dict, lite)
@@ -314,6 +325,14 @@ class MetaWriterServer(DeviceServer):
             finally:
                 self._clear_async_task(task)
             rate_per_stream[stream] = rate_b
+
+        dump_folder = os.path.join(self._rdb_path, capture_block_id)
+        if not lite and os.path.exists(dump_folder):
+            # We treat writing the streams for a full meta dump as the completion of meta data for that particular
+            # capture block id (assuming at least one stream was written)
+            touch_file = os.path.join(dump_folder, "complete")
+            pathlib.Path(touch_file).touch(exist_ok=True)
+
         return rate_per_stream
 
     async def request_write_meta(self, ctx, capture_block_id: str, lite: bool = True, stream_name: str = None) -> None:
