@@ -134,10 +134,12 @@ class TelescopeProductMetExtractor(MetExtractor):
             t = f.catalogue.targets[f.target_indices[0]]
             if (t.body_type == 'radec'):
                 ra, dec = t.radec()
+                ra, dec = katpoint.rad2deg(az), katpoint.rad2deg(dec)
                 self.metadata["DecRa"].append("%f,%f"%(dec,katpoint.wrap_angle(ra,360)))
 
             elif t.body_type == 'azel':
                 az, el = t.azel()
+                az, el = katpoint.rad2deg(az), katpoint.rad2deg(el)
                 if -90 <= el <= 90:
                     self.metadata["ElAz"].append("%f,%f"%(el),katpoint.wrap_angle(az,360))
                 else:
