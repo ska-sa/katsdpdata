@@ -1,3 +1,4 @@
+import ast
 import os
 import subprocess
 import sys
@@ -91,8 +92,6 @@ class TelescopeProductMetExtractor(MetExtractor):
         super(TelescopeProductMetExtractor, self).__init__(metfilename)
 
     def _extract_metadata_from_katdata(self):
-       oelf.capture_block
-       self.capture_block
         """Populate self.metadata: Get information using katdal"""
         self.metadata['Antennas'] = [a.name for a in self._katdata.ants]
         self.metadata['CenterFrequency'] = str(self._katdata.channel_freqs[self._katdata.channels[-1]/2])
@@ -137,7 +136,7 @@ class TelescopeProductMetExtractor(MetExtractor):
                 ra, dec = t.radec()
                 self.metadata["DecRa"].append("%f,%f"%(dec,katpoint.wrap_angle(ra,360)))
 
-            else if t.body_type == 'azel':
+            elif t.body_type == 'azel':
                 az, el = t.azel()
                 if -90 <= el <= 90:
                     self.metadata["ElAz"].append("%f,%f"%(el),katpoint.wrap_angle(az,360))
@@ -193,7 +192,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         else:
            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
-   def _extract_metadata_for_capture_stream(self):
+    def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
         """
         self.metadata['CaptureStreamId'] = self._katdata.source.data.name
@@ -700,11 +699,8 @@ class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
         self.metadata['KatfileVersion'] = "sf"
         self.metadata['Observer'] = obs_info["observer"]
         self.metadata['StartTime'] = "%sZ"%hduPrimary["DATE"]
-        import ast
         self.metadata['Targets'] = ast.literal_eval(obs_info["targets"])
    
-        import subprocess
-        import katpoint
         cmd = ["psrcat","-c","'RAJ DECJ'", "-o", "short_csv", " ".join([t for t in self.metadata['Targets'] if not t.startswith('azel')])]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
@@ -712,15 +708,15 @@ class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
 
         for line in zip([t for t in self.metadata['Targets'] if not t.startswith('azel') and not t.startswith('Azel')],output.split('\n')[2:]):
             rds = line[1].split(';')
-            t = katpoint.Target("%s, radec,%s,%s"%(line[0],rds[1],rds[2]))
-            self.metadata['KatpointTargets'].append(t.description)
+            target = katpoint.Target("%s, radec,%s,%s"%(line[0],rds[1],rds[2]))
+            self.metadata['KatpointTargets'].append(target.description)
             self.metadata['Azel'] = []
 
         for t in [t for t in self.metadata['Targets'] if t.startswith('azel') or t.startswith('Azel')]:
             try:
                 target = katpoint.Target(t)
                 self.metadata['KatpointTargets'].append(target.description)
-            except ValueError:
+            except ValueError as e:
                 print e
                 pass
                     
