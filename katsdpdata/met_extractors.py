@@ -123,9 +123,7 @@ class TelescopeProductMetExtractor(MetExtractor):
             pass
 
     def _extract_location_from_katdata(self):
-        self.metadata["DecRa_path"]=[]
         self.metadata["DecRa"]=[]
-        self.metadata["ElAz_path"]=[]
         self.metadata["ElAz"]=[]
 
         f = self._katdata
@@ -135,28 +133,16 @@ class TelescopeProductMetExtractor(MetExtractor):
         for i, scan, target in f.scans():
             f.select(scans=i)
             t = f.catalogue.targets[f.target_indices[0]]
-            if (target.body_type != 'radec'):
-                self.metadata["DecRa_path"] += ["%f,%f"%(dec,katpoint.wrap_angle(ra,360)) for ra,dec in zip(f.ra[:,0],f.dec[:,0])]
+            if (t.body_type == 'radec'):
+                ra, dec = t.radec()
+                self.metadata["DecRa"].append("%f,%f"%(dec,katpoint.wrap_angle(ra,360)))
 
-            else:
-                self.metadata["DecRa"].append("%f,%f"%(numpy.mean(f.dec),numpy.mean(katpoint.wrap_angle(f.ra,360))))
-
-            if (target.body_type != 'azel'):
-                if max(f.el) <= 90 and min(f.el) >= -90:
-                    self.metadata["ElAz_path"] += ["%f,%f"%(el,katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
+            else if t.body_type == 'azel':
+                az, el = t.azel()
+                if -90 <= el <= 90:
+                    self.metadata["ElAz"].append("%f,%f"%(el),katpoint.wrap_angle(az,360))
                 else:
-                    self.metadata["ElAz_path"] += ["%f,%f"%(numpy.clip(el,-90,90),katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
-
-            else:
-                if -90 <= numpy.mean(f.el) <= 90:
-                    self.metadata["ElAz"].append("%f,%f"%(numpy.mean(f.el),numpy.mean(katpoint.wrap_angle(f.az,360))))
-                else:
-                    self.metadata["ElAz"].append("%f,%f"%(numpy.mean(numpy.clip(f.el,-90,90)),numpy.mean(katpoint.wrap_angle(f.az,360))))
-
-            if len(self.metadata["DecRa_path"]) > 2000:
-                self.metadata["DecRa_path"] = self.metadata["DecRa_path"][::len(self.metadata["DecRa_path"])/2000 + 1] + [self.metadata["DecRa_path"][-1],]
-            if len(self.metadata["ElAz_path"]) > 2000:
-                self.metadata["ElAz_path"] = self.metadata["ElAz_path"][::len(self.metadata["ElAz_path"])/2000 + 1] + [self.metadata["ElAz_path"][-1],]
+                    self.metadata["ElAz"].append("%f,%f"%((numpy.clip(el,-90,90)),katpoint.wrap_angle(az,360)))
 
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
@@ -202,7 +188,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_from_katdata()
             self._extract_metadata_for_project()
             self._extract_metadata_for_capture_stream()
-            #self._extract_location_from_katdata()
+            self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
