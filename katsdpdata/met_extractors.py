@@ -134,7 +134,7 @@ class TelescopeProductMetExtractor(MetExtractor):
             t = f.catalogue.targets[f.target_indices[0]]
             if (t.body_type == 'radec'):
                 ra, dec = t.radec()
-                ra, dec = katpoint.rad2deg(az), katpoint.rad2deg(dec)
+                ra, dec = katpoint.rad2deg(ra), katpoint.rad2deg(dec)
                 self.metadata["DecRa"].append("%f,%f"%(dec,katpoint.wrap_angle(ra,360)))
 
             elif t.body_type == 'azel':
@@ -163,48 +163,6 @@ class TelescopeProductMetExtractor(MetExtractor):
         if 'proposal_description' in self._katdata.obs_params and self._katdata.obs_params['proposal_description'] != '':
             self.metadata['ProposalDescription'] = self._katdata.obs_params['proposal_description']
 
-class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
-    """A class for handling MeerKAT telescope metadata extraction from a katdal object.
-
-    Parameters
-    ----------
-    katdata : object : katdal object
-        A valid katdal oject.
-    """
-    def __init__(self, katdata):
-       metfilename = '{}.met'.format(katdata.source.data.name)
-       super(MeerKATTelescopeProductMetExtractor, self).__init__(katdata, metfilename)
-       self.product_type = 'MeerKATTelescopeProduct'
-
-    def extract_metadata(self):
-        """Metadata to extract for this product. Test value of self.__metadata_extracted. If
-        True, this method has already been run once. If False, extract metadata.
-        This includes:
-            * extracting the product type
-            * extracting basic hdf5 information
-            * extacting project related information
-        """
-        if not self._metadata_extracted:
-            self._extract_metadata_product_type()
-            self._extract_metadata_from_katdata()
-            self._extract_metadata_for_project()
-            self._extract_metadata_for_capture_stream()
-            self._extract_location_from_katdata()
-            self._metadata_extracted = True
-        else:
-           print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
-
-    def _extract_metadata_for_capture_stream(self):
-        """Extract CaptureStreamId, CaptureBlockId and StreamId.
-        """
-        self.metadata['CaptureStreamId'] = self._katdata.source.data.name
-        self.metadata['CaptureBlockId'] = self._katdata.source.data.name.split('_',1)[0]
-        self.metadata['StreamId'] = self._katdata.source.data.name.split('_',1)[1]
-
-    def _extract_metadata_product_type(self):
-        """Override base method. Extract product type to CAS.ProductTypeName.
-        """
-        self.metadata['CAS.ProductTypeName'] = self.product_type
 
 class FileBasedTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """A class for handling telescope systems metadata extraction. This class contains
