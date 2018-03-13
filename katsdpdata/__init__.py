@@ -1,5 +1,3 @@
-from met_extractors import TelescopeProductMetExtractor
-
 # BEGIN VERSION CHECK
 # Get package version when locally imported from repo or via -e develop install
 try:
