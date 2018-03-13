@@ -14,15 +14,15 @@ class MetaDataHandler(object):
     
     Parameters
     ----------
+    solr_url: string : solr url endpoint for metadata queries.
     product_type: string : A predefined product type for OODT purposes.
     product_name: string : The name of the product.
     product_id: string : Unique identifier for product. If set to none,
                          product will have a self generated uuid.
-    solr_url: string : solr url endpoint for metadata queries.
     """
-    def __init__(self, product_type, product_name, product_id=None, solr_url):
+    def __init__(self, solr_url, product_type, product_name, product_id=None):
         super(MetaDataHandler, self).__init__()
-        self.solr_url = sulr_url
+        self.solr_url = solr_url
         self.solr = pysolr.Solr(self.solr_url)
         self.product_type = product_type
         self.product_name = product_name
