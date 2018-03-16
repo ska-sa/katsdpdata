@@ -141,9 +141,9 @@ class TelescopeProductMetExtractor(MetExtractor):
                 az, el = t.azel()
                 az, el = katpoint.rad2deg(az), katpoint.rad2deg(el)
                 if -90 <= el <= 90:
-                    self.metadata["ElAz"].append("%f,%f"%(el),katpoint.wrap_angle(az,360))
+                    self.metadata["ElAz"].append("%f,%f" % (el, katpoint.wrap_angle(az,360)))
                 else:
-                    self.metadata["ElAz"].append("%f,%f"%((numpy.clip(el,-90,90)),katpoint.wrap_angle(az,360)))
+                    self.metadata["ElAz"].append("%f,%f" % ((numpy.clip(el,-90,90)),katpoint.wrap_angle(az,360)))
 
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
