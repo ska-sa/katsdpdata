@@ -103,7 +103,13 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 rdb_lite, rdb_full = rdb_prod + '.rdb', rdb_prod + '.full.rdb'
                 if rdb_lite in cb_files and rdb_full in cb_files:
                     try:
-                        prod_met_extractor = katsdpdata.met_detectors.file_type_detection(rdb_lite)
+                        try:
+                            prod_met_extractor = katsdpdata.met_detectors.file_type_detection(rdb_lite)
+                        except Exception as err:
+                            bucket_name = os.path.relpath(rdb_lite, trawl_dir).split("/", 1)[0]
+                            err.bucket_name = bucket_name
+                            err.filename = rdb_lite
+                            raise
                         met = ingest_vis_product(trawl_dir, os.path.relpath(rdb_prod, cb),
                                                  [rdb_lite, rdb_full], prod_met_extractor, solr_url)
                         logger.info('%s ingested into archive with datastore refs:%s.' %
@@ -187,13 +193,13 @@ def ingest_vis_product(trawl_dir, prod_id, original_refs, prod_met_extractor, so
     """
     try:
         pm_extractor = prod_met_extractor(original_refs[0])
+        pm_extractor.extract_metadata()
     except Exception as err:
         bucket_name = os.path.relpath(original_refs[0], trawl_dir).split("/", 1)[0]
         err.bucket_name = bucket_name
         err.filename = original_refs[0]
         raise
     # product metadata extraction
-    pm_extractor.extract_metadata()
     mh = katsdpdata.met_handler.MetaDataHandler(solr_url, pm_extractor.product_type, prod_id, prod_id)
     if not mh.get_prod_met(prod_id):
         met = mh.create_core_met()
@@ -441,7 +447,7 @@ if __name__ == "__main__":
                       help="S3 gateway host address [default = %default]")
     parser.add_option("--s3-port", type="int", default=7480,
                       help="S3 gateway port [default = %default]")
-    parser.add_option("--solr-url", default="http://cms3.sdp.mkat.chpc.kat.ac.za:8983/solr/kat_core",
+    parser.add_option("--solr-url", default="http://kat-archive.kat.ac.za:8983/solr/kat_core",
                       help="Solr end point for metadata extraction [default = %default]")
 
     (options, args) = parser.parse_args()
