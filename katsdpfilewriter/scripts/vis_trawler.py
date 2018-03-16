@@ -56,7 +56,7 @@ def main(trawl_dir, boto_dict, solr_url):
             if ret == 0:
                 # if we did not upload anything, probably a good idea to sleep for SLEEP_TIME
                 time.sleep(SLEEP_TIME)
-        except Exception:
+        except (socket.error, boto.exception.S3ResponseError):
             logger.error("Exception thrown while trawling. Test s3 connection before trawling.")
             while True:
                 try:
@@ -69,7 +69,9 @@ def main(trawl_dir, boto_dict, solr_url):
                     s3_conn.close()
                     break
             continue
-
+        except Exception:
+            logger.exception("Exception thrown while trawling.")
+            break
 
 def trawl(trawl_dir, boto_dict, solr_url):
     """Main action for trawling a directory for ingesting products
