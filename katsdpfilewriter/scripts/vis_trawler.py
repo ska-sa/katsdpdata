@@ -94,7 +94,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
         cb_files, complete = list_trawl_files(cb, '*.rdb', '*.writing.rdb', 'complete')
         if complete and len(cb_files) == 0:
             cleanup(cb)
-        elif len(cb_files) > 1:
+        elif len(cb_files) >= 1:
             # find all unique products
             rdb_prods = list(set([re.match('^.*[0-9]{10}_[^.]*', cbf).group()
                              for cbf in cb_files
@@ -125,7 +125,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
         cs_files, complete = list_trawl_files(cs, '*.npy', '*.writing.npy', 'complete')
         if complete and len(cs_files) == 0:
             cleanup(cs)
-        elif len(cs_files) > 1:
+        elif len(cs_files) >= 1:
             upload_list.extend(cs_files)
 
     # batch upload numpy files
