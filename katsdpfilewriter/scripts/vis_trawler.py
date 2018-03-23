@@ -99,7 +99,14 @@ def trawl(trawl_dir, boto_dict, solr_url):
             rdb_prods = list(set([re.match('^.*[0-9]{10}_[^.]*', cbf).group()
                              for cbf in cb_files
                              if re.match('^.*[0-9]{10}_[^.]*', cbf) is not None]))
-            for rdb_prod in rdb_prods:
+            # keep track of when a product failes to ingest. Break out of the loop at the first
+            # failure so that the directory is listed again and the failed token is detected.
+            # TODO: turn this into a function so that we can return rather than use a failed_ingest
+            #       token.
+            failed_ingest = False
+            # list the rdb prods in order, so that if l0 is broken
+            # product directory is marked as failed and no further streams are transferred.
+            for rdb_prod in sorted(rdb_prods):
                 rdb_lite, rdb_full = rdb_prod + '.rdb', rdb_prod + '.full.rdb'
                 if rdb_lite in cb_files and rdb_full in cb_files:
                     try:
@@ -117,8 +124,13 @@ def trawl(trawl_dir, boto_dict, solr_url):
                     except Exception as err:
                         if hasattr(err, 'bucket_name'):
                             set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
+                            #if failed, set a boolean flag to exit the loop.
+                            failed_ingest = True
                         else:
                             raise
+                # if the rdb_prod failed, don't continue to the next stream product
+                if failed_ingest:
+                    break
     upload_list = []
     for cs in sorted(cs_dirs):
         # check for condtions
