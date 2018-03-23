@@ -1,6 +1,6 @@
 aiokatcp==0.3
 decorator==4.2.1          # via aiokatcp
-fakenewsredis
+fakeredis
 ipaddress
 katversion
 netifaces
