@@ -246,11 +246,14 @@ def get_stream_product(download_dir, s3_bucket, boto_dict):
         bucket_name = s3_bucket
     bucket = s3_conn.get_bucket(bucket_name)
     for k in bucket:
-        download_file = os.path.join(download_dir, k.bucket.name, k.name)
-        if not os.path.isdir(os.path.split(download_file)[0]):
-            os.makedirs(os.path.split(download_file)[0])
-        logger.info('Downloading {}'.format(k.name))
-        k.get_contents_to_filename(download_file)
+        download_filename = os.path.join(download_dir, k.bucket.name, k.name)
+        if not os.path.isdir(os.path.split(download_filename)[0]):
+            os.makedirs(os.path.split(download_filename)[0])
+        if not os.path.isfile(download_filename):
+            logger.info('Downloading %s' % (k.name))
+            k.get_contents_to_filename(download_filename)
+        else:
+            logger.info('%s exists, skipping.' % (download_filename))
 
 
 def get_capture_block_buckets(capture_block_id, solr_url):
