@@ -22,6 +22,15 @@ logger = logging.getLogger(__name__)
 CPU_MULTIPLIER = 10
 
 
+# cut and paste with modification from katsdpmetawriter/scripts/meta_writer.py
+def make_boto_dict(s3_args):
+    """Create a dict of keyword parameters suitable for passing into a boto.connect_s3 call using the supplied args."""
+    return {"host": s3_args.s3_host,
+            "port": s3_args.s3_port,
+            "is_secure": False,
+            "calling_format": boto.s3.connection.OrdinaryCallingFormat()}
+
+
 def s3_create_bucket(s3_conn, bucket_name, bucket_acl="private"):
     """Create an s3 bucket, if it fails on a 403 or 409 error, print an error
     message and reraise the exception.
@@ -240,6 +249,7 @@ def get_stream_product(download_dir, s3_bucket, boto_dict):
         download_file = os.path.join(download_dir, k.bucket.name, k.name)
         if not os.path.isdir(os.path.split(download_file)[0]):
             os.makedirs(os.path.split(download_file)[0])
+        logger.info('Downloading {}'.format(k.name))
         k.get_contents_to_filename(download_file)
 
 

@@ -21,7 +21,8 @@ setup(
         "scripts/pulsar_search_prod_met_extractor.py",
         "scripts/pulsar_timing_prod_met_extractor.py",
         "scripts/ptuse_timing_prod_met_extractor.py",
-        "scripts/check_failed_directory.py"
+        "scripts/check_failed_directory.py",
+        "scripts/download_cbid_prods.py"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
