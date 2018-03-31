@@ -6,6 +6,7 @@ katversion
 netifaces
 nose
 numpy
+pygelf
 redis
 six
 spead2==1.7.1

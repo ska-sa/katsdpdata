@@ -23,6 +23,7 @@ pbr
 pkginfo
 ply
 pyephem
+pygelf
 redis
 singledispatch
 six
