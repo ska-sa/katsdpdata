@@ -335,10 +335,11 @@ def transfer_files(trawl_dir, boto_dict, file_list):
         bucket_name, key_name = os.path.relpath(filename, trawl_dir).split("/", 1)
         file_size = os.path.getsize(filename)
         if not bucket or bucket.name != bucket_name:
-            bucket = s3_create_bucket(s3_conn, bucket_name)
+            bucket = s3_create_bucket(s3_conn, bucket_name, bucket_acl='public-read')
         key = bucket.new_key(key_name)
         res = key.set_contents_from_filename(filename)
         if res == file_size:
+            key.set_acl(acl_str='public-read')
             os.unlink(filename)
             transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
         else:
