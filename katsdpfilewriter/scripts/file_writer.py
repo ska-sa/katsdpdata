@@ -72,33 +72,39 @@ class FileWriterServer(DeviceServer):
 
     def setup_sensors(self):
         self._status_sensor = Sensor.string(
-                "status", "The current status of the capture process", "", "idle")
+            "status", "The current status of the capture process", "", "idle")
         self.add_sensor(self._status_sensor)
         self._device_status_sensor = Sensor.string(
-                "device-status", "Health sensor", "", "ok")
+            "device-status", "Health sensor", "", "ok")
         self.add_sensor(self._device_status_sensor)
         self._filename_sensor = Sensor.string(
-                "filename", "Final name for file being captured", "")
+            "filename", "Final name for file being captured", "")
         self.add_sensor(self._filename_sensor)
         self._input_dumps_sensor = Sensor.integer(
-                "input-dumps-total",
-                "Number of (possibly partial) input dumps captured in this session.", "", default=0)
+            "input-dumps-total",
+            "Number of (possibly partial) input dumps captured in this session. "
+            "(prometheus: counter)",
+            "", default=0)
         self.add_sensor(self._input_dumps_sensor)
         self._input_heaps_sensor = Sensor.integer(
-                "input-heaps-total",
-                "Number of input heaps captured in this session.", "", default=0)
+            "input-heaps-total",
+            "Number of input heaps captured in this session. (prometheus: counter)",
+            "", default=0)
         self.add_sensor(self._input_heaps_sensor)
         self._input_incomplete_heaps_sensor = Sensor.integer(
-                "input-incomplete-heaps-total",
-                "Number of incomplete heaps that were dropped.", "", default=0)
+            "input-incomplete-heaps-total",
+            "Number of incomplete heaps that were dropped. (prometheus: counter)",
+            "", default=0)
         self.add_sensor(self._input_incomplete_heaps_sensor)
         self._input_bytes_sensor = Sensor.integer(
-                "input-bytes-total",
-                "Number of payload bytes received in this session.", "B", default=0)
+            "input-bytes-total",
+            "Number of payload bytes received in this session. (prometheus: counter)",
+            "B", default=0)
         self.add_sensor(self._input_bytes_sensor)
         self._disk_free_sensor = Sensor.float(
-                "disk-free",
-                "Free disk space in bytes on target device for this file.", "B")
+            "disk-free",
+            "Free disk space in bytes on target device for this file. (prometheus: gauge)",
+            "B")
         self.add_sensor(self._disk_free_sensor)
 
     def _do_capture(self, file_obj):
