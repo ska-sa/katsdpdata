@@ -356,12 +356,12 @@ class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
     def _extract_sub_array_details(self):
         try:
             self.metadata['SubarrayProductId'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['subarray_product_id'])
-            self.metadata['SubarrayNumber'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_sub_nr'])
+            self.metadata['SubarrayNumber'] = str(pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_sub_nr']))
             self.metadata['SubarrayProduct'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_product'])
 
         except IndexError:
             self.metadata['SubarrayProductId'] = self._katdata.file['TelescopeState'].attrs['subarray_product_id']
-            self.metadata['SubarrayNumber'] = self._katdata.file['TelescopeState'].attrs['sub_sub_nr']
+            self.metadata['SubarrayNumber'] = str(self._katdata.file['TelescopeState'].attrs['sub_sub_nr'])
             self.metadata['SubarrayProduct'] = self._katdata.file['TelescopeState'].attrs['sub_product']
 
     def _extract_metadata_for_auto_reduction(self):
