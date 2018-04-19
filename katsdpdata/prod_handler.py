@@ -125,6 +125,42 @@ def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
     return procs
 
 
+def parallel_download(download_dir, boto_dict, bucket_name, key_list):
+    max_workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
+    if len(key_list) < max_workers:
+        workers = len(key_list)
+    else:
+        workers = max_workers
+    logger.info("Using %i workers" % (workers))
+    bucket_keys = [key_list[i::workers] for i in range(workers)]
+    logger.info("Processing %i files" % (len(key_list)))
+    procs = []
+    with futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        for k in bucket_keys:
+            procs.append(executor.submit(transfer_files_from_s3, download_dir, boto_dict, bucket_name, k))
+        executor.shutdown(wait=True)
+    return procs
+
+
+def transfer_files_from_s3(download_dir, boto_dict, bucket_name, bucket_keys):
+    s3_conn = get_s3_connection(boto_dict)
+    bucket = s3_conn.get_bucket(bucket_name)
+    transfer_list = []
+    for key in bucket_keys:
+        k = bucket.get_key(key)
+        download_filename = os.path.join(download_dir, k.bucket.name, k.name)
+        if not os.path.isdir(os.path.split(download_filename)[0]):
+            os.makedirs(os.path.split(download_filename)[0])
+        if not os.path.isfile(download_filename):
+            logger.info('Downloading %s' % (k.name))
+            k.get_contents_to_filename(download_filename)
+            transfer_list.append(download_filename)
+            # TODO: can we confirm the filesize is correct?
+        else:
+            logger.info('%s exists, skipping.' % (download_filename))
+    return transfer_list
+
+
 def transfer_files_to_s3(trawl_dir, boto_dict, file_list):
     """Transfer file list to s3.
 
@@ -153,31 +189,6 @@ def transfer_files_to_s3(trawl_dir, boto_dict, file_list):
             transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
         else:
             logger.debug("%s not deleted. Only uploaded %i of %i bytes." % (filename, res, file_size))
-    return transfer_list
-
-
-def transfer_files_from_s3(target_dir, key_list):
-    """Transfer file list from s3.
-
-    Parameters
-    ----------
-    trawl_dir: string : The full path to the trawl directory
-    boto_dict: dict : parameter dict for boto connection.
-    file_list: list : a list of full path to files to transfer.
-
-    Returns
-    -------
-    transfer_list: list : a list of s3 URLs that where transfered.
-    """
-    transfer_list = []
-    for k in key_list:
-        try:
-            os.makedirs(os.path.join(os.path.abspath(target_dir), k.bucket.name, os.path.split(k.name)[0]))
-        except OSError:
-            import pdb; pdb.set_trace()
-        filename = os.path.join(os.path.abspath(target_dir), k.bucket.name, k.name)
-        k.get_contents_to_filename(filename)
-        transfer_list.append('file://{}'.format(filename))
     return transfer_list
 
 
@@ -273,3 +284,24 @@ def download_stream_products(download_dir, capture_block_id, solr_url, boto_dict
     bucket_names = get_capture_block_buckets(capture_block_id, solr_url)
     for bn in bucket_names:
         get_stream_product(download_dir, bn, boto_dict)
+
+
+def download_stream_products_plaid(download_dir, capture_block_id, solr_url, boto_dict):
+    bucket_names = get_capture_block_buckets(capture_block_id, solr_url)
+    for bn in [b.strip('s3://') for b in bucket_names]:
+        s3_conn = get_s3_connection(boto_dict)
+        try:
+            bucket = s3_conn.get_bucket(bn)
+        except boto.exception.S3ResponseError:
+            logger.error('Bucket %s does not seem to exist!' % (bn))
+        else:
+            bucket_name = bucket.name
+            keys = bucket.get_all_keys(max_keys=1000)
+            next_marker = keys.next_marker
+            parallel_download(download_dir, boto_dict, bucket_name, [k.name for k in keys])
+            while next_marker:
+                logger.info('Downloading next 1000 keys. Starting from key %s.' % (next_marker))
+                keys = bucket.get_all_keys(max_keys=1000, marker=keys.next_marker)
+                parallel_download('.', boto_dict, bucket_name, [k.name for k in keys])
+                next_marker = keys.next_marker
+    logger.info('%s downloaded to %s.' % (capture_block_id, download_dir))
