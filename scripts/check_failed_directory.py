@@ -12,10 +12,6 @@ from optparse import OptionParser
 
 logging.getLogger("katdal").setLevel(logging.ERROR)
 
-default_dirs = []
-default_dirs.append('/var/kat/archive/data/ftp/failed')
-default_dirs.append('/var/kat/archive2/data/ftp/failed')
-
 htaccess_file = '.htaccess'
 
 def get_options():
@@ -29,10 +25,10 @@ def get_options():
     usage = 'usage: %prog [options]'
 
     parser = OptionParser(usage=usage)
-    parser.add_option('--dir', type='str',
-         help='Directory to check. Overrides default directories checked.')
+    parser.add_option('--dirs', type='str',
+         help='Comma seperated list of directories to check.')
     parser.add_option('--hours', type=float,
-         help='Only look at the last number of hours requested.')
+         help='Only look at the last number of hours requested. Does not apply to daemon mode.')
     parser.add_option('--daemon', action='store_true', default=False,
          help='Loop forever and update %s' % (htaccess_file))
     (options, args) = parser.parse_args()
@@ -79,6 +75,7 @@ def check_katdal(h5files):
         fsize = os.path.getsize(h5)
         try:
             k = katdal.open(h5)
+            harass_k = str(k) #test for more fails
             katdal_pass.append(h5)
         except Exception, e:
             e = repr(e).replace('"','\'')
@@ -129,7 +126,7 @@ def update_h5files_htaccess_descriptions(directory):
     descriptions.extend(create_descriptions('met error', met_extractor_errors))
     return descriptions
 
-def update_htaccess():
+def update_htaccess(default_dirs):
     for d in default_dirs:
         descriptions = []
         descriptions.extend(update_h5files_htaccess_descriptions(d))
@@ -167,14 +164,14 @@ def show_h5_results(directory, katdal_errors, met_extractor_errors, met_extracto
         print 'No files remaining.'
     print '+'*len(title) + '\n'
 
-def run_daemon():
+def run_daemon(default_dirs):
     while True:
         print 'Updating...'
-        update_htaccess()
+        update_htaccess(default_dirs)
         print 'done.'
         time.sleep(10)
 
-def run_main(cutoff):
+def run_main(default_dirs, cutoff):
     for d in default_dirs:
         h5files = get_h5files(d)
         h5files = filter_cutoff(cutoff, h5files)
@@ -184,15 +181,15 @@ def run_main(cutoff):
 
 if __name__ == '__main__':
     opts = get_options()
+    default_dirs = [d.strip(' ') for d in opts.dirs.split(',')]
 
     if opts.daemon:
-        run_daemon()
+        run_daemon(default_dirs)
         sys.exit()
-    if opts.dir:
-        default_dirs = [opts.dir]
+
     if opts.hours:
         cutoff = datetime.now() - timedelta(hours=opts.hours)
     else:
         cutoff = None
-    run_main(cutoff)
+    run_main(default_dirs, cutoff)
 
