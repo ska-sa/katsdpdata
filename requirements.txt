@@ -7,8 +7,8 @@ katversion
 netifaces
 numpy
 pyephem
-python-lzf==0.2.4
-rdbtools==0.1.12
+python-lzf
+rdbtools
 redis
 six
 toolz

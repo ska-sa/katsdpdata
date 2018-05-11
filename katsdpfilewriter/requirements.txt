@@ -21,6 +21,8 @@ pbr
 ply
 pyephem
 pygelf
+python-lzf
+rdbtools
 redis
 singledispatch
 six
