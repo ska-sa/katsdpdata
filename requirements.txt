@@ -1,12 +1,21 @@
-pkginfo==1.3.2
-six
-Cython
+dask
+fakeredis
+future
 h5py
-pyephem
+ipaddress
+katversion
+netifaces
 numpy
+pyephem
+python-lzf==0.2.4
+rdbtools==0.1.12
+redis
+six
+toolz
+
 git+ssh://git@github.com/ska-sa/katpoint
 git+ssh://git@github.com/ska-sa/katdal
-git+ssh://git@github.com/ska-sa/katversion
+git+ssh://git@github.com/ska-sa/katsdptelstate
 
 pysolr==3.3.3
 requests==2.0
