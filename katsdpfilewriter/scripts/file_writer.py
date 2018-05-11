@@ -192,7 +192,7 @@ class FileWriterServer(DeviceServer):
                                        free_space)
                     self._rx.stop()
                     end_status = "disk-full"
-                    self._device_status_sensor.set_value("fail", "error")
+                    self._device_status_sensor.set_value("fail", Sensor.ERROR)
         except Exception as err:
             self._logger.error(err)
             end_status = "error"
