@@ -159,7 +159,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
         logger.info("Upload complete in %.2f sec (%.2f MBps)" %
                     (log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
     else:
-        logger.info("No data to upload (%.2f MB)" % (upload_size / 1e6))
+        logger.debug("No data to upload (%.2f MB)" % (upload_size / 1e6))
     return upload_size
 
 
