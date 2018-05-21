@@ -1,3 +1,4 @@
+import ast
 import os
 import subprocess
 import sys
@@ -5,7 +6,6 @@ import time
 import pickle
 import katpoint
 import katdal
-import time
 import datetime
 import numpy
 from katcp import BlockingClient, Message
@@ -80,21 +80,16 @@ class MetExtractor(object):
             raise MetExtractorException('No metadata extracted.')
 
 class TelescopeProductMetExtractor(MetExtractor):
-    """A class for handling telescope systems metadata extraction. This class contains
-    a factory method which returns the correct met extractor object to use. The following 
-    systems are currently supported: KAT7, RTS, MeerKAT AR1.
-
-    Use the static 'factory' method from this class.
+    """A parent class to specifically handel file based MeerKAT telescope metadata extraction from a katdal object.
 
     Parameters
     ----------
     katdata : object : katdal object 
         A valid katdal oject.
     """
-    def __init__(self, katdata):
+    def __init__(self, katdata, metfilename):
         self._katdata = katdata
-        self.katfile = os.path.abspath(self._katdata.file.filename)
-        super(TelescopeProductMetExtractor, self).__init__('%s.%s' % (self.katfile, 'met',))
+        super(TelescopeProductMetExtractor, self).__init__(metfilename)
 
     def _extract_metadata_from_katdata(self):
         """Populate self.metadata: Get information using katdal"""
@@ -109,7 +104,10 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['DumpPeriod'] = '%.4f' % (self._katdata.dump_period)
         self.metadata['Duration'] = str(round(self._katdata.end_time-self._katdata.start_time, 2))
         self.metadata['ExperimentID'] = self._katdata.experiment_id
-        self.metadata['FileSize'] = str(os.path.getsize(self._katdata.file.filename))
+        if self._katdata.file:
+            self.metadata['FileSize'] = str(os.path.getsize(self._katdata.file.filename))
+        else:
+            self.metadata['FileSize'] = str(self._katdata.size)
         self.metadata['KatfileVersion'] = self._katdata.version
         self.metadata['KatpointTargets'] = [t.description for t in self._katdata.catalogue.targets if t.name not in ['None', 'Nothing']]
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
@@ -124,10 +122,7 @@ class TelescopeProductMetExtractor(MetExtractor):
             pass
 
     def _extract_location_from_katdata(self):
-
-        self.metadata["DecRa_path"]=[]
         self.metadata["DecRa"]=[]
-        self.metadata["ElAz_path"]=[]
         self.metadata["ElAz"]=[]
 
         f = self._katdata
@@ -137,28 +132,18 @@ class TelescopeProductMetExtractor(MetExtractor):
         for i, scan, target in f.scans():
             f.select(scans=i)
             t = f.catalogue.targets[f.target_indices[0]]
-            if (target.body_type != 'radec'):
-                self.metadata["DecRa_path"] += ["%f,%f"%(dec,katpoint.wrap_angle(ra,360)) for ra,dec in zip(f.ra[:,0],f.dec[:,0])]
+            if (t.body_type == 'radec'):
+                ra, dec = t.radec()
+                ra, dec = katpoint.rad2deg(ra), katpoint.rad2deg(dec)
+                self.metadata["DecRa"].append("%f,%f"%(dec,katpoint.wrap_angle(ra,360)))
 
-            else:
-                self.metadata["DecRa"].append("%f,%f"%(numpy.mean(f.dec),numpy.mean(katpoint.wrap_angle(f.ra,360))))
-
-            if (target.body_type != 'azel'):
-                if max(f.el) <= 90 and min(f.el) >= -90:
-                    self.metadata["ElAz_path"] += ["%f,%f"%(el,katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
+            elif t.body_type == 'azel':
+                az, el = t.azel()
+                az, el = katpoint.rad2deg(az), katpoint.rad2deg(el)
+                if -90 <= el <= 90:
+                    self.metadata["ElAz"].append("%f,%f" % (el, katpoint.wrap_angle(az,360)))
                 else:
-                    self.metadata["ElAz_path"] += ["%f,%f"%(numpy.clip(el,-90,90),katpoint.wrap_angle(az,360)) for az,el in zip(f.az[:,0],f.el[:,0])]
-
-            else:
-                if -90 <= numpy.mean(f.el) <= 90:
-                    self.metadata["ElAz"].append("%f,%f"%(numpy.mean(f.el),numpy.mean(katpoint.wrap_angle(f.az,360))))
-                else:
-                    self.metadata["ElAz"].append("%f,%f"%(numpy.mean(numpy.clip(f.el,-90,90)),numpy.mean(katpoint.wrap_angle(f.az,360))))
-
-            if len(self.metadata["DecRa_path"]) > 2000:
-                self.metadata["DecRa_path"] = self.metadata["DecRa_path"][::len(self.metadata["DecRa_path"])/2000 + 1] + [self.metadata["DecRa_path"][-1],]
-            if len(self.metadata["ElAz_path"]) > 2000:
-                self.metadata["ElAz_path"] = self.metadata["ElAz_path"][::len(self.metadata["ElAz_path"])/2000 + 1] + [self.metadata["ElAz_path"][-1],]
+                    self.metadata["ElAz"].append("%f,%f" % ((numpy.clip(el,-90,90)),katpoint.wrap_angle(az,360)))
 
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
@@ -177,6 +162,23 @@ class TelescopeProductMetExtractor(MetExtractor):
         #ProposalDescription
         if 'proposal_description' in self._katdata.obs_params and self._katdata.obs_params['proposal_description'] != '':
             self.metadata['ProposalDescription'] = self._katdata.obs_params['proposal_description']
+
+
+class FileBasedTelescopeProductMetExtractor(TelescopeProductMetExtractor):
+    """A class for handling telescope systems metadata extraction. This class contains
+    a factory method which returns the correct met extractor object to use. The following 
+    systems are currently supported: KAT7, RTS, MeerKAT AR1.
+
+    Use the static 'factory' method from this class.
+
+    Parameters
+    ----------
+    katdata : object : katdal object
+        A valid katdal oject.
+    """
+    def __init__(self, katdata):
+        self.katfile = os.path.abspath(katdata.file.filename)
+        super(FileBasedTelescopeProductMetExtractor, self).__init__(katdata, '%s.%s' % (self.katfile, 'met',))
 
     def _extract_metadata_file_digest(self):
         """Populate self.metadata: Calculate the md5 checksum and create a digest metadata key"""
@@ -222,7 +224,7 @@ class TelescopeProductMetExtractor(MetExtractor):
             else:
                 return MeerKATAR1TelescopeProductMetExtractor(katdata)
 
-class KAT7TelescopeProductMetExtractor(TelescopeProductMetExtractor):
+class KAT7TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
     """Used for extracting metadata for a KAT7 Telescope product. As well as extracting data from a
     katfile, a further metadata key 'ReductionName' might be present. Set it if it is, otherwise
     empty string.
@@ -273,7 +275,7 @@ class KatFileProductMetExtractor(KAT7TelescopeProductMetExtractor):
         super(KatFileProductMetExtractor, self).__init__(katdata)
         self.product_type = 'KatFile'
 
-class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
+class RTSTelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
     """Used for extracting metadata for a RTSTelescopeProduct. As well as extracting data from a
     katdal, a further metadata key 'ReductionName' is created.
 
@@ -327,7 +329,7 @@ class RTSTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
 
-class MeerKATAR1TelescopeProductMetExtractor(TelescopeProductMetExtractor):
+class MeerKATAR1TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
     """Used for extracting metadata for a MeerKATAR1TelescopeProduct.
 
     Parameters
@@ -399,17 +401,14 @@ class MeerkatTelescopeTapeProductMetExtractor(TelescopeProductMetExtractor):
     """Used for extracting metadata for a MeerkatTelescopeTapeProduct. As well as extracting data
     from a katfile, a further metadata key 'TapeBufferDirectory' must be gotten from a katcp server
     sensor.
-
     Parameters
     ----------
     katfile : string : name of the katfile to open.
         Filename for access handler to a HDF5 katdata.
-
     Attributes
     ----------
     product_type : string : Specify product type for OODT Filemananger ingest
         set to 'MeerkatTelescopeTapeProduct'
-
     Hidden Attributes
     -----------------
     _sensor_host : string : ip address of the vis-store-tape
@@ -660,11 +659,8 @@ class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
         self.metadata['KatfileVersion'] = "sf"
         self.metadata['Observer'] = obs_info["observer"]
         self.metadata['StartTime'] = "%sZ"%hduPrimary["DATE"]
-        import ast
         self.metadata['Targets'] = ast.literal_eval(obs_info["targets"])
    
-        import subprocess
-        import katpoint
         cmd = ["psrcat","-c","'RAJ DECJ'", "-o", "short_csv", " ".join([t for t in self.metadata['Targets'] if not t.startswith('azel')])]
         psrstat_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         output, err = psrstat_process.communicate()
@@ -672,15 +668,15 @@ class PulsarSearchProductMetExtractor(BeaformerProductMetExtractor):
 
         for line in zip([t for t in self.metadata['Targets'] if not t.startswith('azel') and not t.startswith('Azel')],output.split('\n')[2:]):
             rds = line[1].split(';')
-            t = katpoint.Target("%s, radec,%s,%s"%(line[0],rds[1],rds[2]))
-            self.metadata['KatpointTargets'].append(t.description)
+            target = katpoint.Target("%s, radec,%s,%s"%(line[0],rds[1],rds[2]))
+            self.metadata['KatpointTargets'].append(target.description)
             self.metadata['Azel'] = []
 
         for t in [t for t in self.metadata['Targets'] if t.startswith('azel') or t.startswith('Azel')]:
             try:
                 target = katpoint.Target(t)
                 self.metadata['KatpointTargets'].append(target.description)
-            except ValueError:
+            except ValueError as e:
                 print e
                 pass
                     
@@ -717,7 +713,6 @@ class PulsarTimingArchiveProductMetExtractor(BeaformerProductMetExtractor):
         self._extract_locations()
 
     def extract_archive_header(self):
-        from datetime import datetime
         data_files = os.listdir(self.product_name)
         data_files = os.listdir(self.product_name)
         sort = sorted(data_files)
