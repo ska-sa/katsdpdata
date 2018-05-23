@@ -15,13 +15,11 @@ setup(
     url = 'http://ska.ac.za/',
     scripts = [
         "scripts/tel_prod_met_extractor.py",
-        "scripts/rts_red_prod_met_extractor.py",
-        "scripts/meerkatar1_red_prod_met_extractor.py",
-        "scripts/obit_red_prod_met_extractor.py",
         "scripts/pulsar_search_prod_met_extractor.py",
         "scripts/pulsar_timing_prod_met_extractor.py",
         "scripts/ptuse_timing_prod_met_extractor.py",
-        "scripts/check_failed_directory.py"
+        "scripts/check_failed_directory.py",
+        "scripts/vis_trawler.py"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

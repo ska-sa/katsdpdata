@@ -5,9 +5,11 @@ h5py
 pyephem
 numpy
 git+ssh://git@github.com/ska-sa/katpoint
-git+ssh://git@github.com/ska-sa/katdal
+#git+ssh://git@github.com/ska-sa/katdal
 git+ssh://git@github.com/ska-sa/katversion
-
+git+ssh://git@github.com/ska-sa/katsdptelstate
+git+ssh://git@github.com/ska-sa/katsdpservices
+katdal==0.10.1
 pysolr==3.3.3
 requests==2.0
 
@@ -25,7 +27,20 @@ katcp
 backports-abc
 backports.ssl-match-hostname
 certifi
-future
+future==0.16.0
 futures
 astropy==1.2.1
 pyfits==3.4
+
+fakeredis
+ipaddress
+netifaces
+redis
+rdbtools==0.1.12
+boto==2.48.0
+pygelf
+dask==0.17.5
+toolz==0.9.0
+botocore==1.10.16
+jmespath==0.9.3
+docutils==0.13.1
