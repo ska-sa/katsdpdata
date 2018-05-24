@@ -6,7 +6,7 @@
 # inform receipients that you have modified the original work.
 
 
-FROM sdp-docker-registry.kat.ac.za:5000/docker-base-gpu:latest
+FROM sdp-docker-registry.kat.ac.za:5000/docker-base-gpu-build:latest
 
 
 MAINTAINER Maciej Serylak "mserylak@ska.ac.za"
@@ -197,6 +197,8 @@ RUN mkdir -p /home/kat/software
 
 
 # Install python modules
+ENV PATH $PATH_PYTHON2
+ENV VIRTUAL_ENV $VIRTUAL_ENV_PYTHON2
 RUN pip install pip -U && \
     pip install setuptools -U && \
     pip install ipython -U && \
