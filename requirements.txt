@@ -4,7 +4,7 @@ backports.ssl-match-hostname
 boto==2.48.0
 botocore==1.10.16
 certifi
-dask
+dask==0.17.4
 docutils==0.13.1
 fakeredis
 funcsigs
@@ -26,13 +26,12 @@ pyephem
 pyfits==3.4
 pygelf
 pysolr==3.3.3
-rdbtools
+rdbtools==0.1.12
 redis
-requests
-requests==2.0
+requests==2.8.1
 singledispatch
 six
-toolz
+toolz==0.9.0
 tornado
 traceback2
 unittest2
