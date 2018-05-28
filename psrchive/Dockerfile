@@ -9,7 +9,7 @@
 FROM sdp-docker-registry.kat.ac.za:5000/docker-base-gpu-build:latest
 
 
-MAINTAINER Maciej Serylak "mserylak@ska.ac.za"
+MAINTAINER Christopher Schollar "cscollar@ska.ac.za"
 
 
 # Switch account to root and adding user accounts and password
