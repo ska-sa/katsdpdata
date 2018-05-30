@@ -18,10 +18,8 @@ class AntennaPositioner(TelescopeComponent):
                 ['activity', 'target',
                  'pos_request_scan_azim', 'pos_request_scan_elev',
                  'pos_actual_scan_azim', 'pos_actual_scan_elev',
-                 'dig_noise_diode', 'ap_indexer_position',
-                 'rx_serial_number'], True)
+                 'ap_indexer_position'], True)
         self.add_attributes(['observer'], True)
-        self.add_attributes(['description'], False)
 
 
 class CorrelatorBeamformer(TelescopeComponent):
@@ -39,16 +37,10 @@ class Enviro(TelescopeComponent):
                  'mean_wind_speed', 'wind_direction'])
 
 
-class Digitiser(TelescopeComponent):
-    def __init__(self, *args, **kwargs):
-        super(Digitiser, self).__init__(*args, **kwargs)
-        self.add_sensors(['overflow'])
-
-
 class Observation(TelescopeComponent):
     def __init__(self, *args, **kwargs):
         super(Observation, self).__init__(*args, **kwargs)
-        self.add_sensors(['label', 'params'], True)
+        self.add_sensors(['label'], True)
         self.add_sensors(['script_log'], False)
 
 

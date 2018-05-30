@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-"""Capture L0 visibilities from a SPEAD stream and write to Ceph object store.
+"""Capture L0 visibilities from a SPEAD stream and write to a local chunk store.
 
 This process lives across multiple observations and hence multiple data sets.
-It writes weights, flags and timestamps as well.
+It writes weights and flags as well.
 
 The status sensor has the following states (with typical transition events):
 
@@ -15,65 +15,63 @@ The status sensor has the following states (with typical transition events):
     -> first SPEAD heap arrives ->
   - `capturing`: SPEAD data is being captured
     -> capture stops ->
-  - `finalising`: metadata is being written to telstate, and timestamps to Ceph
+  - `finalising`: metadata is being written to telstate
   - `complete`: both data and metadata capture completed
   - `error`: capture failed
     -> ?capture-done ->
   - `idle`: ready to start capture again
 
 Objects are stored in chunks split over time and frequency but not baseline.
-The chunking is chosen to produce objects with sizes on the order of 2 MB.
+The chunking is chosen to produce objects with sizes on the order of 10 MB.
 Objects have the following naming scheme:
 
-  <obj_base_name>/<capture_block>/<stream>/<dataset>/<idx1>[_<idx2>[_<idx3>]]
+  <capture_stream>/<array>/<idx1>[_<idx2>[_<idx3>]]
 
-  - <obj_base_name>: top-level name (telescope? project? defaults to 'MKAT')
-  - <capture_block>: unique ID from capture_init (program block ID + timestamp)
+  - <capture_stream>: "file name"/bucket in store i.e. <capture block>_<stream>
+  - <capture_block>: unique ID from capture_init (Unix timestamp at init)
   - <stream>: name of specific data product (associated with L0 SPEAD stream)
-  - <dataset>: 'correlator_data' / 'weights' / 'flags' / etc.
+  - <array>: 'correlator_data' / 'weights' / 'flags' / etc.
   - <idxN>: chunk start index along N'th dimension
 
 The following useful object parameters are stored in telstate:
 
-  - <stream>_ceph_conf: copy of ceph.conf used to connect to target Ceph cluster
-  - <stream>_ceph_pool: the name of the Ceph pool used
-  - <capture_block>_<stream>_<dataset>: chunk info dict (dtype, shape, chunks)
+  - <stream>_s3_endpoint_url: endpoint URL of S3 gateway to Ceph
+  - <capture_stream>_chunk_name: data set name in store, i.e. <capture_stream>
+  - <capture_stream>_chunk_info: {dtype, shape, chunks} dict per array
 """
 
 from __future__ import print_function, division
 
-import time
-import os.path
 import os
 import threading
 import logging
 import Queue
 import signal
-from itertools import product
+import subprocess
+import time
 
 import numpy as np
 import manhole
-import dask
 import dask.array as da
-from dask.diagnostics import Profiler
 import spead2
 import spead2.recv
 import katsdptelstate
 import katsdpservices
 from katcp import DeviceServer, Sensor
 from katcp.kattypes import request, return_reply, Str
-from katdal.chunkstore_rados import RadosChunkStore
+from katdal.chunkstore_npy import NpyFileChunkStore
 import katsdpfilewriter
 
 
-NUM_WORKERS = 50
-GRAPH_SIZE_TO_WRITE = 4 * NUM_WORKERS
+def _inc_sensor(sensor, delta, status=Sensor.NOMINAL, timestamp=None):
+    """Increment sensor value by `delta`."""
+    sensor.set_value(sensor.value() + delta, status, timestamp)
 
 
 def generate_chunks(shape, dtype, target_obj_size, dims_to_split=(0, 1)):
     """Generate dask chunk specification from ndarray parameters."""
-    dataset_size = np.prod(shape) * np.dtype(dtype).itemsize
-    num_chunks = np.ceil(dataset_size / target_obj_size)
+    array_size = np.prod(shape) * np.dtype(dtype).itemsize
+    num_chunks = np.ceil(array_size / target_obj_size)
     chunks = [(s,) for s in shape]
     for dim in dims_to_split:
         if dim >= len(shape):
@@ -89,37 +87,26 @@ def generate_chunks(shape, dtype, target_obj_size, dims_to_split=(0, 1)):
     return tuple(chunks)
 
 
-def dsk_from_chunks(chunks, out_name):
-    """"Turn chunk spec into slices spec and keys suitable for dask Arrays."""
-    keys = product([out_name], *[range(len(bds)) for bds in chunks])
-    slices = da.core.slices_from_chunks(chunks)
-    return zip(keys, slices)
-
-
 class VisibilityWriterServer(DeviceServer):
     VERSION_INFO = ("sdp-vis-writer", 0, 1)
     BUILD_INFO = ('katsdpfilewriter',) + \
         tuple(katsdpfilewriter.__version__.split('.', 1)) + ('',)
 
-    def __init__(self, logger, l0_endpoints, l0_interface, l0_name, obj_store,
-                 obj_base_name, obj_size, telstate_l0, *args, **kwargs):
+    def __init__(self, logger, l0_endpoints, l0_interface, l0_ibv, l0_name, obj_store,
+                 obj_size, telstate_l0, *args, **kwargs):
         super(VisibilityWriterServer, self).__init__(*args, logger=logger, **kwargs)
         self._endpoints = l0_endpoints
         self._interface_address = katsdpservices.get_interface_address(l0_interface)
         self._stream_name = l0_name
+        self._ibv = l0_ibv
         self._obj_store = obj_store
-        self._obj_base_name = obj_base_name
         self._obj_size = obj_size
         self._telstate_l0 = telstate_l0
         self._capture_thread = None
-        #: Signalled when about to stop the thread. Never waited for, just a thread-safe flag.
+        # Signalled when about to stop the thread.
+        # Never waited for, just a thread-safe flag.
         self._stopping = threading.Event()
-        self._start_timestamp = None
-        self._int_time = None
-        self._sync_time = None
         self._rx = None
-        self._dask_graph = {}
-        self._graph_nbytes = 0
 
     def setup_sensors(self):
         self._status_sensor = Sensor.string(
@@ -145,117 +132,110 @@ class VisibilityWriterServer(DeviceServer):
             "input-bytes-total",
             "Number of payload bytes received in this session.", "B", default=0)
         self.add_sensor(self._input_bytes_sensor)
+        self._output_bytes_sensor = Sensor.integer(
+            "output-bytes-total",
+            "Number of payload bytes written to storage in this session.", "B", default=0)
+        self.add_sensor(self._output_bytes_sensor)
+        self._output_chunks_sensor = Sensor.integer(
+            "output-chunks-total",
+            "Number of chunks written to storage in this session.", "B", default=0)
+        self.add_sensor(self._output_chunks_sensor)
+        self._output_seconds_sensor = Sensor.float(
+            "output-seconds-total",
+            "Time spent on writing chunks in this session.", "B", default=0)
+        self.add_sensor(self._output_seconds_sensor)
 
     def _dump_metadata(self, n_chans, n_chans_per_substream, n_bls):
-        """Generate chunk metadata for all datasets in dump."""
+        """Generate chunk metadata for all arrays in dump."""
         chunk_info = {}
         chunks_per_dump = 0
         dtypes = {'correlator_data': np.complex64, 'flags': np.uint8,
                   'weights': np.uint8, 'weights_channel': np.float32}
         n_substreams = n_chans // n_chans_per_substream
-        for dataset, dtype in dtypes.iteritems():
+        for array, dtype in dtypes.iteritems():
             dtype = np.dtype(dtype)
             shape = [1, n_chans_per_substream, n_bls]
-            if dataset == 'weights_channel':
+            if array == 'weights_channel':
                 shape = shape[:-1]
             chunks = list(generate_chunks(shape, dtype, self._obj_size))
             shape[1] = n_chans
             chunks[1] = n_substreams * chunks[1]
-            chunk_info[dataset] = {'dtype': dtype, 'shape': tuple(shape),
-                                   'chunks': tuple(chunks)}
+            chunk_info[array] = {'dtype': dtype, 'shape': tuple(shape),
+                                 'chunks': tuple(chunks)}
             num_chunks = np.prod([len(c) for c in chunks])
             chunks_per_dump += num_chunks
             chunk_size = np.prod([c[0] for c in chunks]) * dtype.itemsize
-            self._logger.info("Splitting dataset %r with shape %s and "
+            self._logger.info("Splitting array %r with shape %s and "
                               "dtype %s into %d chunk(s) of ~%d bytes each",
-                              dataset, shape, dtype, num_chunks, chunk_size)
+                              array, shape, dtype, num_chunks, chunk_size)
         return chunk_info, chunks_per_dump
 
-    def _add_heap(self, obj_stream_name, chunk_info, vis_data, flags,
-                  weights, weights_channel, dump_index, channel0):
-        """"Add a single heap to pending dask graph."""
-        heap = {'correlator_data': vis_data, 'flags': flags,
-                'weights': weights, 'weights_channel': weights_channel}
+    def _add_heap(self, capture_stream_name, chunk_info, heap_arrays,
+                  dump_index, channel0):
+        """Write a single heap to chunk store."""
+        start_time = time.time()
+        n_bytes = 0
+        n_chunks = 0
         tfb0 = (dump_index, channel0, 0)
-        for dataset, arr in heap.iteritems():
+        for array, arr in heap_arrays.iteritems():
             # Insert time axis (will be singleton dim as heap is part of 1 dump)
             arr = arr[np.newaxis]
-            chunks = list(chunk_info[dataset]['chunks'])
+            chunks = list(chunk_info[array]['chunks'])
             start_channels = np.r_[0, np.cumsum(chunks[1])].tolist()
             n_chans_per_substream = arr.shape[1]
             start_chunk = start_channels.index(channel0)
             end_chunk = start_channels.index(channel0 + n_chans_per_substream)
             chunks[1] = chunks[1][start_chunk:end_chunk]
-            heap_offset = tfb0[:-1] if dataset == 'weights_channel' else tfb0
+            heap_offset = tfb0[:-1] if array == 'weights_channel' else tfb0
+            array_name = self._obj_store.join(capture_stream_name, array)
+            for s in da.core.slices_from_chunks(chunks):
+                # Adjust slices to start at the heap offset
+                offset = tuple(slice(s.start + i, s.stop + i)
+                               for (s, i) in zip(s, heap_offset))
+                self._obj_store.put_chunk(array_name, offset, arr[s])
+                n_chunks += 1
+            n_bytes += arr.nbytes
+        end_time = time.time()
+        elapsed = end_time - start_time
+        _inc_sensor(self._output_bytes_sensor, n_bytes)
+        _inc_sensor(self._output_chunks_sensor, n_chunks)
+        _inc_sensor(self._output_seconds_sensor, elapsed)
+        self._logger.debug(
+            'Wrote %.3f MB in %.3f s => %.3f MB/s (dump %d, channels starting at %d)',
+            n_bytes / 1e6, elapsed, n_bytes / elapsed / 1e6, dump_index, channel0)
 
-            def offset_slices(s):
-                """"Adjust slices to start at the heap offset."""
-                return tuple(slice(s.start + i, s.stop + i)
-                             for (s, i) in zip(s, heap_offset))
-
-            array_name = self._obj_store.join(obj_stream_name, dataset)
-            dsk = {k + heap_offset:
-                   (self._obj_store.put_chunk, array_name, offset_slices(s), arr[s])
-                   for k, s in dsk_from_chunks(chunks, dataset)}
-            self._dask_graph.update(dsk)
-        self._logger.info('Added %s dump %d, channels starting at %d',
-                          obj_stream_name, dump_index, channel0)
-
-    def _flush_graph(self):
-        """Flush entire dask graph to object store."""
-        schedule = dask.threaded.get
-        with Profiler() as prof:
-            schedule(self._dask_graph, self._dask_graph.keys(),
-                     num_workers=NUM_WORKERS)
-        start = min(res.start_time for res in prof.results)
-        end = max(res.end_time for res in prof.results)
-        total = sum(res.end_time - res.start_time for res in prof.results)
-        duration = end - start
-        mbytes = self._graph_nbytes / 1e6
-        self._logger.info('Wrote %.3f MB in %.3f s using %d workers '
-                          '(%.1f%% efficiency) => %.3f MBps',
-                          mbytes, duration, NUM_WORKERS,
-                          100. * total / (duration * NUM_WORKERS),
-                          mbytes / duration)
-        self._dask_graph = {}
-        self._graph_nbytes = 0
-
-    def _write_final(self, obj_stream_name, chunk_info, timestamps):
-        """Write final bits after capture is done (timestamps + chunk info)."""
-        array_name = self._obj_store.join(obj_stream_name, 'timestamps')
-        n_dumps = len(timestamps)
-        slices = (slice(0, n_dumps),)
-        self._obj_store.put_chunk(array_name, slices, timestamps)
-        capture_block_id = self._obj_store.split(obj_stream_name)[-2]
-        capture_name = self._telstate_l0.SEPARATOR.join((capture_block_id,
-                                                         self._stream_name))
-        telstate_capture = self._telstate_l0.view(capture_name)
-        dask_info = {'dtype': np.dtype(np.float), 'shape': (n_dumps,),
-                     'chunks': ((n_dumps,),)}
-        telstate_capture.add('timestamps', dask_info, immutable=True)
-        for dataset in chunk_info:
-            dtype = chunk_info[dataset]['dtype']
-            shape = list(chunk_info[dataset]['shape'])
+    def _write_final(self, capture_stream_name, heap_chunk_info, n_dumps):
+        """Write final bits (mostly chunk info) after capture is done."""
+        telstate_capture = self._telstate_l0.view(capture_stream_name)
+        telstate_capture.add('chunk_name', capture_stream_name, immutable=True)
+        full_chunk_info = {}
+        for array, info in heap_chunk_info.iteritems():
+            shape = list(info['shape'])
             shape[0] = n_dumps
-            chunks = list(chunk_info[dataset]['chunks'])
+            chunks = list(info['chunks'])
             chunks[0] = n_dumps * (1,)
-            dask_info = {'dtype': dtype, 'shape': tuple(shape),
-                         'chunks': tuple(chunks)}
-            telstate_capture.add(dataset, dask_info, immutable=True)
+            full_chunk_info[array] = {'dtype': info['dtype'],
+                                      'shape': tuple(shape),
+                                      'chunks': tuple(chunks)}
+        telstate_capture.add('chunk_info', full_chunk_info, immutable=True)
+        # Touch a token file to indicate that no more chunk data is coming
+        subprocess.call('sync')
+        completion_token = os.path.join(self._obj_store.path,
+                                        capture_stream_name, 'complete')
+        open(completion_token, 'a').close()
 
-    def _do_capture(self, obj_stream_name, chunk_info):
+    def _do_capture(self, capture_stream_name, chunk_info):
         """Capture a stream from SPEAD and write to object store.
 
         This is run in a separate thread.
 
         Parameters
         ----------
-        obj_stream_name : string
-            Prefix of all object keys associated with captured stream
+        capture_stream_name : string
+            "File name" of captured stream, both in chunk store and telstate
         chunk_info : dict
-            Dict containing dtype / shape / chunks info per dataset in heap
+            Dict containing dtype / shape / chunks info per array in heap
         """
-        timestamps = []
         n_dumps = 0
         n_heaps = 0
         n_bytes = 0
@@ -265,8 +245,9 @@ class VisibilityWriterServer(DeviceServer):
         self._input_heaps_sensor.set_value(n_heaps)
         self._input_bytes_sensor.set_value(n_bytes)
         self._input_incomplete_heaps_sensor.set_value(n_incomplete_heaps)
-        self._dask_graph = {}
-        self._graph_nbytes = 0
+        self._output_bytes_sensor.set_value(0)
+        self._output_chunks_sensor.set_value(0)
+        self._output_seconds_sensor.set_value(0)
         # status to report once the capture stops
         end_status = "complete"
 
@@ -293,7 +274,8 @@ class VisibilityWriterServer(DeviceServer):
                     # asked to stop.
                     if not self._stopping.is_set():
                         self._logger.warning(
-                            "dropped incomplete heap %d (%d/%d bytes of payload)",
+                            "dropped incomplete heap %d "
+                            "(received %d/%d bytes of payload)",
                             heap.cnt, heap.received_length, heap.heap_length)
                         n_incomplete_heaps += 1
                         self._input_incomplete_heaps_sensor.set_value(n_incomplete_heaps)
@@ -301,44 +283,26 @@ class VisibilityWriterServer(DeviceServer):
                 else:
                     updated = ig.update(heap)
                 if 'timestamp' in updated:
-                    vis_data = ig['correlator_data'].value
+                    vis = ig['correlator_data'].value
                     flags = ig['flags'].value
                     weights = ig['weights'].value
                     weights_channel = ig['weights_channel'].value
                     channel0 = ig['frequency'].value
-                    timestamp = ig['timestamp'].value
-                    try:
-                        dump_index = int(ig['dump_index'].value)
-                    except KeyError:
-                        # Attempt to synthesise dump index from timestamp
-                        t0 = timestamps[0] if timestamps else timestamp
-                        dump_index = int(round((timestamp - t0) / self._int_time))
-                        if dump_index < 0:
-                            self._logger.warning(
-                                'Inferred negative dump index, discarding heap '
-                                '(time %f before start time %f)', timestamp, t0)
-                            continue
+                    dump_index = int(ig['dump_index'].value)
                     if dump_index >= n_dumps:
-                        # Fill in all missing timestamps since last dump too
-                        for n in reversed(range(dump_index + 1 - n_dumps)):
-                            timestamps.append(timestamp - n * self._int_time)
                         n_dumps = dump_index + 1
                         self._input_dumps_sensor.set_value(n_dumps)
-                    self._add_heap(obj_stream_name, chunk_info, vis_data,
-                                   flags, weights, weights_channel,
+                    heap_arrays = {'correlator_data': vis, 'flags': flags,
+                                   'weights': weights,
+                                   'weights_channel': weights_channel}
+                    self._add_heap(capture_stream_name, chunk_info, heap_arrays,
                                    dump_index, channel0)
-                    heap_nbytes = vis_data.nbytes + flags.nbytes
+                    heap_nbytes = vis.nbytes + flags.nbytes
                     heap_nbytes += weights.nbytes + weights_channel.nbytes
                     n_heaps += 1
                     n_bytes += heap_nbytes
                     self._input_heaps_sensor.set_value(n_heaps)
                     self._input_bytes_sensor.set_value(n_bytes)
-                    self._graph_nbytes += heap_nbytes
-                    if len(self._dask_graph) >= GRAPH_SIZE_TO_WRITE:
-                        self._flush_graph()
-            # Flush any leftover chunks once the stream has stopped
-            if self._dask_graph:
-                self._flush_graph()
         except Exception as err:
             self._logger.exception(err)
             end_status = "error"
@@ -346,15 +310,13 @@ class VisibilityWriterServer(DeviceServer):
             self._input_bytes_sensor.set_value(0)
             self._input_heaps_sensor.set_value(0)
             self._input_dumps_sensor.set_value(0)
-            if not timestamps:
-                self._logger.error("Capture block contains no data and hence no timestamps")
+            if not n_dumps:
+                self._logger.error("Capture block contains no data")
                 end_status = "error"
             else:
                 self._status_sensor.set_value("finalising")
-                # Timestamps in the SPEAD stream are relative to sync_time
-                timestamps = np.array(timestamps) + self._sync_time
-                self._write_final(obj_stream_name, chunk_info, timestamps)
-                self._logger.info('Wrote %d timestamps', len(timestamps))
+                self._write_final(capture_stream_name, chunk_info, n_dumps)
+                self._logger.info('Wrote %d dumps', n_dumps)
             self._status_sensor.set_value(end_status)
 
     @request(Str(optional=True))
@@ -364,20 +326,15 @@ class VisibilityWriterServer(DeviceServer):
         if self._capture_thread is not None:
             self._logger.info("Ignoring capture_init because already capturing")
             return ("fail", "Already capturing")
-        timestamp = time.time()
         self._device_status_sensor.set_value("ok")
         self._status_sensor.set_value("wait-metadata")
         self._input_dumps_sensor.set_value(0)
         self._input_bytes_sensor.set_value(0)
-        self._start_timestamp = timestamp
         # Set up memory buffers, depending on size of input heaps
         try:
             n_chans = self._telstate_l0['n_chans']
             n_chans_per_substream = self._telstate_l0['n_chans_per_substream']
             n_bls = self._telstate_l0['n_bls']
-            # These are needed for timestamps - crash early if not available
-            self._int_time = self._telstate_l0['int_time']
-            self._sync_time = self._telstate_l0['sync_time']
         except KeyError as error:
             self._logger.error('Missing telescope state key: %s', error)
             return ("fail", "Missing telescope state key: {}".format(error))
@@ -389,37 +346,43 @@ class VisibilityWriterServer(DeviceServer):
         n_substreams = n_chans // n_chans_per_substream
         chunk_info, n_chunks = self._dump_metadata(n_chans,
                                                    n_chans_per_substream, n_bls)
-        n_dumps_per_write = int(np.ceil(GRAPH_SIZE_TO_WRITE / n_chunks))
-        # Buffer no more than ~n_dumps_per_write dumps to keep up with real time
-        n_heaps_to_buffer = (n_dumps_per_write + 1) * n_substreams
+        # Buffer no more than 2 dumps to keep up with real time
+        n_heaps_to_buffer = 2 * n_substreams
         self._rx = spead2.recv.Stream(spead2.ThreadPool(),
                                       max_heaps=2 * n_substreams,
                                       ring_heaps=n_heaps_to_buffer,
                                       contiguous_only=False)
-        # This covers max_heaps, ring_heaps and the arrays sitting in dask_graph
-        n_memory_buffers = 2 * n_heaps_to_buffer + 4 * n_substreams
+        # We need buffers for max_heaps, ring_heaps, the current heap, and
+        # the previous heap that is still in ig, plus 1 for luck.
+        n_memory_buffers = n_heaps_to_buffer + 2 * n_substreams + 3
         memory_pool = spead2.MemoryPool(l0_heap_size, l0_heap_size + 4096,
                                         n_memory_buffers, n_memory_buffers)
         self._rx.set_memory_pool(memory_pool)
+        self._rx.set_memcpy(spead2.MEMCPY_NONTEMPORAL)
         self._rx.stop_on_stop_item = False
-        for endpoint in self._endpoints:
-            if self._interface_address is not None:
-                self._rx.add_udp_reader(endpoint.host, endpoint.port,
-                                        buffer_size=l0_heap_size + 4096,
-                                        interface_address=self._interface_address)
-            else:
-                self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host,
-                                        buffer_size=l0_heap_size + 4096)
+        if self._ibv:
+            endpoint_tuples = [(endpoint.host, endpoint.port) for endpoint in self._endpoints]
+            self._rx.add_udp_ibv_reader(endpoint_tuples, self._interface_address,
+                                        buffer_size=64 * 1024**2)
+        else:
+            for endpoint in self._endpoints:
+                if self._interface_address is not None:
+                    self._rx.add_udp_reader(endpoint.host, endpoint.port,
+                                            buffer_size=l0_heap_size + 4096,
+                                            interface_address=self._interface_address)
+                else:
+                    self._rx.add_udp_reader(endpoint.port, bind_hostname=endpoint.host,
+                                            buffer_size=l0_heap_size + 4096)
 
         self._stopping.clear()
-        obj_stream_name = self._obj_store.join(
-            self._obj_base_name, capture_block_id, self._stream_name)
+        sep = self._telstate_l0.SEPARATOR
+        capture_stream_name = sep.join((capture_block_id, self._stream_name))
         self._capture_thread = threading.Thread(
             target=self._do_capture, name='capture',
-            args=(obj_stream_name, chunk_info))
+            args=(capture_stream_name, chunk_info))
         self._capture_thread.start()
-        self._logger.info("Starting capture to %s", obj_stream_name)
-        return ("ok", "Capture initialised to {0}".format(obj_stream_name))
+        self._logger.info("Starting capture to %s", capture_stream_name)
+        return ("ok", "Capture initialised to {0}".format(capture_stream_name))
 
     @request()
     @return_reply(Str())
@@ -446,7 +409,6 @@ class VisibilityWriterServer(DeviceServer):
             self._capture_thread.join()
         self._capture_thread = None
         self._rx = None
-        self._start_timestamp = None
         self._logger.info("Joined capture thread")
         self._status_sensor.set_value("idle")
         return ("ok", "Capture done")
@@ -468,15 +430,14 @@ if __name__ == '__main__':
                              '[default=auto]')
     parser.add_argument('--l0-name', default='sdp_l0', metavar='NAME',
                         help='Name of L0 stream from ingest [default=%(default)s]')
-    parser.add_argument('--ceph-conf', default="/etc/ceph/ceph.conf", metavar='CONF',
-                        help='Ceph configuration file [default=%(default)s]')
-    parser.add_argument('--ceph-pool', default='data_vis', metavar='POOL',
-                        help='Name of Ceph pool [default=%(default)s]')
-    parser.add_argument('--ceph-keyring',
-                        help='Ceph keyring filename (optional)')
-    parser.add_argument('--obj-base-name', default='MKAT', metavar='NAME',
-                        help='Base name for objects in store [default=%(default)s]')
-    parser.add_argument('--obj-size-mb', type=float, default=2.0, metavar='MB',
+    parser.add_argument('--l0-ibv', action='store_true',
+                        help='Use ibverbs acceleration to receive L0 stream [default=no]')
+    parser.add_argument('--s3-endpoint-url',
+                        help='URL of S3 gateway to Ceph cluster')
+    parser.add_argument('--npy-path',
+                        help='Write NPY files to this directory instead of '
+                             'directly to object store')
+    parser.add_argument('--obj-size-mb', type=float, default=10., metavar='MB',
                         help='Target object size in MB [default=%(default)s]')
     parser.add_argument('-p', '--port', type=int, default=2046, metavar='N',
                         help='KATCP host port [default=%(default)s]')
@@ -484,18 +445,19 @@ if __name__ == '__main__':
                         help='KATCP host address [default=all hosts]')
     parser.set_defaults(telstate='localhost')
     args = parser.parse_args()
+    if not args.npy_path:
+        parser.error('--npy-path is required')
+    if args.l0_ibv and args.l0_interface is None:
+        parser.error('--l0-ibv requires --l0-interface')
 
     # Connect to object store and save config in telstate
-    obj_store = RadosChunkStore.from_config(args.ceph_conf, args.ceph_pool,
-                                            args.ceph_keyring)
+    obj_store = NpyFileChunkStore(args.npy_path)
     telstate_l0 = args.telstate.view(args.l0_name)
-    with open(args.ceph_conf, 'r') as ceph_conf:
-        telstate_l0.add('ceph_conf', ceph_conf.read(), immutable=True)
-    telstate_l0.add('ceph_pool', args.ceph_pool, immutable=True)
+    if args.s3_endpoint_url:
+        telstate_l0.add('s3_endpoint_url', args.s3_endpoint_url, immutable=True)
     restart_queue = Queue.Queue()
-    server = VisibilityWriterServer(logger, args.l0_spead,
-                                    args.l0_interface, args.l0_name,
-                                    obj_store, args.obj_base_name,
+    server = VisibilityWriterServer(logger, args.l0_spead, args.l0_interface, args.l0_ibv,
+                                    args.l0_name, obj_store,
                                     args.obj_size_mb * 1e6, telstate_l0,
                                     host=args.host, port=args.port)
     server.set_restart_queue(restart_queue)
