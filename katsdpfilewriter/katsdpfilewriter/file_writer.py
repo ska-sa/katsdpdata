@@ -106,18 +106,22 @@ def set_telescope_state(h5_file, tstate, base_path=_TSTATE_DATASET, start_timest
     tstate_keys = tstate.keys()
     logger.info("Writing {} telescope state keys to {}".format(len(tstate_keys), base_path))
 
+    sensor_dtype = np.dtype(
+        [('timestamp', np.float64),
+         ('value', h5py.special_dtype(vlen=np.uint8))])
     for key in tstate_keys:
         if not tstate.is_immutable(key):
             sensor_values = tstate.get_range(key, st=start_timestamp,
                                              include_previous=True, return_pickle=True)
              # retrieve all values for a particular key
             # swap value, timestamp to timestamp, value
-            sensor_values = [(timestamp, value) for (value, timestamp) in sensor_values]
-            dset = np.rec.fromrecords(sensor_values, names='timestamp,value')
+            sensor_values = [(timestamp, np.frombuffer(value, dtype=np.uint8))
+                             for (value, timestamp) in sensor_values]
+            dset = np.rec.fromrecords(sensor_values, dtype=sensor_dtype, names='timestamp,value')
             tstate_group.create_dataset(key, data=dset)
             logger.debug("TelescopeState: Written {} values for key {} to file".format(len(dset), key))
         else:
-            tstate_group.attrs[key] = tstate.get(key, return_pickle=True)
+            tstate_group.attrs[key] = np.void(tstate.get(key, return_pickle=True))
             logger.debug("TelescopeState: Key {} written as an attribute".format(key))
 
 
