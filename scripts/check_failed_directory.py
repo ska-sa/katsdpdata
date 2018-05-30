@@ -92,7 +92,7 @@ def check_met_extractor(h5files):
         ctime = datetime.fromtimestamp(os.path.getctime(h5))
         fsize = os.path.getsize(h5)
         try:
-            km = katsdpdata.met_extractors.TelescopeProductMetExtractor.factory(h5)
+            km = katsdpdata.met_extractors.FileBasedTelescopeProductMetExtractor.factory(h5)
             met_extractor_pass.append(km.katfile)
         except Exception, e:
             e = repr(e)
