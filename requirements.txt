@@ -4,7 +4,7 @@ backports.ssl-match-hostname
 boto==2.48.0
 botocore==1.10.16
 certifi
-dask==0.17.4
+dask
 docutils==0.13.1
 fakeredis
 funcsigs
@@ -15,6 +15,7 @@ ipaddress
 jmespath==0.9.3
 katcp
 katdal==0.10.1
+katversion
 linecache2
 mock
 netifaces
@@ -26,12 +27,13 @@ pyephem
 pyfits==3.4
 pygelf
 pysolr==3.3.3
-rdbtools==0.1.12
+python-lzf
+rdbtools
 redis
 requests==2.8.1
 singledispatch
 six
-toolz==0.9.0
+toolz
 tornado
 traceback2
 unittest2

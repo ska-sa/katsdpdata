@@ -358,12 +358,12 @@ class MeerKATAR1TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtract
     def _extract_sub_array_details(self):
         try:
             self.metadata['SubarrayProductId'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['subarray_product_id'])
-            self.metadata['SubarrayNumber'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_sub_nr'])
+            self.metadata['SubarrayNumber'] = str(pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_sub_nr']))
             self.metadata['SubarrayProduct'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_product'])
 
         except IndexError:
             self.metadata['SubarrayProductId'] = self._katdata.file['TelescopeState'].attrs['subarray_product_id']
-            self.metadata['SubarrayNumber'] = self._katdata.file['TelescopeState'].attrs['sub_sub_nr']
+            self.metadata['SubarrayNumber'] = str(self._katdata.file['TelescopeState'].attrs['sub_sub_nr'])
             self.metadata['SubarrayProduct'] = self._katdata.file['TelescopeState'].attrs['sub_product']
 
     def _extract_metadata_for_auto_reduction(self):
@@ -842,7 +842,7 @@ class CalibrationProductMetExtractor(MetExtractor):
         if not self._metadata_extracted:
             self._extract_metadata_product_type()
             self.metadata['ReductionName'] = "Calibration Report"
-            self.metadata['ScheduleBlockIdCode'] = self.product_name[-13:]
+            self.metadata['CaptureBlockId'] = self.product_name.split('/')[-1][:10]
             self._metadata_extracted = True
         else:
             print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."

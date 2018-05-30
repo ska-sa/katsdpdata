@@ -25,7 +25,7 @@ if os.path.isfile(metfilename):
 
 if "MeerKATAR1" in product_name:
     met_extractor = MeerKATAR1ReductionProductMetExtractor(product_name)
-elif "array" in product_name:
+elif "calreport" in product_name:
     met_extractor = CalibrationProductMetExtractor(product_name)
 met_extractor.extract_metadata()
 met_extractor.write_metadatafile()
