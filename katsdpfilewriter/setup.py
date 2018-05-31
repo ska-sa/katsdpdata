@@ -7,7 +7,6 @@ setup(
     author="Bruce Merry",
     packages=find_packages(),
     scripts=[
-        "scripts/file_writer.py",
         "scripts/vis_writer.py"
         ],
     dependency_links=[
@@ -16,7 +15,6 @@ setup(
     ],
     setup_requires=['katversion'],
     install_requires=[
-        'h5py',
         'numpy',
         'dask[array]',
         'spead2>=1.5.0',     # For stop_on_stop_item
@@ -24,8 +22,7 @@ setup(
         'katdal',
         'katsdptelstate',
         'katsdpservices',
-        'hiredis',
-        'futures'
+        'manhole'
     ],
     use_katversion=True
 )
