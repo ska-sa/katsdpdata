@@ -47,11 +47,11 @@ def s3_create_bucket(s3_conn, bucket_name, bucket_acl="private"):
         if bucket_acl in valid_acls:
             s3_bucket.set_acl(bucket_acl)
         else:
-            logger.error("Bucket ACL %s, not in %s, setting to %s" % (bucket_acl, valid_acls, default_acl))
+            logger.error("Bucket ACL %s, not in %s, setting to %s", bucket_acl, valid_acls, default_acl)
             s3_bucket.set_acl(default_acl)
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
-            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." % (e.status, s3_conn.access_key))
+            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server.", e.status, s3_conn.access_key)
         raise
     return s3_bucket
 
@@ -76,15 +76,15 @@ def get_s3_connection(boto_dict):
         # reliable way to test connection and access keys
         return s3_conn
     except socket.error as e:
-        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)" % (s3_conn.host, s3_conn.port, e))
+        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)", s3_conn.host, s3_conn.port, e)
         raise
     except boto.exception.S3ResponseError as e:
         if e.error_code == "InvalidAccessKeyId":
-            logger.error("Supplied access key %s is not for a valid S3 user." % (s3_conn.access_key))
+            logger.error("Supplied access key %s is not for a valid S3 user.", s3_conn.access_key)
         if e.error_code == "SignatureDoesNotMatch":
             logger.error("Supplied secret key is not valid for specified user.")
         if e.status == 403 or e.status == 409:
-            logger.error("Supplied access key (%s) has no permissions on this server." % (s3_conn.access_key))
+            logger.error("Supplied access key (%s) has no permissions on this server.", s3_conn.access_key)
         raise
     return None
 
@@ -100,7 +100,7 @@ def timeit(func):
             name = kwargs.get("log_name", func.__name__.upper())
             kwargs["log_time"][name] = te - ts
         else:
-            logger.info(("%s %.2f ms") % (func.__name__, (te - ts)))
+            logger.info("%s %.2f ms", func.__name__, (te - ts))
         return result
     return wrapper
 
@@ -114,9 +114,9 @@ def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
         workers = len(file_list)
     else:
         workers = max_workers
-    logger.info("Using %i workers" % (workers))
+    logger.info("Using %i workers", workers)
     files = [file_list[i::workers] for i in range(workers)]
-    logger.info("Processing %i files" % (len(file_list)))
+    logger.info("Processing %i files", len(file_list))
     procs = []
     with futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for f in files:
@@ -131,9 +131,9 @@ def parallel_download(download_dir, boto_dict, bucket_name, key_list):
         workers = len(key_list)
     else:
         workers = max_workers
-    logger.info("Using %i workers" % (workers))
+    logger.info("Using %i workers", workers)
     bucket_keys = [key_list[i::workers] for i in range(workers)]
-    logger.info("Processing %i files" % (len(key_list)))
+    logger.info("Processing %i files", len(key_list))
     procs = []
     with futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for k in bucket_keys:
@@ -152,12 +152,12 @@ def transfer_files_from_s3(download_dir, boto_dict, bucket_name, bucket_keys):
         if not os.path.isdir(os.path.split(download_filename)[0]):
             os.makedirs(os.path.split(download_filename)[0])
         if not os.path.isfile(download_filename):
-            logger.info('Downloading %s' % (k.name))
+            logger.info("Downloading %s", k.name)
             k.get_contents_to_filename(download_filename)
             transfer_list.append(download_filename)
             # TODO: can we confirm the filesize is correct?
         else:
-            logger.info('%s exists, skipping.' % (download_filename))
+            logger.info("%s exists, skipping.", download_filename)
     return transfer_list
 
 
@@ -261,10 +261,10 @@ def get_stream_product(download_dir, s3_bucket, boto_dict):
         if not os.path.isdir(os.path.split(download_filename)[0]):
             os.makedirs(os.path.split(download_filename)[0])
         if not os.path.isfile(download_filename):
-            logger.info('Downloading %s' % (k.name))
+            logger.info("Downloading %s", k.name)
             k.get_contents_to_filename(download_filename)
         else:
-            logger.info('%s exists, skipping.' % (download_filename))
+            logger.info("%s exists, skipping.", download_filename)
 
 
 def get_capture_block_buckets(capture_block_id, solr_url):
@@ -293,15 +293,15 @@ def download_stream_products_plaid(download_dir, capture_block_id, solr_url, bot
         try:
             bucket = s3_conn.get_bucket(bn)
         except boto.exception.S3ResponseError:
-            logger.error('Bucket %s does not seem to exist!' % (bn))
+            logger.error("Bucket %s does not seem to exist!", bn)
         else:
             bucket_name = bucket.name
             keys = bucket.get_all_keys(max_keys=1000)
             next_marker = keys.next_marker
             parallel_download(download_dir, boto_dict, bucket_name, [k.name for k in keys])
             while next_marker:
-                logger.info('Downloading next 1000 keys. Starting from key %s.' % (next_marker))
+                logger.info("Downloading next 1000 keys. Starting from key %s.", next_marker)
                 keys = bucket.get_all_keys(max_keys=1000, marker=keys.next_marker)
                 parallel_download('.', boto_dict, bucket_name, [k.name for k in keys])
                 next_marker = keys.next_marker
-    logger.info('%s downloaded to %s.' % (capture_block_id, download_dir))
+    logger.info("%s downloaded to %s.", capture_block_id, download_dir)
