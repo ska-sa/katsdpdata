@@ -14,7 +14,6 @@ h5py
 ipaddress
 jmespath==0.9.3
 katcp
-katdal==0.10.1
 katversion
 linecache2
 mock
