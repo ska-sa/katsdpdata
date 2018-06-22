@@ -273,6 +273,8 @@ def list_trawl_files(prod_dir, file_match, file_writing, complete_token, time_ou
     match the glob pattern. Also, add the complete token if found. Timeout
     after a while, we're going to trim the upload list anyway.
 
+    Move products with a failed token into the failed directory.
+
     Parameters
     ----------
     prod_dir: string : The directory to trawl. Usually the sub-directory
@@ -296,7 +298,12 @@ def list_trawl_files(prod_dir, file_match, file_writing, complete_token, time_ou
     complete = False
     # check for failed token, if there return an empty list and incomplete.
     if os.path.isfile(os.path.join(prod_dir, "failed")):
-        logger.warning("%s so not processing." % (os.path.join(prod_dir, "failed")))
+        logger.warning("%s so not processing, moving to failed directory." % (os.path.join(prod_dir, "failed")))
+        # move product to failed dir
+        failed_dir = os.path.join(os.path.split(prod_dir)[0], "failed")
+        if not os.path.isdir(failed_dir):
+            os.mkdir(failed_dir)
+        shutil.move(prod_dir, failed_dir)
         return ([], False)
     for root, dirnames, filenames in os.walk(prod_dir):
         for filename in filenames:
