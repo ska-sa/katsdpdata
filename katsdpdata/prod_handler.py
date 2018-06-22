@@ -109,11 +109,7 @@ def timeit(func):
 def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
     """
     """
-    max_workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
-    if len(file_list) < max_workers:
-        workers = len(file_list)
-    else:
-        workers = max_workers
+    workers = min(len(file_list), CPU_MULTIPLIER * multiprocessing.cpu_count())
     logger.info("Using %i workers", workers)
     files = [file_list[i::workers] for i in range(workers)]
     logger.info("Processing %i files", len(file_list))
@@ -203,6 +199,7 @@ def ingest_stream_product(trawl_dir, prod_id, original_refs, prod_met_extractor,
     original_refs : list : list of product file(s).
     product_met_extractor: class : a metadata extractor class.
     solr_url: string : sorl endpoint for metadata queries and upload.
+    boto_dict: dict : parameter dict for boto connection.
 
     Returns
     -------
