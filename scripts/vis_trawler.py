@@ -291,6 +291,7 @@ def list_trawl_files(prod_dir, file_match, file_writing, complete_token, time_ou
         and complete token.
     complete: boolean : True if complete token detected.
     """
+    prod_dir = os.path.abspath(prod_dir)
     start_time = time.time()
     file_ext = file_match[1:]  # Turn glob into file extension
     write_ext = file_writing[1:]
