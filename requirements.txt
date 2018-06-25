@@ -27,7 +27,7 @@ pyephem
 pyfits==3.4
 pygelf
 pysolr==3.3.3
-python-dateutil
+python-dateutil==2.5.3
 python-lzf
 rdbtools
 redis
