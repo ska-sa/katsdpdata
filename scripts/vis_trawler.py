@@ -145,7 +145,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size = sum(os.path.getsize(f)
                       for f in upload_list if os.path.isfile(f))
     if upload_size > 0:
-        logger.info("Uploading %.2f MB of data" % (upload_size / 1e6))
+        logger.debug("Uploading %.2f MB of data" % (upload_size / 1e6))
         log_time = {}
         proc_results = parallel_upload(trawl_dir, boto_dict, upload_list, log_time=log_time)
         for pr in proc_results:
@@ -156,7 +156,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 # test s3 problems, else mark as borken
                 if hasattr(err, 'bucket_name'):
                     set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
-        logger.info("Upload complete in %.2f sec (%.2f MBps)" %
+        logger.debug("Upload complete in %.2f sec (%.2f MBps)" %
                     (log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
     else:
         logger.debug("No data to upload (%.2f MB)" % (upload_size / 1e6))
@@ -273,6 +273,8 @@ def list_trawl_files(prod_dir, file_match, file_writing, complete_token, time_ou
     match the glob pattern. Also, add the complete token if found. Timeout
     after a while, we're going to trim the upload list anyway.
 
+    Move products with a failed token into the failed directory.
+
     Parameters
     ----------
     prod_dir: string : The directory to trawl. Usually the sub-directory
@@ -289,6 +291,7 @@ def list_trawl_files(prod_dir, file_match, file_writing, complete_token, time_ou
         and complete token.
     complete: boolean : True if complete token detected.
     """
+    prod_dir = os.path.abspath(prod_dir)
     start_time = time.time()
     file_ext = file_match[1:]  # Turn glob into file extension
     write_ext = file_writing[1:]
@@ -296,7 +299,12 @@ def list_trawl_files(prod_dir, file_match, file_writing, complete_token, time_ou
     complete = False
     # check for failed token, if there return an empty list and incomplete.
     if os.path.isfile(os.path.join(prod_dir, "failed")):
-        logger.warning("%s so not processing." % (os.path.join(prod_dir, "failed")))
+        logger.warning("%s so not processing, moving to failed directory." % (os.path.join(prod_dir, "failed")))
+        # move product to failed dir
+        failed_dir = os.path.join(os.path.split(prod_dir)[0], "failed")
+        if not os.path.isdir(failed_dir):
+            os.mkdir(failed_dir)
+        shutil.move(prod_dir, failed_dir)
         return ([], False)
     for root, dirnames, filenames in os.walk(prod_dir):
         for filename in filenames:

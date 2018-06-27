@@ -5,7 +5,7 @@ boto==2.48.0
 botocore==1.10.16
 certifi
 dask
-defusedxml
+defusedxml==0.5.0
 docutils==0.13.1
 fakeredis
 funcsigs
@@ -27,7 +27,7 @@ pyephem
 pyfits==3.4
 pygelf
 pysolr==3.3.3
-python-dateutil
+python-dateutil==2.5.3
 python-lzf
 rdbtools
 redis
