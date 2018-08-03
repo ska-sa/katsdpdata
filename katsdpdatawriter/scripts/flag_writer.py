@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Capture L1 flags from the SPEAD stream(s) produced by cal.
 
 We adopt a naive strategy and store the flags for each heap in a single
@@ -26,8 +27,8 @@ import katdal
 from katdal.visdatav4 import FLAG_NAMES
 
 import katsdpdatawriter
-from . import spead_write
-from .spead_write import RechunkerGroup, Array
+from katsdpdatawriter import spead_write
+from katsdpdatawriter.spead_write import RechunkerGroup, Array
 
 
 class Status(enum.Enum):
