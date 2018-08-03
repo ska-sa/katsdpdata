@@ -24,6 +24,7 @@ import katsdptelstate
 import katsdpservices
 from aiokatcp import DeviceServer, Sensor, FailReply
 import katdal
+import katdal.chunkstore_npy
 from katdal.visdatav4 import FLAG_NAMES
 
 import katsdpdatawriter
@@ -72,7 +73,7 @@ class FlagWriterServer(DeviceServer):
 
         self.sensors.add(Sensor(
             Status, "status", "The current status of the flag writer process."))
-        self.sensor.add(Sensor(
+        self.sensors.add(Sensor(
             str, "capture-block-state",
             "JSON dict with the state of each capture block seen in this session.",
             default='{}'))
@@ -81,7 +82,7 @@ class FlagWriterServer(DeviceServer):
         out_chunks = in_chunks   # For now - will change later
         DATA_LOST = 1 << FLAG_NAMES.index('data_lost')
         self._arrays = [Array('flags', in_chunks, out_chunks, DATA_LOST, np.uint8)]
-        self._chunk_store = katdal.NpyChunkStore(npy_path)
+        self._chunk_store = katdal.chunkstore_npy.NpyFileChunkStore(npy_path)
 
         rx = spead_write.make_receiver(
             self._endpoints, self._arrays,
@@ -224,6 +225,8 @@ if __name__ == '__main__':
                         help='KATCP host address [default=all hosts]')
 
     args = parser.parse_args()
+    if args.telstate is None:
+        parser.error('--telstate is required')
 
     if args.flags_ibv and args.flags_interface is None:
         parser.error("--flags-ibv requires --flags-interface")
