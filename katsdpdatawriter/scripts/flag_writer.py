@@ -23,7 +23,6 @@ def on_shutdown(loop, server):
     # in case the exit code below borks, we allow shutdown via traditional means
     loop.remove_signal_handler(signal.SIGINT)
     loop.remove_signal_handler(signal.SIGTERM)
-    server.stop_spead()
     server.halt()
 
 
