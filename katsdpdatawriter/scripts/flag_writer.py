@@ -19,14 +19,14 @@ import katsdpservices
 from katsdpdatawriter.flag_writer import FlagWriterServer
 
 
-def on_shutdown(loop, server):
+def on_shutdown(loop: asyncio.AbstractEventLoop, server: FlagWriterServer) -> None:
     # in case the exit code below borks, we allow shutdown via traditional means
     loop.remove_signal_handler(signal.SIGINT)
     loop.remove_signal_handler(signal.SIGTERM)
     server.halt()
 
 
-async def run(loop, server):
+async def run(loop: asyncio.AbstractEventLoop, server: FlagWriterServer) -> None:
     await server.start()
     for sig in [signal.SIGINT, signal.SIGTERM]:
         loop.add_signal_handler(sig, lambda: on_shutdown(loop, server))
@@ -61,10 +61,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.telstate is None:
         parser.error('--telstate is required')
-
     if args.flags_ibv and args.flags_interface is None:
         parser.error("--flags-ibv requires --flags-interface")
-
     if not os.path.isdir(args.npy_path):
         parser.error("Specified NPY path, %s, does not exist.", args.npy_path)
 
