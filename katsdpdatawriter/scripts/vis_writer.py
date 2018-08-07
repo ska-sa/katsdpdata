@@ -5,6 +5,7 @@ import signal
 import logging
 import os
 
+import aiomonitor
 import katsdpservices
 import katsdptelstate
 from katdal.chunkstore_npy import NpyFileChunkStore
@@ -23,6 +24,7 @@ async def run(loop: asyncio.AbstractEventLoop, server: VisibilityWriterServer) -
     await server.start()
     for sig in [signal.SIGINT, signal.SIGTERM]:
         loop.add_signal_handler(sig, lambda: on_shutdown(loop, server))
+    logger.info("Started visibility writer server.")
     await server.join()
 
 
@@ -50,6 +52,12 @@ if __name__ == '__main__':
                              'directly to object store')
     parser.add_argument('--obj-size-mb', type=float, default=10., metavar='MB',
                         help='Target object size in MB [default=%(default)s]')
+    parser.add_argument('--no-aiomonitor', dest='aiomonitor', action='store_false',
+                        help='Disable aiomonitor debugging server')
+    parser.add_argument('--aiomonitor-port', type=int, default=aiomonitor.MONITOR_PORT,
+                        help='port for aiomonitor [default=%(default)s]')
+    parser.add_argument('--aioconsole-port', type=int, default=aiomonitor.CONSOLE_PORT,
+                        help='port for aioconsole [default=%(default)s]')
     parser.add_argument('-p', '--port', type=int, default=2046, metavar='N',
                         help='KATCP host port [default=%(default)s]')
     parser.add_argument('-a', '--host', default="", metavar='HOST',
@@ -74,6 +82,15 @@ if __name__ == '__main__':
                                     args.l0_interface, args.l0_ibv,
                                     chunk_store, args.obj_size_mb * 1e6,
                                     telstate_l0, args.l0_name)
-    logger.info("Started visibility writer server.")
-    loop.run_until_complete(run(loop, server))
+
+    if args.aiomonitor:
+        with aiomonitor.start_monitor(loop=loop,
+                                      port=args.aiomonitor_port,
+                                      console_port=args.aioconsole_port,
+                                      locals=locals()):
+            loop.run_until_complete(run(loop, server))
+    else:
+        loop.run_until_complete(run(loop, server))
+
+    loop.run_until_complete()
     loop.close()
