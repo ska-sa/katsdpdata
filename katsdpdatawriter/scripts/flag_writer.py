@@ -15,6 +15,7 @@ import asyncio
 
 import katsdptelstate
 import katsdpservices
+import katdal.chunkstore_npy
 
 from katsdpdatawriter.flag_writer import FlagWriterServer
 
@@ -68,8 +69,9 @@ if __name__ == '__main__':
 
     loop = asyncio.get_event_loop()
 
+    chunk_store = katdal.chunkstore_npy.NpyFileChunkStore(args.npy_path)
     server = FlagWriterServer(args.host, args.port, loop, args.flags_spead,
-                              args.flags_interface, args.flags_ibv, args.npy_path,
+                              args.flags_interface, args.flags_ibv, chunk_store,
                               args.telstate, args.flags_name)
     logger.info("Started flag writer server.")
 
