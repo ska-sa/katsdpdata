@@ -22,6 +22,7 @@ katversion
 linecache2
 llvmlite
 mock
+msgpack
 netifaces
 nose
 numba
