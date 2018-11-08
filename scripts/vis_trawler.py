@@ -27,7 +27,7 @@ import katsdpdata.met_handler
 import katsdpdata.met_detectors
 
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
-CAPTURE_STREAM_REGEX = "^[0-9]{10}-.*$"
+CAPTURE_STREAM_REGEX = "^[0-9]{10}[-_].*$"
 MAX_TRANSFERS = 5000
 CPU_MULTIPLIER = 10
 SLEEP_TIME = 20
