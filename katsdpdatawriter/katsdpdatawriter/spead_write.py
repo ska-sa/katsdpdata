@@ -11,6 +11,7 @@ import logging
 import concurrent.futures
 import asyncio
 import socket
+import functools
 from collections import Counter
 from typing import (Optional, Any, Sequence, Iterable,           # noqa: F401
                     Mapping, MutableMapping, Set, Dict, Tuple)
@@ -29,6 +30,7 @@ from katsdptelstate.endpoint import Endpoint
 
 from . import rechunk
 from .rechunk import Chunks, Offset
+from .queue_space import QueueSpace
 
 
 logger = logging.getLogger(__name__)
@@ -103,7 +105,13 @@ def io_sensors() -> Sequence[Sensor]:
             "s"),
         Sensor(
             int, "active-chunks",
-            "Number of chunks currently being written. (prometheus: gauge)")
+            "Number of chunks currently being written. (prometheus: gauge)"),
+        Sensor(
+            float, "queued-bytes",
+            "Number of bytes that have been received but not yet written. (prometheus: gauge)"),
+        Sensor(
+            float, "max-queued-bytes",
+            "Maximum value of queued-bytes sensor for this capture block. (prometheus: gauge)")
     ]
 
 
@@ -126,7 +134,9 @@ def clear_io_sensors(sensors: SensorSet) -> None:
                  'output-bytes-total',
                  'output-chunks-total',
                  'output-seconds-total',
-                 'active-chunks']:
+                 'active-chunks',
+                 'queued-bytes',
+                 'max-queued-bytes']:
         sensor = sensors[name]
         sensor.set_value(sensor.stype(0), timestamp=now)
 
@@ -181,45 +191,56 @@ class ChunkStoreRechunker(rechunk.Rechunker):
 
        The :meth`output` coroutine will return as soon as it has posted the
        chunk to the executor. It only blocks to acquire from the
-       `executor_semaphore`.
+       `executor_queue_space`.
     """
     def __init__(
             self,
             executor: concurrent.futures.Executor,
-            executor_semaphore: asyncio.Semaphore,
+            executor_queue_space: QueueSpace,
             chunk_store: katdal.chunkstore.ChunkStore,
             sensors: SensorSet, name: str,
             in_chunks: Chunks, out_chunks: Chunks,
             fill_value: Any, dtype: Any) -> None:
         super().__init__(name, in_chunks, out_chunks, fill_value, dtype)
         self.executor = executor
-        self.executor_semaphore = executor_semaphore
+        self.executor_queue_space = executor_queue_space
         self.chunk_store = chunk_store
         self.chunk_store.create_array(self.name)
         self.sensors = sensors
-        self._futures = set()    # type: Set[asyncio.Future[Tuple[int, float]]]
+        self._futures = set()    # type: Set[asyncio.Future[float]]
+        self._loop = asyncio.get_event_loop()
 
-    def _put_chunk(self, slices: Tuple[slice, ...], value: np.ndarray) -> Tuple[int, float]:
+    def _put_chunk(self, slices: Tuple[slice, ...], value: np.ndarray) -> float:
         """Put a chunk into the chunk store and return statistics.
 
         This is run in a separate thread, using an executor.
         """
-        start = time.monotonic()
-        self.chunk_store.put_chunk(self.name, slices, value)
-        end = time.monotonic()
-        return value.nbytes, end - start
+        def increment_active_chunks():
+            self.sensors['active-chunks'].value += 1
 
-    def _update_stats(self, future: 'asyncio.Future[Tuple[int, float]]') -> None:
+        def decrement_active_chunks():
+            self.sensors['active-chunks'].value -= 1
+
+        start = time.monotonic()
+        self._loop.call_soon_threadsafe(increment_active_chunks)
+        try:
+            self.chunk_store.put_chunk(self.name, slices, value)
+        finally:
+            self._loop.call_soon_threadsafe(decrement_active_chunks)
+        end = time.monotonic()
+        return end - start
+
+    def _update_stats(self, nbytes: int, future: 'asyncio.Future[float]') -> None:
         """Done callback for a future running :meth:`_put_chunk`.
 
         This is run on the event loop, so can safely update sensors. It also
         logs any errors.
         """
         self._futures.remove(future)
-        self.executor_semaphore.release()
-        self.sensors['active-chunks'].value -= 1
+        self.executor_queue_space.release(nbytes)
+        self.sensors['queued-bytes'].value -= nbytes
         try:
-            nbytes, elapsed = future.result()
+            elapsed = future.result()
         except asyncio.CancelledError:
             pass
         except Exception:
@@ -233,13 +254,11 @@ class ChunkStoreRechunker(rechunk.Rechunker):
 
     async def output(self, offset: Offset, value: np.ndarray) -> None:
         slices = tuple(slice(ofs, ofs + size) for ofs, size in zip(offset, value.shape))
-        loop = asyncio.get_event_loop()
-        await self.executor_semaphore.acquire()
+        await self.executor_queue_space.acquire(value.nbytes)
         future = asyncio.ensure_future(
-            loop.run_in_executor(self.executor, self._put_chunk, slices, value))
+            self._loop.run_in_executor(self.executor, self._put_chunk, slices, value))
         self._futures.add(future)
-        self.sensors['active-chunks'].value += 1
-        future.add_done_callback(self._update_stats)
+        future.add_done_callback(functools.partial(self._update_stats, value.nbytes))
 
     def out_of_order(self, received: int, seen: int) -> None:
         self.sensors['input-too-old-heaps-total'].value += 1
@@ -270,9 +289,9 @@ class RechunkerGroup:
     ----------
     executor
         Executor used for asynchronous writes to the chunk store.
-    executor_semaphore
-        Semaphore bounding the number of tasks that can be in flight within
-        `executor`.
+    executor_queue_space
+        :class:`QueueSpace` bounding the number of bytes that can be in flight
+        within `executor`.
     chunk_store
         Chunk-store into which output chunks are written.
     sensors
@@ -286,7 +305,7 @@ class RechunkerGroup:
     """
     def __init__(self,
                  executor: concurrent.futures.Executor,
-                 executor_semaphore: asyncio.Semaphore,
+                 executor_queue_space: QueueSpace,
                  chunk_store: katdal.chunkstore.ChunkStore,
                  sensors: SensorSet, prefix: str,
                  arrays: Sequence[Array]) -> None:
@@ -296,7 +315,7 @@ class RechunkerGroup:
         self._expected = Counter()    # type: MutableMapping[Offset, int]
         self._seen = Counter()        # type: MutableMapping[Offset, int]
         self._rechunkers = [
-            ChunkStoreRechunker(executor, executor_semaphore,
+            ChunkStoreRechunker(executor, executor_queue_space,
                                 chunk_store, sensors,
                                 chunk_store.join(prefix, a.name),
                                 a.in_chunks, a.out_chunks,
@@ -312,6 +331,14 @@ class RechunkerGroup:
         dump_index = offset_prefix[0]
         if dump_index >= self.sensors['input-dumps-total'].value:
             self.sensors['input-dumps-total'].value = dump_index + 1
+
+        nbytes = sum(value.nbytes for value in values)
+        self.sensors['input-heaps-total'].value += 1
+        self.sensors['input-bytes-total'].value += nbytes
+        queued_bytes = self.sensors['queued-bytes'].value + nbytes
+        self.sensors['queued-bytes'].value = queued_bytes
+        if queued_bytes > self.sensors['max-queued-bytes'].value:
+            self.sensors['max-queued-bytes'].value = queued_bytes
 
         # Update our idea of how many heaps we've missed out on, assuming heaps
         # for each substream arrive in order.
@@ -401,9 +428,6 @@ class SpeadWriter:
                 if group is not None:
                     # Get values and add time dimension
                     values = [ig[array.name].value[np.newaxis, ...] for array in group.arrays]
-                    nbytes = sum(value.nbytes for value in values)
-                    self.sensors['input-heaps-total'].value += 1
-                    self.sensors['input-bytes-total'].value += nbytes
                     await group.add((dump_index, channel0), values)
 
     def stop(self) -> None:
@@ -469,7 +493,7 @@ def make_receiver(endpoints: Sequence[Endpoint],
                   interface_address: Optional[str],
                   ibv: bool,
                   max_heaps_per_substream: int = 2,
-                  ring_heaps_per_substream: int = 8):
+                  ring_heaps_per_substream: int = 2):
     """Generate a SPEAD receiver suitable for :class:`SpeadWriter`.
 
     Parameters
@@ -574,6 +598,8 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
                        help='Access key for S3')
     group.add_argument('--s3-secret-key', metavar='KEY',
                        help='Secret key for S3')
+    group.add_argument('--direct-write', action='store_true',
+                       help='Use O_DIRECT for writing to .npy files')
 
     group = parser.add_argument_group('Instrumentation options')
     group.add_argument('--no-aiomonitor', dest='aiomonitor', action='store_false',
@@ -601,6 +627,8 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
                         help='Target object size in MB [default=%(default)s]')
     parser.add_argument('--workers', type=int, default=50,
                         help='Threads to use for writing chunks [default=%(default)s]')
+    parser.add_argument('--buffer-dumps', type=int, default=20, metavar='DUMPS',
+                        help='Number of full dumps to buffer in write queue')
     parser.add_argument('-p', '--port', type=int, metavar='N',
                         help='KATCP host port [default=%(default)s]')
     parser.add_argument('-a', '--host', default="", metavar='HOST',
@@ -629,7 +657,8 @@ def chunk_store_from_args(parser: argparse.ArgumentParser,
             parser.error("Specified --npy-path ({}) does not exist.".format(args.npy_path))
 
     if args.npy_path:
-        chunk_store = katdal.chunkstore_npy.NpyFileChunkStore(args.npy_path)
+        chunk_store = katdal.chunkstore_npy.NpyFileChunkStore(
+            args.npy_path, direct_write=args.direct_write)
     else:
         chunk_store = katdal.chunkstore_s3.S3ChunkStore.from_url(
             args.s3_endpoint_url, credentials=(args.s3_access_key, args.s3_secret_key))
