@@ -41,6 +41,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         self.metadata['CaptureBlockId'] = self._katdata.source.metadata.attrs['capture_block_id']
         self.metadata['StreamId'] = self._katdata.source.metadata.attrs['stream_name']
         self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
+        self.metadata['Prefix'] = self._katdata.source.data.vis_prefix
 
     def _extract_metadata_product_type(self):
         """Override base method. Extract product type to CAS.ProductTypeName.
@@ -63,7 +64,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
        self.product_type = 'MeerKATFlagProduct'
 
     def extract_metadata(self):
-        """Metadata to extract for this product. Test value of self.__metadata_extracted. If 
+        """Metadata to extract for this product. Test value of self.__metadata_extracted. If
         True, this method has already been run once. If False, extract metadata.
         This includes:
             * extracting the product type
