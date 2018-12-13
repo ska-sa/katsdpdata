@@ -96,9 +96,9 @@ def trawl(trawl_dir, boto_dict, solr_url):
             cleanup(cb)
         elif len(cb_files) >= 1:
             # find all unique products
-            rdb_prods = list(set([re.match('^.*[0-9]{10}-[^.]*', cbf).group()
+            rdb_prods = list(set([re.match('^.*[0-9]{10}_[^.]*', cbf).group()
                              for cbf in cb_files
-                             if re.match('^.*[0-9]{10}-[^.]*', cbf) is not None]))
+                             if re.match('^.*[0-9]{10}_[^.]*', cbf) is not None]))
             # keep track of when a product failes to ingest. Break out of the loop at the first
             # failure so that the directory is listed again and the failed token is detected.
             # TODO: turn this into a function so that we can return rather than use a failed_ingest
