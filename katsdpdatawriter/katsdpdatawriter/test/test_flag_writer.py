@@ -89,7 +89,7 @@ class TestFlagWriterServer(BaseTestWriterServer):
             chunk_info,
             {
                 'flags': {
-                    'prefix': capture_stream,
+                    'prefix': capture_stream.replace('_', '-'),
                     'shape': (1, n_chans, n_bls),
                     'chunks': ((1,), (self.chunk_channels,) * n_chunks, (n_bls,)),
                     'dtype': np.dtype(np.uint8)
@@ -113,12 +113,13 @@ class TestFlagWriterServer(BaseTestWriterServer):
         self.assert_sensor_equals('capture-block-state', '{}')
         await self.stop_server()
         capture_stream = '{}_{}'.format(self.cbid, output_name)
-        assert_true(self.chunk_store.is_complete(capture_stream))
+        prefix = capture_stream.replace('_', '-')
+        assert_true(self.chunk_store.is_complete(prefix))
 
         # Validate the data written
         chunk_info = self._check_chunk_info(output_name)
         data = self.chunk_store.get_dask_array(
-            self.chunk_store.join(capture_stream, 'flags'),
+            self.chunk_store.join(chunk_info['prefix'], 'flags'),
             chunk_info['chunks'], chunk_info['dtype']).compute()
         n_chans_per_substream = self.telstate['n_chans_per_substream']
         np.testing.assert_array_equal(self.ig['flags'].value[np.newaxis],
