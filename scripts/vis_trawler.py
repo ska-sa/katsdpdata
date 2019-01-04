@@ -6,6 +6,7 @@ try:
     import futures
 except ImportError:
     import concurrent.futures as futures
+import json
 import logging
 import multiprocessing
 import os
@@ -343,11 +344,16 @@ def transfer_files(trawl_dir, boto_dict, file_list):
         bucket_name, key_name = os.path.relpath(filename, trawl_dir).split("/", 1)
         file_size = os.path.getsize(filename)
         if not bucket or bucket.name != bucket_name:
-            bucket = s3_create_bucket(s3_conn, bucket_name, bucket_acl='public-read')
+            try:
+                bucket = s3_create_bucket(s3_conn, bucket_name)
+            except boto.exception.S3CreateError as e:
+                if e.status == 409: #Bucket already exists and you're the ownwer
+                    bucket = s3_conn.get_bucket(bucket_name)
+                else:
+                   raise
         key = bucket.new_key(key_name)
         res = key.set_contents_from_filename(filename)
         if res == file_size:
-            key.set_acl(acl_str='public-read')
             os.unlink(filename)
             transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
         else:
@@ -432,7 +438,29 @@ def get_s3_connection(boto_dict):
     return None
 
 
-def s3_create_bucket(s3_conn, bucket_name, bucket_acl="private"):
+def public_read(bucket_name):
+    bucket_policy = {
+        "Version":"2012-10-17",
+        "Statement":[
+            {
+            "Sid":"AddPerm",
+            "Effect":"Allow",
+            "Principal": "*",
+            "Action":["s3:GetObject"], #, "s3:ListBucket"],
+            "Resource":["arn:aws:s3:::%s/*" % bucket_name]
+            },
+            {
+            "Sid":"AddPerm",
+            "Effect":"Allow",
+            "Principal": "*",
+            "Action":["s3:ListBucket"],
+            "Resource":["arn:aws:s3:::%s" % bucket_name]
+            }
+        ]
+    }
+    return json.dumps(bucket_policy)
+
+def s3_create_bucket(s3_conn, bucket_name):
     """Create an s3 bucket, if it fails on a 403 or 409 error, print an error
     message and reraise the exception.
     Returns
@@ -441,15 +469,9 @@ def s3_create_bucket(s3_conn, bucket_name, bucket_acl="private"):
         An S3 Bucket object
     bucket_ack : string : the access control lst to set for the bucket
     """
-    valid_acls = ["private", "public-read", "public-read-write", "authenticated-read"]
-    default_acl = "private"
     try:
         s3_bucket = s3_conn.create_bucket(bucket_name)
-        if bucket_acl in valid_acls:
-            s3_bucket.set_acl(bucket_acl)
-        else:
-            logger.error("Bucket ACL %s, not in %s, setting to %s" % (bucket_acl, valid_acls, default_acl))
-            s3_bucket.set_acl(default_acl)
+        s3_bucket.set_policy(public_read(bucket_name))
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
             logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." % (e.status, s3_conn.access_key))
