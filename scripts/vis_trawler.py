@@ -92,7 +92,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     cb_dirs, cs_dirs = list_trawl_dir(trawl_dir)
     # prune cb_dirs
     # this is tested by checking if there are any cs_dirs that start with the cb.
-    # cb's will only then only be transferred once all their streams have their 
+    # cb's will only be transferred once all their streams have their 
     # complete token set.
     for cb in cb_dirs[:]:
         for cs in cs_dirs:
