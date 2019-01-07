@@ -90,6 +90,16 @@ def trawl(trawl_dir, boto_dict, solr_url):
         wait for a set time before trawling directory again.
     """
     cb_dirs, cs_dirs = list_trawl_dir(trawl_dir)
+    # prune cb_dirs
+    # this is tested by checking if there are any cs_dirs that start with the cb.
+    # cb's will only then only be transferred once all their streams have their 
+    # complete token set.
+    for cb in cb_dirs[:]:
+        for cs in cs_dirs:
+            if cs.startswith(cb):
+                cb_dirs.remove(cb)
+                break
+    # transfer any cb_dirs that have complete streams
     for cb in sorted(cb_dirs):
         # check for conditions
         cb_files, complete = list_trawl_files(cb, '*.rdb', '*.writing.rdb', 'complete')
@@ -438,8 +448,13 @@ def get_s3_connection(boto_dict):
     return None
 
 
-def public_read(bucket_name):
-    bucket_policy = {
+def s3_create_anon_access_policy(bucket_name):
+    """Create a bucket policy for anonymous read access and anonymous bucket listing.
+       Returns
+       -------
+       anon_access_policy: A json formatted s3 bucket policy
+    """
+    anon_policy_dict = {
         "Version":"2012-10-17",
         "Statement":[
             {
@@ -458,7 +473,8 @@ def public_read(bucket_name):
             }
         ]
     }
-    return json.dumps(bucket_policy)
+    anon_access_policy = json.dumps(anon_policy_dict)
+    return anon_access_policy
 
 def s3_create_bucket(s3_conn, bucket_name):
     """Create an s3 bucket, if it fails on a 403 or 409 error, print an error
@@ -471,7 +487,8 @@ def s3_create_bucket(s3_conn, bucket_name):
     """
     try:
         s3_bucket = s3_conn.create_bucket(bucket_name)
-        s3_bucket.set_policy(public_read(bucket_name))
+        s3_bucket_policy = s3_create_anon_access_policy(bucket_name)
+        s3_bucket.set_policy(s3_bucket_policy)
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
             logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." % (e.status, s3_conn.access_key))
