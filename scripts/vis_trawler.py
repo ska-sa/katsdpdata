@@ -450,9 +450,9 @@ def get_s3_connection(boto_dict):
 
 def s3_create_anon_access_policy(bucket_name):
     """Create a bucket policy for anonymous read access and anonymous bucket listing.
-       Returns
-       -------
-       anon_access_policy: A json formatted s3 bucket policy
+    Returns
+    -------
+    anon_access_policy: A json formatted s3 bucket policy
     """
     anon_policy_dict = {
         "Version":"2012-10-17",
