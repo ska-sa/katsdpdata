@@ -354,13 +354,7 @@ def transfer_files(trawl_dir, boto_dict, file_list):
         bucket_name, key_name = os.path.relpath(filename, trawl_dir).split("/", 1)
         file_size = os.path.getsize(filename)
         if not bucket or bucket.name != bucket_name:
-            try:
-                bucket = s3_create_bucket(s3_conn, bucket_name)
-            except boto.exception.S3CreateError as e:
-                if e.status == 409: #Bucket already exists and you're the ownwer
-                    bucket = s3_conn.get_bucket(bucket_name)
-                else:
-                   raise
+            bucket = s3_create_bucket(s3_conn, bucket_name)
         key = bucket.new_key(key_name)
         res = key.set_contents_from_filename(filename)
         if res == file_size:
@@ -477,22 +471,26 @@ def s3_create_anon_access_policy(bucket_name):
     return anon_access_policy
 
 def s3_create_bucket(s3_conn, bucket_name):
-    """Create an s3 bucket, if it fails on a 403 or 409 error, print an error
-    message and reraise the exception.
+    """Create an s3 bucket. If S3CreateError and the error
+    status is 409, return a referece to the bucket as it has
+    already been created and is owned by you.
     Returns
     ------
     s3_bucket : boto.s3.bucket.Bucket
         An S3 Bucket object
-    bucket_ack : string : the access control lst to set for the bucket
     """
+    s3_bucket_policy = s3_create_anon_access_policy(bucket_name)
     try:
-        s3_bucket = s3_conn.create_bucket(bucket_name)
-        s3_bucket_policy = s3_create_anon_access_policy(bucket_name)
-        s3_bucket.set_policy(s3_bucket_policy)
+        s3_bucket = s3_conn.create_bucket(bucket_name, policy=s3_bucket_policy)
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
             logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." % (e.status, s3_conn.access_key))
         raise
+    except boto.exception.S3CreateError as e:
+        if e.status == 409: #Bucket already exists and you're the ownwer
+            s3_bucket = s3_conn.get_bucket(bucket_name)
+        else:
+            raise
     return s3_bucket
 
 
