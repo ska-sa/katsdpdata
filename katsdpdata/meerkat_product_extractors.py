@@ -98,6 +98,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         self.metadata['CAS.ProductTypeName'] = self.product_type
 
     def _extract_instrument_name(self):
-       """Exrac the instrument from the enviroment variable if it exists"""
+       """Extract the instrument from the enviroment variable if it exists.
+       """
        if 'INSTRUMENT' in os.environ:
            self.metadata['Instrument'] = os.environ['INSTRUMENT']
