@@ -75,29 +75,35 @@ class S3TransferBase(object):
     def __init__(self, bucket, keyname):
         super(S3TransferBase, self).__init__()
         self.bucket = bucket
-        self.key = self.bucket.new_key(keyname)
-        self.source_size = None
+        self.payload_size = None
         self.sink_size = None 
 
-    def _copy(self, payload):
-        """docstring for _copy"""
-        self.source_size = len(payload)
-        self.sink_size = self.key.set_contents_from_string(payload)        
+    def _upload(self):
+        """Implement this method to return a payload to upload to S3"""
+        raise NotImplementedError
 
-    def _check(self):
-        """docstring for _check"""
-        if not self.source_size or not self.sink_size or self.sink_size != self.source_size:
-            raise S3TransferError("%s size is %d while sink size is %d" % (str(self.source), self.source_size, self.sink_size))
-        return True
- 
     def _delete(self):
         """docstring for _delete"""
         raise NotImplementedError
-        
+
+    def _put(self, payload):
+        """Copy the data to the destination bucket and key."""
+        key = self.bucket.new_key(keyname)
+        self.payload_size = len(payload)
+        self.sink_size = key.set_contents_from_string(payload)
+
+    def _check(self):
+        """docstring for _check"""
+        if not self.payload_size or not self.sink_size or self.sink_size != self.payload_size:
+            raise S3TransferError("%s size is %d while sink size is %d" % (str(self.source), self.payload_size, self.sink_size))
+        return True
+ 
     def transfer(self):
-        self._copy()
+        payload = self._upload()
+        self._put(payload)
         if self._check():
             self._delete()
+        return True
 
 
 class LocalFiletoS3Transfer(S3TransferBase):
@@ -106,19 +112,12 @@ class LocalFiletoS3Transfer(S3TransferBase):
         self.source = source
         super(LocalFiletoS3Transfer, self).__init__(bucket, keyname)
 
-    def _copy(self):
-        """docstring for _copy"""
-        payload = self.source.read()
-        super(LocalFiletoS3Transfer, self)._copy(payload)
+    def _upload(self):
+        return self.source.read()
 
     def _delete(self):
        """docstring for _delete""" 
        os.unlink(self.source.name)
-
-    def transfer(self): 
-        """docstring for transfer"""
-        super(LocalFiletoS3Transfer, self).transfer() 
-        return ( 'file://%s' % (self.source.name), 's3://%s/%s' % (self.key.bucket.name, self.key.name)) 
 
 
 class S3toS3Transfer(S3TransferBase):
@@ -127,13 +126,8 @@ class S3toS3Transfer(S3TransferBase):
         self.source = source
         super(S3toS3Transfer, self).__init__(bucket, keyname)
     
-    def _copy(self):
-        payload = self.source.get_contents_as_string()
-        super(S3toS3Transfer, self)._copy(payload)
+    def _upload(self):
+        return self.source.get_contents_as_string()
 
     def _delete(self):
         self.source.delete()
-
-    def transfer(self):
-        super(S3toS3Transfer, self).transfer()
-        return ( 's3://%s/%s' % (self.source.bucket.name, self.source.name), 's3://%s/%s' % (self.key.bucket.name, self.key.name))
