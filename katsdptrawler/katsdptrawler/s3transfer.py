@@ -1,9 +1,11 @@
 import boto
 import boto.s3.connection
 import copy
+import logging
 import os
 import socket
 
+logger = logging.getLogger(__name__)
 
 class S3TransferError(Exception):
     pass
@@ -42,24 +44,34 @@ def s3_connect(host, port, profile_name='default'):
         # reliable way to test connection and access keys
         return s3_conn
     except socket.error:
-        #logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)" % (s3_conn.host, s3_conn.port, e))
+        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)" % (s3_conn.host, s3_conn.port, e))
         raise
     except boto.exception.S3ResponseError as e:
         if e.error_code == "InvalidAccessKeyId":
-            pass
-            #logger.error("Supplied access key %s is not for a valid S3 user." % (s3_conn.access_key))
+            logger.error("Supplied access key %s is not for a valid S3 user." % (s3_conn.access_key))
         if e.error_code == "SignatureDoesNotMatch":
-            pass
-            #logger.error("Supplied secret key is not valid for specified user.")
+            logger.error("Supplied secret key is not valid for specified user.")
         if e.status == 403 or e.status == 409:
-            #logger.error("Supplied access key (%s) has no permissions on this server." % (s3_conn.access_key))
-            pass
+            logger.error("Supplied access key (%s) has no permissions on this server." % (s3_conn.access_key))
         raise
     return None
 
 
 class S3TransferBase(object):
-    """docstring for S3TransferBase"""
+    """Transfer a source payload to an s3 bucket with the given keyname. This is a 
+    base class and should not be instantiated.
+
+    The transfer method executes sequence: copy, check, delete.
+
+    Parameters
+    ----------
+    bucket: The destination bucket - a boto.s3.bucket.Bucket object.
+    keyname: The destination key name to be created in the given bucket.
+
+    Raises
+    ------
+    S3TransferError
+    """
     def __init__(self, bucket, keyname):
         super(S3TransferBase, self).__init__()
         self.bucket = bucket
