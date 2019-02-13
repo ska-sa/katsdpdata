@@ -220,14 +220,15 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libpython2.7.so $HOME/ve/lib/python2.7/libpy
 
 # Downloading all source codes
 WORKDIR $PSRHOME
-RUN wget --no-check-certificate http://sdp-services/mirror/www.imcce.fr/content/medias/recherche/equipes/asd/calceph/calceph-2.3.2.tar.gz && \
-    tar -xvvf calceph-2.3.2.tar.gz -C $PSRHOME && \
+RUN wget --no-check-certificate https://www.imcce.fr/content/medias/recherche/equipes/asd/calceph/calceph-3.3.1.tar.gz && \
+    tar -xvvf calceph-3.3.1.tar.gz -C $PSRHOME && \
     wget --no-check-certificate http://www.atnf.csiro.au/people/pulsar/psrcat/downloads/psrcat_pkg.tar.gz && \
     tar -xvf psrcat_pkg.tar.gz -C $PSRHOME && \
-    git clone https://bitbucket.org/psrsoft/tempo2.git && \
-    git clone git://git.code.sf.net/p/tempo/tempo && \
-    git clone https://github.com/SixByNine/psrxml.git && \
-    git clone git://git.code.sf.net/p/psrchive/code psrchive
+    git clone --progress https://github.com/straten/epsic.git && \
+    git clone --progress https://bitbucket.org/psrsoft/tempo2.git && \
+    git clone --progress git://git.code.sf.net/p/tempo/tempo && \
+    git clone --progress https://github.com/SixByNine/psrxml.git && \
+    git clone --progress git://git.code.sf.net/p/psrchive/code psrchive
 
 
 # PGPLOT
@@ -240,22 +241,24 @@ ENV PGPLOT_DEV /xs
 
 
 # calceph
-ENV CALCEPH $PSRHOME/calceph-2.3.2
+ENV CALCEPH $PSRHOME/calceph-3.3.1
 ENV PATH $PATH:$CALCEPH/install/bin
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:$CALCEPH/install/lib
 ENV C_INCLUDE_PATH $C_INCLUDE_PATH:$CALCEPH/install/include
 WORKDIR $CALCEPH
 RUN ./configure --prefix=$CALCEPH/install --with-pic --enable-shared --enable-static --enable-fortran --enable-thread && \
-    make && \
+    make -j $(nproc) && \
     make check && \
-    make install
+    make install && \
+    make clean
 
 
 # psrcat
 ENV PSRCAT_FILE $PSRHOME/psrcat_tar/psrcat.db
 ENV PATH $PATH:$PSRHOME/psrcat_tar
 WORKDIR $PSRHOME/psrcat_tar
-RUN /bin/bash makeit
+RUN /bin/bash makeit && \
+    rm -rf *.o
 
 
 # tempo
@@ -264,8 +267,11 @@ ENV PATH $PATH:$PSRHOME/tempo/bin
 WORKDIR $PSRHOME/tempo
 RUN ./prepare && \
     ./configure --prefix=$PSRHOME/tempo && \
-    make && \
-    make install
+    make -j $(nproc)&& \
+    make install && \
+    make clean && \
+    echo " 5109318.8410  2006836.3673    -3238921.7749   1  MEERKAT             m  MK" >> obsys.dat && \
+    awk '{print $(NF-1), $0}' obsys.dat | sort -V | cut -d\  -f2-
 
 
 # tempo2
@@ -279,7 +285,8 @@ RUN ./bootstrap && \
     ./configure --x-libraries=/usr/lib/x86_64-linux-gnu --with-calceph=$CALCEPH/install/lib --enable-shared --enable-static --with-pic F77=gfortran CPPFLAGS="-I"$CALCEPH"/install/include" && \
     make -j $(nproc) && \
     make install && \
-    make plugins-install
+    make plugins-install && \
+    make clean
 
 
 # PSRXML
@@ -290,8 +297,23 @@ ENV C_INCLUDE_PATH $C_INCLUDE_PATH:$PSRXML/install/include
 WORKDIR $PSRXML
 RUN autoreconf --install --warnings=none
 RUN ./configure --prefix=$PSRXML/install && \
+    make -j $(nproc) && \
+    make install && \
+    make clean
+
+
+# epsic
+ENV EPSIC $PSRHOME/epsic
+ENV PATH $PATH/$EPSIC/install/bin
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH/$EPSIC/install/lib
+ENV C_INCLUDE_PATH $C_INCLUDE_PATH/$EPSIC/install/include
+WORKDIR $EPSIC/src
+RUN ./bootstrap && \
+    ./configure --prefix=$EPSIC/install --enable-shared && \
+    make -j $(nproc) && \
     make && \
-    make install
+    make install && \
+    make clean
 
 
 # PSRCHIVE
@@ -302,20 +324,21 @@ ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:$PSRCHIVE/install/lib
 ENV PYTHONPATH $PYTHONPATH:$PSRCHIVE/install/lib/python2.7/site-packages
 WORKDIR $PSRCHIVE
 RUN ./bootstrap && \
-    ./configure --prefix=$PSRCHIVE/install --x-libraries=/usr/lib/x86_64-linux-gnu --with-psrxml-dir=$PSRXML/install --enable-shared --enable-static F77=gfortran LDFLAGS="-L"$PSRXML"/install/lib" LIBS="-lpsrxml -lxml2" && \
+    ./configure --prefix=$PSRCHIVE/install --x-libraries=/usr/lib/x86_64-linux-gnu --with-psrxml-dir=$PSRXML/install --enable-shared --enable-static --disable-psrhome --with-epsic-lib-dir=$EPSIC/install/lib --with-epsic-dir=$EPSIC/install --with-epsic-include-dir=$EPSIC/install/include F77=gfortran LDFLAGS="-L$PSRXML/install/lib -L$EPSIC/install/lib" CPPFLAGS="-I$EPSIC/install" LIBS="-lpsrxml -lxml2 -lreadline -lepsic" PGPLOT_DIR=/usr/lib/pgplot5 && \
     make -j $(nproc) && \
     make && \
-    make install
+    make install && \
+    make clean
+RUN echo "meerkat m" >> $PSRHOME/tempo2/T2runtime/observatory/aliases
 WORKDIR $HOME
-RUN echo "Predictor::default = tempo2" >> .psrchive.cfg && \
-    echo "Predictor::policy = default" >> .psrchive.cfg
-
-
-# coast_guard
-ENV COAST_GUARD $PSRHOME/coast_guard
-ENV PATH $PATH:$COAST_GUARD:$COAST_GUARD/coast_guard
-ENV COASTGUARD_CFG $COAST_GUARD/configurations
-ENV PYTHONPATH $PYTHONPATH:$COAST_GUARD:$COAST_GUARD/coast_guard
+RUN $PSRCHIVE/install/bin/psrchive_config >> .psrchive.cfg && \
+    sed -i 's/# ArrivalTime::default_format = Parkes/ArrivalTime::default_format = Tempo2/g' .psrchive.cfg && \
+    sed -i 's/# Predictor::default = polyco/Predictor::default = tempo2/g' .psrchive.cfg && \
+    sed -i 's/# Predictor::policy = ephem/Predictor::policy = default/g' .psrchive.cfg && \
+    sed -i 's/# FrequencyAppend::force_new_predictor = 0/# FrequencyAppend::force_new_predictor = 1/g' .psrchive.cfg && \
+    sed -i 's/# WeightedFrequency::round_to_kHz = 1/WeightedFrequency::round_to_kHz = 0/g' .psrchive.cfg && \
+    sed -i 's/# DeleteInterpreter::adjust_metadata_while_deleting_channels = 0/DeleteInterpreter::adjust_metadata_while_deleting_channels = 1/g' .psrchive.cfg && \
+    sed -i 's/# Dispersion::barycentric_correction = 0/Dispersion::barycentric_correction = 1/g' .psrchive.cfg
 
 
 # clean downloaded source codes
