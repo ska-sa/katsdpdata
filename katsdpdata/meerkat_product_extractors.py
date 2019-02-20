@@ -1,3 +1,4 @@
+import os
 import katdal
 import katsdptelstate
 
@@ -31,6 +32,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_metadata_for_project()
             self._extract_metadata_for_capture_stream()
             self._extract_location_from_katdata()
+            self._extract_instrument_name()
             self._metadata_extracted = True
         else:
            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
@@ -47,6 +49,12 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         """Override base method. Extract product type to CAS.ProductTypeName.
         """
         self.metadata['CAS.ProductTypeName'] = self.product_type
+
+    def _extract_instrument_name(self):
+       """Exrac the instrument from the enviroment variable if it exists"""
+       if 'INSTRUMENT' in os.environ:
+           self.metadata['Instrument'] = os.environ['INSTRUMENT']
+
 
 class MeerKATFlagProductMetExtractor(MetExtractor):
     """A class for handling MeerKAT flag metadata extraction from a rdb file.
@@ -72,6 +80,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         if not self._metadata_extracted:
             self._extract_metadata_product_type()
             self._extract_metadata_for_capture_stream()
+            self._extract_instrument_name()
             self._metadata_extracted = True
         else:
            print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
@@ -87,3 +96,9 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         """Override base method. Extract product type to CAS.ProductTypeName.
         """
         self.metadata['CAS.ProductTypeName'] = self.product_type
+
+    def _extract_instrument_name(self):
+       """Extract the instrument from the enviroment variable if it exists.
+       """
+       if 'INSTRUMENT' in os.environ:
+           self.metadata['Instrument'] = os.environ['INSTRUMENT']
