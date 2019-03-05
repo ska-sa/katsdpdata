@@ -1,7 +1,7 @@
 import katdal
 import katsdptelstate
 
-from met_extractors import MetExtractor, TelescopeProductMetExtractor
+from katsdpdata.met_extractors import MetExtractor, TelescopeProductMetExtractor
 
 class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """A class for handling MeerKAT telescope metadata extraction from a katdal object.
@@ -33,7 +33,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
-           print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+           print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
@@ -74,7 +74,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
             self._extract_metadata_for_capture_stream()
             self._metadata_extracted = True
         else:
-           print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+           print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
