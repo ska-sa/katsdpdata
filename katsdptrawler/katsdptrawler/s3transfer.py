@@ -51,7 +51,7 @@ class ItemToS3BucketBase(object):
 
     def _check(self):
         """A simple size check."""
-        if self.payload_size is None or self.sink_size is None or self.sink_size != self.payload_size
+        if self.payload_size is None or self.sink_size is None or self.sink_size != self.payload_size:
             raise S3TransferError("%s size is %d while sink size is %d" % (str(self.source), self.payload_size, self.sink_size))
         return True
 
