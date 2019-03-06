@@ -8,6 +8,8 @@ setup(
     author_email = "thomas@ska.ac.za, cschollar@ska.ac.za",
     packages = find_packages(),
     setup_requires = ["katversion"],
+    scripts = [
+        "scripts/benchmark_to_s3.py"],
     url = 'http://ska.ac.za/',
     classifiers=[
         "Development Status :: 3 - Alpha",
