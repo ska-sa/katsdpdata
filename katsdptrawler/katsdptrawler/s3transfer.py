@@ -1,8 +1,10 @@
+import concurrent.futures
 import logging
 import os
 import re
 
 from katsdptrawler import s3functions
+
 
 logger = logging.getLogger(__name__)
 
@@ -143,8 +145,21 @@ class ItemsToS3BucketBase(object):
     def _item_iterator(self):
         raise NotImplementedError
 
-    async def transfer(self, transfers):
+    def blocked_transfer(self, transfers):
         raise NotImplementedError
+
+    def transfer(self, transfers):
+        workers = len(transfers)
+        # test first element if it is a string assume a single transfer list
+        if type(transfers[0]) is str:
+            return self.blocked_transfer(transfers)
+        # else assume a list of lists
+        procs = []
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            for t in transfers:
+                procs.append(executor.submit(self.blocked_transfer, t))
+            executor.shutdown(wait=True)
+        return procs
 
     def create_bucket(self):
         """Create sink S3 bucket."""
@@ -204,8 +219,8 @@ class DirContentsToS3Bucket(ItemsToS3BucketBase):
             else:
                 yield os.path.relpath(item.path, self.root)
 
-    async def transfer(self, transfers):
-        """Asyncronous method to transfer a list of items given as a parameter.
+    def blocked_transfer(self, transfers):
+        """Blocked method to transfer a list of items given as a parameter.
         Sequence:
             - connect to sink bucket
             - itterate though transfers list, transferring each item 
@@ -246,8 +261,8 @@ class BucketContentsToS3Bucket(ItemsToS3BucketBase):
         for key in self.root.list():
             yield key.name
 
-    async def transfer(self, transfers):
-        """Asyncronous method to transfer a list of items given as a parameter.
+    def blocked_transfer(self, transfers):
+        """Blocked method to transfer a list of items given as a parameter.
         Sequence:
             - connect to source bucket
             - connect to sink bucket
