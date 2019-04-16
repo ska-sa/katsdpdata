@@ -63,13 +63,13 @@ class ItemToS3BucketBase(object):
 
         Returns:
         -------
-        The distination, e.g 's3://buckename/keyname;
+        The distination, e.g 's3://buckename/keyname, byte_size;
         """
         payload = self._upload()
         self._put(payload)
         if self._check():
             self._delete()
-        return 's3://' + self.bucket.name + '/' + self.keyname
+        return ('s3://' + self.bucket.name + '/' + self.keyname, self.payload_size)
 
     def copy(self):
         """The method for this class that does the required work. Follows a put,
@@ -82,7 +82,7 @@ class ItemToS3BucketBase(object):
         payload = self._upload()
         self._put(payload)
         self._check()
-        return 's3://' + self.bucket.name + '/' + self.keyname
+        return ('s3://' + self.bucket.name + '/' + self.keyname, self.payload_size)
 
 class FileToS3Bucket(ItemToS3BucketBase):
     """Used to move a file from a local filesystem to an S3 bucket.
@@ -131,16 +131,18 @@ class ItemsToS3BucketBase(object):
 
     Parameters
     ----------
-    src : dict : contains source configuration information 
+    src : dict : contains source configuration information
     sink : dict : contains destination configuration information
-    regex : string : python regex expression to limit search 
-    limit : integer : when executing a search, limit the hits
+    regex : string : python regex expression to limit search
+    limit : integer : when executing a search, limit the hits, 0 is no limit
+    workers: integer : number of workers for processing pool
     """
-    def __init__(self, src, sink, regex, limit):
+    def __init__(self, src, sink, regex, limit, workers):
         self.src = src
         self.sink = sink
         self.regex = regex
         self.limit = limit
+        self.workers = workers
 
     def _item_iterator(self):
         raise NotImplementedError
@@ -148,18 +150,26 @@ class ItemsToS3BucketBase(object):
     def blocked_transfer(self, transfers):
         raise NotImplementedError
 
+    def search(self):
+        raise NotImplementedError
+
     def transfer(self, transfers):
-        workers = len(transfers)
-        # test first element if it is a string assume a single transfer list
-        if type(transfers[0]) is str:
+        logger.debug("Number of workers (processes) for parallel transfer is %i".format(self.workers))
+        if self.workers == 1:
             return self.blocked_transfer(transfers)
-        # else assume a list of lists
+        transfers = [transfers[i::self.workers] for i in range(self.workers)]
         procs = []
-        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=self.workers) as executor:
             for t in transfers:
                 procs.append(executor.submit(self.blocked_transfer, t))
             executor.shutdown(wait=True)
-        return procs
+        transferred = [procs[0].result()[0][0]]
+        transfer_size = 0
+        for p in procs:
+            ret = p.result()
+            transferred.extend(ret[0][1:])
+            transfer_size += ret[1]
+        return (transferred, transfer_size)
 
     def create_bucket(self):
         """Create sink S3 bucket."""
@@ -167,23 +177,17 @@ class ItemsToS3BucketBase(object):
         s3functions.s3_create_bucket(sink_conn, self.sink['bucketname'])
         sink_conn.close()
 
-    def search(self):
-        """Search the source using 'self.regex'.
-        Return the number of hits, upto 'self.limit'.
-        Return all the results if 'self.limit == 0'.
-
-        Return
-        ------
-        hits : list : all items currently matching 'self.regex' up to 'self.limit'.
-        """
-        hits = []
-        for item in self._item_iterator():
-            if re.match(self.regex, item):
-                hits.append(item)
-            if self.limit != 0 and len(hits) >= self.limit:
-                break
-        return hits 
-
+    def run(self):
+        self.create_bucket()
+        t = self.search()
+        transfer_num = 0
+        transfer_size = 0
+        while len(t) != 0:
+            ret = self.transfer(t)
+            transfer_num += len(ret[0][1:])
+            transfer_size += ret[1]
+            t = self.search()
+        return(transfer_num, transfer_size)
 
 class DirContentsToS3Bucket(ItemsToS3BucketBase):
     """Move directory contents to an S3 bucket.
@@ -199,17 +203,31 @@ class DirContentsToS3Bucket(ItemsToS3BucketBase):
                   {'bucketname': 'test-input',
                    'config': {'host': 'localhost', 'port': 8080, 'profile_name': 'default'}}
 
-    regex : string : python regex expression to limit search 
+    regex : string : python regex expression to limit search
                   For example to match all files:
-                  '^.*$' 
+                  '.*'
     limit : integer : when executing a search, limit the hits.
                       If set to 0, will return all the hits.
+    workers : integer : number of workers for processing pool.
+                      Defaults is 1 worker.
     """
-    def __init__(self, src, sink, regex, limit):
-        super(DirContentsToS3Bucket, self).__init__(src, sink, regex, limit)
+    def __init__(self, src, sink, regex='.*', limit=0, workers=1):
+        super(DirContentsToS3Bucket, self).__init__(src, sink, regex, limit, workers)
         self.root = os.path.abspath(os.path.join(self.src['config']['trawl_dir'], self.src['bucketname']))
 
     def _item_iterator(self, root=None):
+        """Private method for itterating the list. Currently this method cannot
+        be in the base class, as it differs from the bucket based implementation.
+
+        Parameters:
+        ----------
+        root : string : used for recursive calls when hitting a directory.
+
+
+        Yields:
+        -------
+        path : string : relpath to the item that has been scanned.
+        """
         if not root:
             root = self.root
         for item in os.scandir(root):
@@ -223,7 +241,7 @@ class DirContentsToS3Bucket(ItemsToS3BucketBase):
         """Blocked method to transfer a list of items given as a parameter.
         Sequence:
             - connect to sink bucket
-            - itterate though transfers list, transferring each item 
+            - itterate though transfers list, transferring each item
  
         Parameters
         ----------
@@ -240,33 +258,79 @@ class DirContentsToS3Bucket(ItemsToS3BucketBase):
 
         # work
         transferred = ['s3://' + self.sink['bucketname']]
+        transfer_size = 0
         for transfer in transfers:
             tname = os.path.join(self.root, transfer)
             with open(tname, 'rb') as t:
                 tos3 = FileToS3Bucket(t, sink_bucket, transfer)
                 ret = tos3.move()
-                transferred.append(ret)
+                transferred.append(ret[0])
+                transfer_size += ret[1]
         # cleanup
         sink_con.close()
-        return transferred
+        return (transferred, transfer_size)
+
+    def search(self):
+        """Search the source using 'self.regex'.
+        Return the number of hits, upto 'self.limit'.
+        Return all the results if 'self.limit == 0'.
+
+        Return
+        ------
+        hits : list : all items currently matching 'self.regex' up to 'self.limit'.
+        """
+        hits = []
+        for item in self._item_iterator():
+            if re.match(self.regex, item):
+                hits.append(item)
+            if self.limit != 0 and len(hits) >= self.limit:
+                break
+        return hits
 
 
 class BucketContentsToS3Bucket(ItemsToS3BucketBase):
-    def __init__(self, src, sink, regex, limit):
-        super(BucketContentsToS3Bucket, self).__init__(src, sink, regex, limit)
+    """Move bucket contents to an S3 bucket.
+
+    Parameters
+    ----------
+    src : dict : contains source configuration information
+                 For example:
+                 {'bucketname': 'test-input',
+                  'config': {'host': 'localhost', 'port': 8080, 'profile_name': 'default'}}
+    sink : dict : contains destination configuration information
+                  For example:
+                  {'bucketname': 'test-output',
+                   'config': {'host': 'localhost', 'port': 8080, 'profile_name': 'default'}}
+    regex : string : python regex expression to limit search
+                  For example to match all files:
+                  '.*'
+    limit : integer : when executing a search, limit the hits.
+                      If set to 0, will return all the hits.
+    workers : integer : number of workers for processing pool.
+                      Defaults is 1 worker.
+    """
+    def __init__(self, src, sink, regex='.*', limit=0, workers=1):
+        super(BucketContentsToS3Bucket, self).__init__(src, sink, regex, limit, workers)
         self.root_con = s3functions.s3_connect(**self.src['config'])
         self.root = self.root_con.get_bucket(self.src['bucketname'])
 
     def _item_iterator(self):
+        """Private method for itterating the list. Currently this method cannot
+        be in the base class, as it differs from the dir based implementation.
+
+        Yeilds:
+        ------
+        key : boto.s3.key.Key : a reference to this type
+        """
         for key in self.root.list():
-            yield key.name
+            yield key
 
     def blocked_transfer(self, transfers):
         """Blocked method to transfer a list of items given as a parameter.
         Sequence:
             - connect to source bucket
             - connect to sink bucket
-            - itterate though transfers list, transferring each item 
+            - itterate though transfers list, transferring each item
  
         Parameters
         ----------
@@ -278,22 +342,38 @@ class BucketContentsToS3Bucket(ItemsToS3BucketBase):
             ['s3://bucketname', 's3://bucketname/keyone', 's3://bucketname/keytwo']
         """
         # configure
-        src_con = s3functions.s3_connect(**self.src['config'])
-        src_bucket = src_con.get_bucket(self.src['bucketname'])
-
         sink_con = s3functions.s3_connect(**self.sink['config'])
         sink_bucket = sink_con.get_bucket(self.sink['bucketname'])
 
         # work
-        transferred = [self.sink['bucketname']]
-        for transfer in transfers:
-            src_key = src_bucket.get_key(transfer)
-            tos3 = KeyToS3Bucket(src_key, sink_bucket, transfer)
+        transferred = ['s3://' + self.sink['bucketname']]
+        transfer_size = 0
+        for src_key in transfers:
+        #for transfer in transfers:
+            #src_key = src_bucket.get_key(transfer)
+            tos3 = KeyToS3Bucket(src_key, sink_bucket, src_key.name) #transfer)
             ret = tos3.move()
-            transferred.append(ret)
-
+            transferred.append(ret[0])
+            transfer_size += ret[1]
         # cleanup
-        src_con.close()
+        # src_con.close()
         sink_con.close()
-        return transferred
+        return (transferred, transfer_size)
+
+    def search(self):
+        """Search the source using 'self.regex'.
+        Return the number of hits, upto 'self.limit'.
+        Return all the results if 'self.limit == 0'.
+
+        Return
+        ------
+        hits : list : all items currently matching 'self.regex' up to 'self.limit'.
+        """
+        hits = []
+        for item in self._item_iterator():
+            if re.match(self.regex, item.name):
+                hits.append(item)
+            if self.limit != 0 and len(hits) >= self.limit:
+                break
+        return hits
 
