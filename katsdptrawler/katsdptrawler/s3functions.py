@@ -78,14 +78,6 @@ def s3_create_bucket(s3_conn, bucket_name):
     """
     try:
         s3_bucket = s3_conn.create_bucket(bucket_name)
-        # create policy
-        s3_bucket_policy = copy.deepcopy(_S3_BUCKET_POLICY)        
-        s3_bucket_policy['Statement'][0]['Resource'] = [
-            'arn:aws:s3:::{}/*'.format(bucket_name),
-            'arn:aws:s3:::{}'.format(bucket_name)
-        ]
-        # set policy
-        s3_bucket.set_policy(json.dumps(s3_bucket_policy))
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
             logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." % (e.status, s3_conn.access_key))
@@ -95,5 +87,17 @@ def s3_create_bucket(s3_conn, bucket_name):
             s3_bucket = s3_conn.get_bucket(bucket_name)
         else:
             raise
+    # create policy
+    s3_bucket_policy = copy.deepcopy(_S3_BUCKET_POLICY)
+    s3_bucket_policy['Statement'][0]['Resource'] = [
+        'arn:aws:s3:::{}/*'.format(bucket_name),
+        'arn:aws:s3:::{}'.format(bucket_name)
+    ]
+    # set policy
+    s3_bucket.set_policy(json.dumps(s3_bucket_policy))
+    # create acl
+    s3_bucket_acl = "public-read"
+    # set acl
+    s3_bucket.set_acl(s3_bucket_acl)
     return s3_bucket
 
