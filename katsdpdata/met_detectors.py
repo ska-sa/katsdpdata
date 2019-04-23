@@ -30,7 +30,7 @@ def file_type_detection(filename):
     raise ProductTypeDetectionError('%s from %s not a valid file type.' % (ext, filename))
 
 def stream_type_detection(stream_name):
-    """Given a stream name we need to detect they typ for creating metadata for stream products.
+    """Given a stream name we need to detect they type for creating metadata for stream products.
     Uses STREAM_TYPES to detect. Supports products of the format:
         (1) 1234567890-sdp-0 == MeerKATTelescopeProduct
         (2) 1234567890-sdp-0-continuum == MeerKATTelescopeProduct
@@ -47,6 +47,14 @@ def stream_type_detection(stream_name):
             stream_type = s_key
             break
     return stream_type
+
+def stream_extractor(stream_name):
+    stream_type = stream_type_detection(stream_name)
+    if stream_type == 'MeerKATTelescopeProduct':
+        return MeerKATTelescopeProductMetExtractor
+    elif stream_type == 'MeerKATFlagProduct':
+        return MeerKATFlagProductMetExtractor
+    return None
 
 def telstate_detection(filename):
     """File is an .rdb files. Any .rdb files passed are assumed to be
