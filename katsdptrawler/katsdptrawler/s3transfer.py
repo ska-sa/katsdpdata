@@ -588,18 +588,18 @@ class StreamToS3(object):
         super(StreamToS3, self).__init__()
         self.stream_product = stream_product
         self.stream_product.set_metadata_handler(solr_endpoint)
-        self.stream_handler = self._init_stream_handler(src, sink)
-        self.metadata_handler = self._init_metadata_handler(src, sink)
+        self._stream_handler = self._init_stream_handler(src, sink)
+        self._header_handler = self._init_header_handler(src, sink)
 
     def _init_stream_handler(self, src, sink, limit=1000, workers=50):
         # source and sink bucket names
         stream_src = copy.deepcopy(src)
         stream_sink = copy.deepcopy(sink)
         stream_src['bucketname'] = self.stream_product.stream
-        stream_sink['bucketname'] = self.stream_product.name
+        stream_sink['bucketname'] = self.stream_product.stream
         return self._init_transfer(stream_src, stream_sink, self.stream_product.npy_regex, limit, workers)
 
-    def _init_metadata_handler(self, src, sink, limit=0, workers=1):
+    def _init_header_handler(self, src, sink, limit=0, workers=1):
         # source and sink bucket names
         meta_src = copy.deepcopy(src)
         meta_sink = copy.deepcopy(sink)
@@ -620,16 +620,16 @@ class StreamToS3(object):
 
     def stream_transfer(self):
         logging.info('Starting transfer of stream %s.' % (self.stream_product.name))
-        self.stream_handler.create_bucket()
+        self._stream_handler.create_bucket()
         # self.stream_product.transferring()
         complete = False
         while not complete:
-            ret = self.stream_handler.run()
+            ret = self._stream_handler.run()
             logging.debug('Transferred %i objects %i bytes.' % (ret[0], ret[1]))
             # tripple check to see if the stream transfer is complete
-            npys = self.stream_handler.search()
-            writing_npys = self.stream_handler.search(self.stream_product.npy_writing_regex)
-            complete = self.stream_handler.get(self.stream_product.complete_token)
+            npys = self._stream_handler.search()
+            writing_npys = self._stream_handler.search(self.stream_product.npy_writing_regex)
+            complete = self._stream_handler.get(self.stream_product.complete_token)
             if not npys and not writing_npys and complete:
                 logging.info('Complete token set for %s, no more transferrable data.' % (self.stream_product.name))
                 complete = True
@@ -645,15 +645,15 @@ class StreamToS3(object):
             rdb_key = None
             while True:
                 # local rdb file - extract metadata and transfer
-                rdb_key = self.metadata_handler.get(rdb)
+                rdb_key = self._header_handler.get(rdb)
                 if rdb_key:
                     location = 'source'
                     break
                 # remote rdb file - metadata has been extracted
-                elif self.metadata_handler.check_key(rdb):
+                elif self._header_handler.check_key(rdb):
                     location = 'sink'
                     break
-                elif self.metadata_handler.search(self.stream_product.rdb_writing_regex):
+                elif self._header_handler.search(self.stream_product.rdb_writing_regex):
                     # probably still being written
                     time.sleep(10)
                 else:
@@ -662,13 +662,13 @@ class StreamToS3(object):
             return (location, rdb_key)
 
         logging.info('Starting transfer of metadata for %s.' % (self.stream_product.name))
-        self.metadata_handler.create_bucket()
+        self._header_handler.create_bucket()
         #transfer rdbs
         rdbs = [check_rdb(rdb) for rdb in self.stream_product.rdbs]
         if rdbs[0][0] == 'source':
-            prod_url = self.metadata_handler.get_url(rdbs[0][1])
+            prod_url = self._header_handler.get_url(rdbs[0][1])
             self.stream_product.product_metadata(prod_url)
-        self.metadata_handler.transfer([r[1] for r in rdbs if r[0] == 'source'])
+        self._header_handler.transfer([r[1] for r in rdbs if r[0] == 'source'])
 
     def run(self):
         self.stream_product.transferring()
