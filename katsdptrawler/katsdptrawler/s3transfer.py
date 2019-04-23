@@ -639,7 +639,7 @@ class StreamToS3(object):
                 logging.debug('...done.')
         logging.info('Completed transfer of stream %s.' % (self.stream_product.name))
 
-    def metadata_transfer(self):
+    def header_transfer(self):
         def check_rdb(rdb):
             location = None
             rdb_key = None
@@ -661,7 +661,7 @@ class StreamToS3(object):
                          (rdb, self.stream_product.name))
             return (location, rdb_key)
 
-        logging.info('Starting transfer of metadata for %s.' % (self.stream_product.name))
+        logging.info('Starting transfer of header for %s.' % (self.stream_product.name))
         self._header_handler.create_bucket()
         #transfer rdbs
         rdbs = [check_rdb(rdb) for rdb in self.stream_product.rdbs]
@@ -669,11 +669,12 @@ class StreamToS3(object):
             prod_url = self._header_handler.get_url(rdbs[0][1])
             self.stream_product.product_metadata(prod_url)
         self._header_handler.transfer([r[1] for r in rdbs if r[0] == 'source'])
+        logging.info('Completed transfer of stream %s.' % (self.stream_product.name))
 
     def run(self):
         self.stream_product.transferring()
         self.stream_transfer()
-        # handle metadata
+        # TODO: handle metadata
         ret = self.metadata_transfer()
-        # handle metadata
+        # TODO: handle metadata
         self.stream_product.received()
