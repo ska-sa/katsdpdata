@@ -2,6 +2,7 @@
 
 @Library('katsdpjenkins') _
 
+katsdp.killOldJobs()
 katsdp.setDependencies(['ska-sa/katsdpdockerbase/master',
                         'ska-sa/katdal/master', 'ska-sa/katpoint/master',
                         'ska-sa/katsdpservices/master',
