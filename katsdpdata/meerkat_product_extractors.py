@@ -3,7 +3,8 @@ import katsdptelstate
 import io
 import urllib
 
-from katsdpdata.met_extractors import MetExtractor, TelescopeProductMetExtractor
+
+from katsdpdata.met_extractors import MetExtractor, TelescopeProductMetExtractor, MetExtractorException
 
 
 class DataSourceNotFound(Exception):
@@ -33,12 +34,15 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             * extacting project related information
         """
         if not self._metadata_extracted:
-            self._extract_metadata_product_type()
-            self._extract_metadata_from_katdata()
-            self._extract_metadata_for_project()
-            self._extract_metadata_for_capture_stream()
-            self._extract_location_from_katdata()
-            self._metadata_extracted = True
+            try:
+                self._extract_metadata_product_type()
+                self._extract_metadata_from_katdata()
+                self._extract_metadata_for_project()
+                self._extract_metadata_for_capture_stream()
+                self._extract_location_from_katdata()
+                self._metadata_extracted = True
+            except Exception as e:
+                raise MetExtractorException(str(e))
         else:
            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
@@ -64,7 +68,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
     rdb file.
     """
     def __init__(self, cbid_stream_rdb_url):
-        # assiging self._ts copied verbatim from the katdal repository katdal/datasources.py
+        # assigning self._ts copied verbatim from the katdal repository katdal/datasources.py
         url_parts = urllib.parse.urlparse(cbid_stream_rdb_url, scheme='file')
         if url_parts.scheme == 'file':
             # RDB dump file
@@ -100,9 +104,12 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
             * extracting the product type
         """
         if not self._metadata_extracted:
-            self._extract_metadata_product_type()
-            self._extract_metadata_for_capture_stream()
-            self._metadata_extracted = True
+            try:
+                self._extract_metadata_product_type()
+                self._extract_metadata_for_capture_stream()
+                self._metadata_extracted = True
+            except Exception as e:
+                raise MetExtractorException(str(e))
         else:
            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
