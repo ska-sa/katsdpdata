@@ -5,20 +5,18 @@ import os
 import re
 import time
 
-
+from boto.exception  import S3ResponseError
 from katsdpdata.meerkat_product_extractors import MeerKATTelescopeProductMetExtractor, MeerKATFlagProductMetExtractor
 from katsdpdata.met_handler import MetaDataHandler
+from katsdpdata.met_extractors import MetExtractorException
 from katsdpdata.met_detectors import stream_type_detection
 
 
 from katsdptrawler import s3functions
 
 
-#logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
-
-STREAM_TYPES= {'MeerKATTelescopeProduct' : '^[0-9]{10}[-_]sdp[-_](l0$|l0[-_]continuum$)',
-               'MeerKATFlagProduct' : '^[0-9]{10}[-_]sdp[-_](l1[-_]flags$|l1[-_]flags[-_]continuum$)'}
 
 
 class S3TransferError(Exception):
@@ -165,11 +163,18 @@ class ItemsToS3BucketBase(object):
     def search(self, regex=None):
         raise NotImplementedError
 
-    def refs_original(self, item):
+    def get_from_src(self, name):
+        raise NotImplementedError
+
+    def put_to_src(self, name, contents):
+        raise NotImplementedError
+
+    # TODO: Include a refs_store method.
+    def refs_original(self, refs):
         raise NotImplementedError
 
     def transfer(self, transfers):
-        logging.debug("Number of workers (processes) for parallel transfer is %i".format(self.workers))
+        logger.debug("Number of workers (processes) for parallel transfer is %i".format(self.workers))
         if self.workers == 1:
             return self.blocked_transfer(transfers)
         transfers = [transfers[i::self.workers] for i in range(self.workers)]
@@ -318,14 +323,34 @@ class DirContentsToS3Bucket(ItemsToS3BucketBase):
                 break
         return hits
 
-    def get(self, name):
+    def get_from_src(self, name):
         file_loc = os.path.join(self.root, name)
         if os.path.isfile(file_loc):
             return name
         return None
 
-    def refs_original(self, regex=None):
-        refs = self.search(regex)
+    def put_to_src(self, name, contents=''):
+        file_loc = os.path.join(self.root, name)
+        with open(file_loc, 'w') as outfile:
+            outfile.write(contents)
+        return self.get_url(name)
+
+    def refs_original(self, refs):
+        """Make heirachical product references metadata.
+        Generated indendenly of checking to see if they exist.
+
+        Parameters
+        ----------
+        refs: A list of the rdb files
+
+        Returns
+        -------
+        full_path: A list of the full references.
+        For example:
+        ['file://dirname/',
+         'file://dirname/item1.rdb',
+         'file://dirname/item1.full.rdb']
+        """
         ret_refs = [self.root]
         for r in refs:
             ret_refs.append(os.path.join(self.root, r))
@@ -430,158 +455,40 @@ class BucketContentsToS3Bucket(ItemsToS3BucketBase):
                 break
         return hits
 
-    def get(self, name):
+    def get_from_src(self, name):
         return self.root.get_key(name)
 
-    def refs_original(self, regex=None):
-        search = self.search(regex)
+    def put_to_src(self, name, contents=''):
+        new_key = self.root.new_key(name)
+        new_key.set_contents_from_string(contents)
+        new_key.close()
+        return self.get_url(self.name)
+
+    def refs_original(self, refs):
+        """Make heirachical product references metadata.
+        Generated indendenly of checking to see if they exist.
+
+        Parameters
+        ----------
+        refs: A list of the rdb files
+
+        Returns
+        -------
+        full_path: A list of the full references.
+        For example:
+        ['s3://bucketname/',
+         's3://bucketname/item1.rdb',
+         's3://buketname/item1.full.rdb']
+        """
         end_point = self.root.connection.host + ':' + str(self.root.connection.port)
-        full_path = ['http://' + end_point + '/' + self.root.name + '/']
-        for s in search:
-            full_path.append('http://' + end_point + '/' + self.root.name + '/' + s.name)
+        full_path = ['s3://' + end_point + '/' + self.root.name + '/']
+        for r in refs:
+            full_path.append('s3://' + end_point + '/' + self.root.name + '/' + r)
         return full_path
 
     def get_url(self, ref):
         end_point = self.root.connection.host + ':' + str(self.root.connection.port)
         return ['http://' + end_point + '/' + self.root.name + '/' + ref.name]
-
-class CrawlerBase(object):
-    """docstring for CrawlerBase"""
-    def __init__(self, regexs):
-        self.regexs = regexs
-        super(CrawlerBase, self).__init__()
-
-    def _list(self):
-        raise NotImplementedError
-
-    def _match_regex(self, contents, regex):
-        return sorted([d for d in contents if re.match(regex, d)])
-
-    def list(self):
-        contents = self._list()
-        matched = {}
-        for k,v in self.regexs.items():
-            matched[k] = self._match_regex(contents, v)
-        return matched
-
-
-class SourceCrawler(CrawlerBase):
-    """docstring for SourceCrawler"""
-    def __init__(self):
-        regexs = {}
-        regexs['head'] = '^[0-9]{10}$'
-        regexs['streams'] = '^[0-9]{10}[-_].*$'
-        super(SourceCrawler, self).__init__(regexs)
-
-
-class LocalDirectoryCrawler(SourceCrawler):
-    def __init__(self, src):
-        self.src = src
-        self.root = self.src['config']['trawl_dir']
-        super(LocalDirectoryCrawler, self).__init__()
-
-    def _list(self):
-        return [d for d in os.listdir(self.root) if os.path.isdir(os.path.join(self.root, d))]
-
-
-class S3Crawler(SourceCrawler):
-    def __init__(self, src):
-        self.src = src
-        self.root_con = self._s3_connect()
-        super(S3Crawler, self).__init__()
-
-    def _s3_connect(self):
-        return s3functions.s3_connect(**self.src['config'])
-
-    def _list(self):
-        return [b.name for b in self.root_con.get_all_buckets()]
-
-
-class ProductBase(object):
-    """docstring for ProductBase"""
-    def __init__(self, name, **kwargs):
-        super(ProductBase, self).__init__()
-        self.name = name
-        self.metadata_id = None
-        self._met_handler = None
-        if 'solr_endpoint' in kwargs:
-            self.set_metadata_handler(kwargs['solr_endpoint'])
-
-    def set_metadata_handler(self, solr_endpoint):
-        self._met_handler = MetaDataHandler(solr_endpoint)
-        met = self._met_handler.create_core_met(self._product_type(), self.name, self.name)
-        self.metadata_id = met['id']
-
-    def _product_type(self):
-        raise NotImplementedError
-
-    def _product_extractor(self):
-        raise NotImplementedError
-
-    def transferring(self):
-        self._met_handler.set_product_transferring(self.metadata_id)
-
-    def received(self):
-        self._met_handler.set_product_received(self.metadata_id)
-
-    def product_metadata(self, product_location):
-        extractor_class = self._product_extractor()
-        met_extractor = extractor_class(product_location)
-        met_extractor.extract_metadata()
-        self._met_handler.add_prod_met(self.metadata_id, met_extractor.metadata)
-
-    def add_ref_original(self, product_refs):
-        self._met_handler.add_ref_original(self.metadata_id, product_refs)
-
-    def add_ref_datastore(self, product_refs):
-        self._met_handler.add_ref_datastore(self.metadata_id, product_refs)
-
-class StreamProduct(ProductBase):
-    """docstring for StreamProduct"""
-    def __init__(self, head, stream, **kwargs):
-        super(StreamProduct, self).__init__(stream, **kwargs)
-        self.head = head
-        self.stream = stream
-        rdb = self.stream.replace('-','_') + '.rdb'
-        rdb_full = self.stream.replace('-','_') + '.full.rdb'
-        self.rdbs = [rdb, rdb_full]
-        self.rdb_writing_regex = '^%s$'% (self.stream.replace('-','_') + '\.writing\.' + '*.\.rdb')
-        self.npy_regex = '^[a-z_]*.\/[0-9_]*.\.npy$'
-        self.npy_writing_regex = '^[a-z_]*.\/[0-9_]*.\.writing.npy$'
-        self.complete_token = 'complete'
-
-    def _product_type(self):
-        """Given a stream name we need to detect they type for creating metadata for stream products.
-        Uses STREAM_TYPES to detect. Supports products of the format:
-            (1) 1234567890-sdp-0 == MeerKATTelescopeProduct
-            (2) 1234567890-sdp-0-continuum == MeerKATTelescopeProduct
-            (3) 1234567890-sdp-1-flags == MeerKATFlagProduct
-            (4) 1234567890-sdp-1-flags-continumm == MeerKATFlagProduct
-
-        Parameters
-        ----------
-        stream_name: string : the name of the stream to detect.
-        """
-        stream_type = None
-        for s_key in STREAM_TYPES.keys():
-            if re.match(STREAM_TYPES[s_key], self.name):
-                stream_type = s_key
-                break
-        if not stream_type:
-            raise S3TransferError('No product type for %s' % (self.name))
-        return stream_type
-
-    def _product_extractor(self):
-        stream_type = stream_type_detection(self.name)
-        met_extractor = None
-        if stream_type == 'MeerKATTelescopeProduct':
-            met_extractor = MeerKATTelescopeProductMetExtractor
-        elif stream_type == 'MeerKATFlagProduct':
-            met_extractor = MeerKATFlagProductMetExtractor
-        else:
-            raise S3TransferError('No met extractor for %s' % (self.name))
-        return met_extractor
-
 
 class StreamToS3(object):
     def __init__(self, src, sink, stream_product, solr_endpoint):
@@ -605,7 +512,6 @@ class StreamToS3(object):
         meta_sink = copy.deepcopy(sink)
         meta_src['bucketname'] = self.stream_product.head
         meta_sink['bucketname'] = self.stream_product.head
-        # TODO: note here that I've put the writing_regex for searches - should not be the case
         return self._init_transfer(meta_src, meta_sink, self.stream_product.rdb_writing_regex, limit, workers)
 
     def _init_transfer(self, src, sink, regex, limit, workers):
@@ -619,62 +525,159 @@ class StreamToS3(object):
         return None
 
     def stream_transfer(self):
-        logging.info('Starting transfer of stream %s.' % (self.stream_product.name))
+        """Transfer a stream source to an s3 sink bucket.
+
+        Loop and search for source files/keys that match
+        the npy regex, skipping any writing.npy files. Transfer
+        any source files/keys upto a limit.
+
+        Check for complete conditions and loop again if there is more data.
+
+        Once no more source files/keys can be found, the transfer is
+        considered complete."""
+        logger.info('Starting transfer of stream %s.' % (self.stream_product.name))
         self._stream_handler.create_bucket()
         # self.stream_product.transferring()
         complete = False
         while not complete:
             ret = self._stream_handler.run()
-            logging.debug('Transferred %i objects %i bytes.' % (ret[0], ret[1]))
+            logger.debug('Transferred %i objects %i bytes.' % (ret[0], ret[1]))
             # tripple check to see if the stream transfer is complete
-            npys = self._stream_handler.search()
+            npys = self._stream_handler.search(self.stream_product.npy_regex)
             writing_npys = self._stream_handler.search(self.stream_product.npy_writing_regex)
-            complete = self._stream_handler.get(self.stream_product.complete_token)
+            complete = self._stream_handler.get_from_src(self.stream_product.complete_token)
             if not npys and not writing_npys and complete:
-                logging.info('Complete token set for %s, no more transferrable data.' % (self.stream_product.name))
+                logger.info('Complete token set for %s, no more transferrable data.' % (self.stream_product.name))
                 complete = True
             else:
-                logging.debug('Waiting to recheck complete token...')
+                logger.debug('Waiting to recheck complete token...')
                 time.sleep(1)
-                logging.debug('...done.')
-        logging.info('Completed transfer of stream %s.' % (self.stream_product.name))
+                logger.debug('...done.')
+        logger.info('Completed transfer of stream %s.' % (self.stream_product.name))
 
     def header_transfer(self):
-        def check_rdb(rdb):
-            location = None
-            rdb_key = None
-            while True:
-                # local rdb file - extract metadata and transfer
-                rdb_key = self._header_handler.get(rdb)
-                if rdb_key:
-                    location = 'source'
-                    break
-                # remote rdb file - metadata has been extracted
-                elif self._header_handler.check_key(rdb):
-                    location = 'sink'
-                    break
-                elif self._header_handler.search(self.stream_product.rdb_writing_regex):
-                    # probably still being written
-                    time.sleep(10)
-                else:
-                    raise S3TransferError('No %s found for %s, something has gone wrong!' %
-                         (rdb, self.stream_product.name))
-            return (location, rdb_key)
+        """Header transfers are handeled differently from stream transfers.
 
-        logging.info('Starting transfer of header for %s.' % (self.stream_product.name))
+        In this context, headers refer to the *.rdb and *.full.rdb files
+        created for a visibility data stream.
+
+        Each rdb file is firsly located either as an intermediate file, i.e.
+        *.writing.rdb or *.writing.full.rdb  at the source or the sink.
+
+        Files located at source are added to a list and then transfered to the sink.
+
+        This method will loop and wait until the rdb files have successfully
+        been completed (by an external process).
+
+        Should these files not be found in either the source or the s3 sink,
+        bucket, an exception is raised.
+        """
+        def rdb_writing(rdb):
+            rdb_s = rdb.split('.')
+            rdb_ext = '.'.join(rdb_s[1:])
+            return '.'.join((rdb_s[0],'writing',rdb_ext))
+
+        def check_rdb_location(rdb):
+            if self._header_handler.get_from_src(rdb):
+                logger.debug('Found %s at source' % (rdb))
+                return ('source', rdb)
+            elif self._header_handler.check_key(rdb):
+                logger.debug('Found %s at sink' % (rdb))
+                return ('sink', rdb)
+            elif self._header_handler.search(self.stream_product.rdb_writing_regex):
+                raise S3TransferError('%s found afer complete token set, something has gone wrong!' %
+                     (rdb_writing(rdb), self.stream_product.name))
+            else:
+                raise S3TransferError('No %s found for %s, something has gone wrong!' %
+                     (rdb, self.stream_product.name))
+
+        logger.info('Starting transfer of header for %s.' % (self.stream_product.name))
+        timeout = 10
         self._header_handler.create_bucket()
-        #transfer rdbs
-        rdbs = [check_rdb(rdb) for rdb in self.stream_product.rdbs]
-        if rdbs[0][0] == 'source':
-            prod_url = self._header_handler.get_url(rdbs[0][1])
-            self.stream_product.product_metadata(prod_url)
-        self._header_handler.transfer([r[1] for r in rdbs if r[0] == 'source'])
-        logging.info('Completed transfer of stream %s.' % (self.stream_product.name))
+        while True:
+            if self._header_handler.get_from_src(self.stream_product.complete_token):
+                rdbs = [check_rdb_location(rdb) for rdb in self.stream_product.rdbs]
+                if rdbs[0][0] == 'source' and rdbs[1][0] == 'source':
+                    refs_original = self._header_handler.refs_original(self.stream_product.rdbs)
+                    self.stream_product.add_ref_original(refs_original)
+                break
+            else:
+                logger.debug('No complete token for %s. Waiting %s' % (self.stream_product.complete_token, timeout))
+                time.sleep(timeout)
 
-    def run(self):
+        if rdbs[0][0] == 'source':
+            rdb_url = self._header_handler.get_url(rdbs[0][1])
+            logger.info('Extracting product metadata from %s.' % (rdb_url))
+            try:
+                self.stream_product.product_metadata(rdb_url)
+            except MetExtractorException as e:
+                logger.info('Exception caught while extracting metadata.')
+                logger.info('%s' % (str(e)+'\n'))
+                logger.info('Marking product as FAILED')
+                self.stream_product.failed()
+
+        # Transfer rdbs from source
+        self._header_handler.transfer([r[1] for r in rdbs if r[0] == 'source'])
+        # TODO: sort out data store references
+        logger.info('Completed transfer of header %s.' % (self.stream_product.name))
+
+    def set_failed(self, error_message):
+        self._stream_handler.put_to_src(self.stream_product.failed_token, error_message)
+        self._header_handler.put_to_src(self.stream_product.failed_token, error_message)
+        self.stream_product.failed()
+
+    def check_failed(self):
+        # check for failed token
+        if self._header_handler.get_from_src(self.stream_product.failed_token):
+            return True
+        if self._stream_handler.get_from_src(self.stream_product.failed_token):
+            return True
+        # check transfer status
+        met = self.stream_product._met_handler.get_prod_met(self.stream_product.name)
+        if 'CAS.ProductTransferStatus' in met.keys():
+           if met['CAS.ProductTransferStatus'] == 'FAILED':
+               self.set_failed('FAILED set in CAS.ProductTransferStatus.\n')
+               return True
+        return False
+
+    def data_transfer(self):
         self.stream_product.transferring()
         self.stream_transfer()
-        # TODO: handle metadata
-        ret = self.metadata_transfer()
-        # TODO: handle metadata
+        # rdb transfer and metadata extraction, datastore refs.
+        self.header_transfer()
         self.stream_product.received()
+
+    def run(self):
+        exit_states = ['complete', 'failed', 'unknown']
+        sleep_time = 60
+        quashed_errors = [os.errno.ETIMEDOUT, os.errno.EHOSTDOWN, 111, 113]
+        if self.check_failed():
+            return exit_states[1]
+
+        while True:
+            try:
+                self.data_transfer()
+                return exit_states[0]
+            except os.error as e:
+                if e.errno == os.errno.ENOENT:
+                   self.set_failed(str(e)+'\n')
+                   return exit_states[1]
+                elif e.errno in quashed_errors:
+                    logger.warning("Caught a quashed OSError %s" % e.errno)
+                    logger.warning("%s" % (str(e)+'\n'))
+                    logger.warning("Waiting %i sec." % (sleep_time))
+                    time.sleep(sleep_time)
+                else:
+                   logger.warning("Caught an unrecognised OSError %s" % e.errno)
+                   self.set_failed(str(e)+'n')
+                   return exit_states[1]
+            except S3ResponseError:
+                logger.error("Caught an S3 response error. Waiting %i sec." % (sleep_time))
+                time.sleep(sleep_time)
+            except Exception as e:
+                logger.exception("Caught an unhandled exception. Marking product as failed and exiting. Exception is:\n %s" % (str(e)))
+                self.set_failed(str(e)+'\n')
+                return exit_states[1]
+        # If we return unknown something horrible has happened.
+        return exit_states[2]
+
