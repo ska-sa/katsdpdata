@@ -2,7 +2,8 @@ import logging
 import re
 
 
-from katsdpdata.meerkat_product_extractors import MeerKATTelescopeProductMetExtractor, MeerKATFlagProductMetExtractor
+from katsdpdata.meerkat_product_extractors import MeerKATTelescopeProductMetExtractor
+from katsdpdata.meerkat_product_extractors import MeerKATFlagProductMetExtractor
 from katsdpdata.met_handler import MetaDataHandler
 from katsdpdata.met_detectors import stream_type_detection
 
@@ -10,8 +11,8 @@ from katsdpdata.met_detectors import stream_type_detection
 logger = logging.getLogger(__name__)
 
 
-STREAM_TYPES= {'MeerKATTelescopeProduct' : '^[0-9]{10}[-_]sdp[-_](l0$|l0[-_]continuum$)',
-               'MeerKATFlagProduct' : '^[0-9]{10}[-_]sdp[-_](l1[-_]flags$|l1[-_]flags[-_]continuum$)'}
+STREAM_TYPES = {'MeerKATTelescopeProduct': '^[0-9]{10}[-_]sdp[-_](l0$|l0[-_]continuum$)',
+                'MeerKATFlagProduct': '^[0-9]{10}[-_]sdp[-_](l1[-_]flags$|l1[-_]flags[-_]continuum$)'}
 
 
 class ProductError(Exception):
@@ -85,19 +86,20 @@ class ProductBase(object):
         else:
             raise ProductError("Metadata handler not set for %s" % self.name)
 
+
 class StreamProduct(ProductBase):
     """docstring for StreamProduct"""
     def __init__(self, head, stream, **kwargs):
         super(StreamProduct, self).__init__(stream, **kwargs)
         self.head = head
         self.stream = stream
-        rdb = self.stream.replace('-','_') + '.rdb'
-        rdb_full = self.stream.replace('-','_') + '.full.rdb'
+        rdb = self.stream.replace('-', '_') + '.rdb'
+        rdb_full = self.stream.replace('-', '_') + '.full.rdb'
         self.rdbs = [rdb, rdb_full]
         self.rdb_regex = '^{}$|^{}$'.format(*list(map(re.escape, self.rdbs)))
-        self.rdb_writing_regex = '^%s$'% (self.stream.replace('-','_') + '\.writing\.' + '*.\.rdb')
-        self.npy_regex = '^[a-z_]*.\/[0-9_]*.\.npy$'
-        self.npy_writing_regex = '^[a-z_]*.\/[0-9_]*.\.writing.npy$'
+        self.rdb_writing_regex = '^%s$' % (self.stream.replace('-', '_') + '\\.writing\\.' + '*.\\.rdb')
+        self.npy_regex = '^[a-z_]*.\\/[0-9_]*.\\.npy$'
+        self.npy_writing_regex = '^[a-z_]*.\\/[0-9_]*.\\.writing.npy$'
         self.complete_token = 'complete'
         self.failed_token = 'failed'
 
@@ -132,4 +134,3 @@ class StreamProduct(ProductBase):
         else:
             raise ProductError('No met extractor for %s' % (self.name))
         return met_extractor
-

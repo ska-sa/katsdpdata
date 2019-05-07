@@ -20,7 +20,7 @@ class CrawlerBase(object):
     def list(self):
         contents = self._list()
         matched = {}
-        for k,v in self.regexs.items():
+        for k, v in self.regexs.items():
             matched[k] = self._match_regex(contents, v)
         return matched
 
@@ -40,9 +40,10 @@ class StreamCrawler(CrawlerBase):
             test_head = re.match(self.regexs['head'][0:-1], stream)
             head = test_head.group()
             if head in sources['head']:
-                stream_products.append({'head':head, 'stream':stream})
+                stream_products.append({'head': head, 'stream': stream})
         return stream_products
- 
+
+
 class LocalDirectoryCrawler(StreamCrawler):
     def __init__(self, src):
         self.src = src
@@ -64,4 +65,3 @@ class S3Crawler(StreamCrawler):
 
     def _list(self):
         return [b.name for b in self.root_con.get_all_buckets()]
-

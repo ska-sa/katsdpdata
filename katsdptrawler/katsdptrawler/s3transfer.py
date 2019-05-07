@@ -5,8 +5,9 @@ import os
 import re
 import time
 
-from boto.exception  import S3ResponseError
-from katsdpdata.meerkat_product_extractors import MeerKATTelescopeProductMetExtractor, MeerKATFlagProductMetExtractor
+from boto.exception import S3ResponseError
+from katsdpdata.meerkat_product_extractors import MeerKATTelescopeProductMetExtractor
+from katsdpdata.meerkat_product_extractors import MeerKATFlagProductMetExtractor
 from katsdpdata.met_handler import MetaDataHandler
 from katsdpdata.met_extractors import MetExtractorException
 from katsdpdata.met_detectors import stream_type_detection
@@ -16,7 +17,6 @@ from katsdptrawler import s3functions
 
 
 logger = logging.getLogger(__name__)
-
 
 
 class S3TransferError(Exception):
@@ -63,8 +63,11 @@ class ItemToS3BucketBase(object):
 
     def _check(self):
         """A simple size check."""
-        if self.payload_size is None or self.sink_size is None or self.sink_size != self.payload_size:
-            raise S3TransferError("%s size is %d while sink size is %d" % (str(self.source), self.payload_size, self.sink_size))
+        if self.payload_size is None
+        or self.sink_size is None
+        or self.sink_size != self.payload_size:
+            raise S3TransferError("%s size is %d while sink size is %d" %
+                                  (str(self.source), self.payload_size, self.sink_size))
         return True
 
     def move(self):
@@ -94,6 +97,7 @@ class ItemToS3BucketBase(object):
         self._check()
         return ('s3://' + self.bucket.name + '/' + self.keyname, self.payload_size)
 
+
 class FileToS3Bucket(ItemToS3BucketBase):
     """Used to move a file from a local filesystem to an S3 bucket.
 
@@ -112,8 +116,8 @@ class FileToS3Bucket(ItemToS3BucketBase):
         return self.source.read()
 
     def _delete(self):
-       """Unlink the source file."""
-       os.unlink(self.source.name)
+        """Unlink the source file."""
+        os.unlink(self.source.name)
 
 
 class KeyToS3Bucket(ItemToS3BucketBase):
@@ -174,7 +178,8 @@ class ItemsToS3BucketBase(object):
         raise NotImplementedError
 
     def transfer(self, transfers):
-        logger.debug("Number of workers (processes) for parallel transfer is %i".format(self.workers))
+        logger.debug(
+            "Number of workers (processes) for parallel transfer is %i" % (self.workers))
         if self.workers == 1:
             return self.blocked_transfer(transfers)
         transfers = [transfers[i::self.workers] for i in range(self.workers)]
@@ -202,7 +207,7 @@ class ItemsToS3BucketBase(object):
         sink_con = s3functions.s3_connect(**self.sink['config'])
         sink_bucket = sink_con.get_bucket(self.sink['bucketname'])
         if sink_bucket.get_key(keyname):
-           check_keyname = keyname
+            check_keyname = keyname
         sink_con.close()
         return check_keyname
 
@@ -217,6 +222,7 @@ class ItemsToS3BucketBase(object):
             transfer_size += ret[1]
             t = self.search()
         return(transfer_num, transfer_size)
+
 
 class DirContentsToS3Bucket(ItemsToS3BucketBase):
     """Move directory contents to an S3 bucket.
@@ -242,7 +248,8 @@ class DirContentsToS3Bucket(ItemsToS3BucketBase):
     """
     def __init__(self, src, sink, regex='.*', limit=0, workers=1):
         super(DirContentsToS3Bucket, self).__init__(src, sink, regex, limit, workers)
-        self.root = os.path.abspath(os.path.join(self.src['config']['trawl_dir'], self.src['bucketname']))
+        self.root = os.path.abspath(os.path.join(
+                    self.src['config']['trawl_dir'], self.src['bucketname']))
 
     def _item_iterator(self, root=None):
         """Private method for itterating the list. Currently this method cannot
@@ -359,6 +366,7 @@ class DirContentsToS3Bucket(ItemsToS3BucketBase):
     def get_url(self, ref):
         return 'file://' + os.path.join(self.root, ref)
 
+
 class BucketContentsToS3Bucket(ItemsToS3BucketBase):
     """Move bucket contents to an S3 bucket.
 
@@ -420,9 +428,9 @@ class BucketContentsToS3Bucket(ItemsToS3BucketBase):
         transferred = ['s3://' + self.sink['bucketname']]
         transfer_size = 0
         for src_key in transfers:
-        #for transfer in transfers:
-            #src_key = src_bucket.get_key(transfer)
-            tos3 = KeyToS3Bucket(src_key, sink_bucket, src_key.name) #transfer)
+            # for transfer in transfers:
+            # src_key = src_bucket.get_key(transfer)
+            tos3 = KeyToS3Bucket(src_key, sink_bucket, src_key.name)  # transfer)
             ret = tos3.move()
             transferred.append(ret[0])
             transfer_size += ret[1]
@@ -490,6 +498,7 @@ class BucketContentsToS3Bucket(ItemsToS3BucketBase):
         end_point = self.root.connection.host + ':' + str(self.root.connection.port)
         return ['http://' + end_point + '/' + self.root.name + '/' + ref.name]
 
+
 class StreamToS3(object):
     def __init__(self, src, sink, stream_product, solr_endpoint):
         super(StreamToS3, self).__init__()
@@ -504,7 +513,8 @@ class StreamToS3(object):
         stream_sink = copy.deepcopy(sink)
         stream_src['bucketname'] = self.stream_product.stream
         stream_sink['bucketname'] = self.stream_product.stream
-        return self._init_transfer(stream_src, stream_sink, self.stream_product.npy_regex, limit, workers)
+        return self._init_transfer(stream_src, stream_sink,
+                                   self.stream_product.npy_regex, limit, workers)
 
     def _init_header_handler(self, src, sink, limit=0, workers=1):
         # source and sink bucket names
@@ -512,7 +522,8 @@ class StreamToS3(object):
         meta_sink = copy.deepcopy(sink)
         meta_src['bucketname'] = self.stream_product.head
         meta_sink['bucketname'] = self.stream_product.head
-        return self._init_transfer(meta_src, meta_sink, self.stream_product.rdb_writing_regex, limit, workers)
+        return self._init_transfer(meta_src, meta_sink,
+                                   self.stream_product.rdb_writing_regex, limit, workers)
 
     def _init_transfer(self, src, sink, regex, limit, workers):
         # create the stream tx according to its source
@@ -547,7 +558,8 @@ class StreamToS3(object):
             writing_npys = self._stream_handler.search(self.stream_product.npy_writing_regex)
             complete = self._stream_handler.get_from_src(self.stream_product.complete_token)
             if not npys and not writing_npys and complete:
-                logger.info('Complete token set for %s, no more transferrable data.' % (self.stream_product.name))
+                logger.info('Complete token set for %s, no more transferrable data.' %
+                            (self.stream_product.name))
                 complete = True
             else:
                 logger.debug('Waiting to recheck complete token...')
@@ -575,7 +587,7 @@ class StreamToS3(object):
         def rdb_writing(rdb):
             rdb_s = rdb.split('.')
             rdb_ext = '.'.join(rdb_s[1:])
-            return '.'.join((rdb_s[0],'writing',rdb_ext))
+            return '.'.join((rdb_s[0], 'writing', rdb_ext))
 
         def check_rdb_location(rdb):
             if self._header_handler.get_from_src(rdb):
@@ -586,10 +598,10 @@ class StreamToS3(object):
                 return ('sink', rdb)
             elif self._header_handler.search(self.stream_product.rdb_writing_regex):
                 raise S3TransferError('%s found afer complete token set, something has gone wrong!' %
-                     (rdb_writing(rdb), self.stream_product.name))
+                                      (rdb_writing(rdb), self.stream_product.name))
             else:
                 raise S3TransferError('No %s found for %s, something has gone wrong!' %
-                     (rdb, self.stream_product.name))
+                                      (rdb, self.stream_product.name))
 
         logger.info('Starting transfer of header for %s.' % (self.stream_product.name))
         timeout = 10
@@ -602,7 +614,8 @@ class StreamToS3(object):
                     self.stream_product.add_ref_original(refs_original)
                 break
             else:
-                logger.debug('No complete token for %s. Waiting %s' % (self.stream_product.complete_token, timeout))
+                logger.debug('No complete token for %s. Waiting %s' %
+                             (self.stream_product.complete_token, timeout))
                 time.sleep(timeout)
 
         if rdbs[0][0] == 'source':
@@ -635,9 +648,9 @@ class StreamToS3(object):
         # check transfer status
         met = self.stream_product._met_handler.get_prod_met(self.stream_product.name)
         if 'CAS.ProductTransferStatus' in met.keys():
-           if met['CAS.ProductTransferStatus'] == 'FAILED':
-               self.set_failed('FAILED set in CAS.ProductTransferStatus.\n')
-               return True
+            if met['CAS.ProductTransferStatus'] == 'FAILED':
+                self.set_failed('FAILED set in CAS.ProductTransferStatus.\n')
+                return True
         return False
 
     def data_transfer(self):
@@ -660,24 +673,25 @@ class StreamToS3(object):
                 return exit_states[0]
             except os.error as e:
                 if e.errno == os.errno.ENOENT:
-                   self.set_failed(str(e)+'\n')
-                   return exit_states[1]
+                    self.set_failed(str(e)+'\n')
+                    return exit_states[1]
                 elif e.errno in quashed_errors:
                     logger.warning("Caught a quashed OSError %s" % e.errno)
                     logger.warning("%s" % (str(e)+'\n'))
                     logger.warning("Waiting %i sec." % (sleep_time))
                     time.sleep(sleep_time)
                 else:
-                   logger.warning("Caught an unrecognised OSError %s" % e.errno)
-                   self.set_failed(str(e)+'n')
-                   return exit_states[1]
+                    logger.warning("Caught an unrecognised OSError %s" % e.errno)
+                    self.set_failed(str(e)+'n')
+                    return exit_states[1]
             except S3ResponseError:
                 logger.error("Caught an S3 response error. Waiting %i sec." % (sleep_time))
                 time.sleep(sleep_time)
             except Exception as e:
-                logger.exception("Caught an unhandled exception. Marking product as failed and exiting. Exception is:\n %s" % (str(e)))
+                logger.exception("Caught an unhandled exception.")
+                logging.error("Marking product as failed and exiting.")
+                logging.error("Exception is:\n %s" % (str(e)))
                 self.set_failed(str(e)+'\n')
                 return exit_states[1]
         # If we return unknown something horrible has happened.
         return exit_states[2]
-

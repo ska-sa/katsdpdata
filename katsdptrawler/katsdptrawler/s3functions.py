@@ -5,6 +5,7 @@ import json
 import logging
 import socket
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,17 +19,16 @@ _S3_CONFIG = {
 
 
 _S3_BUCKET_POLICY = {
-    "Version":"2012-10-17",
-    "Statement":[
-        {
-        "Sid":"AddPerm",
-        "Effect":"Allow",
-        "Principal": "*",
-        "Action": ["s3:GetObject", "s3:ListBucket"],
-        "Resource": ["PLACEHOLDER"]
-        }
+    "Version": "2012-10-17",
+    "Statement": [
+        {"Sid": "AddPerm",
+         "Effect": "Allow",
+         "Principal": "*",
+         "Action": ["s3:GetObject", "s3:ListBucket"],
+         "Resource": ["PLACEHOLDER"]}
      ]
 }
+
 
 def s3_connect(host, port, profile_name='default'):
     """Test the connection to S3 as described in the args, and return
@@ -54,7 +54,8 @@ def s3_connect(host, port, profile_name='default'):
         # reliable way to test connection and access keys
         return s3_conn
     except socket.error as e:
-        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)" % (s3_conn.host, s3_conn.port, e))
+        logger.error("Failed to connect to S3 host %s:%i." % (s3_conn.host, s3_conn.port))
+        logging.error("Please check network and host address. (%s)" % (e))
         raise
     except boto.exception.S3ResponseError as e:
         if e.error_code == "InvalidAccessKeyId":
@@ -80,10 +81,11 @@ def s3_create_bucket(s3_conn, bucket_name):
         s3_bucket = s3_conn.create_bucket(bucket_name)
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
-            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." % (e.status, s3_conn.access_key))
+            logger.error("Error status %s." % (e.status))
+            logger.error("Supplied access key (%s) has no permissions on this server." % (s3_conn.access_key))
         raise
     except boto.exception.S3CreateError as e:
-        if e.status == 409: #Bucket already exists and you're the ownwer
+        if e.status == 409:  # Bucket already exists and you're the ownwer
             s3_bucket = s3_conn.get_bucket(bucket_name)
         else:
             raise
@@ -100,4 +102,3 @@ def s3_create_bucket(s3_conn, bucket_name):
     # set acl
     s3_bucket.set_acl(s3_bucket_acl)
     return s3_bucket
-
