@@ -1,4 +1,4 @@
-astropy==1.2.1
+argparse
 backports-abc
 backports.ssl-match-hostname
 boto==2.48.0
