@@ -17,7 +17,7 @@ h5py
 idna
 ipaddress
 jmespath==0.9.3
-katcp
+katcp==0.6.3
 katversion
 linecache2
 llvmlite
