@@ -1,4 +1,4 @@
-astropy==1.2.1
+argparse
 backports-abc
 backports.ssl-match-hostname
 boto==2.48.0
@@ -17,7 +17,7 @@ h5py
 idna
 ipaddress
 jmespath==0.9.3
-katcp
+katcp==0.6.3
 katversion
 linecache2
 llvmlite
