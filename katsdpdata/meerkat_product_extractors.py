@@ -35,7 +35,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_instrument_name()
             self._metadata_extracted = True
         else:
-           print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+           print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
@@ -83,7 +83,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
             self._extract_instrument_name()
             self._metadata_extracted = True
         else:
-           print "Metadata already extracted. Set the metadata_extracted attribute to False and run again."
+           print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
