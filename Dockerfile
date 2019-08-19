@@ -11,7 +11,7 @@ RUN apt-get -y update && apt-get -y install \
     libhdf5-dev
 USER kat
 
-ENV PATH="$PATH_PYTHON3" VIRTUAL_ENV="$VIRTUAL_ENV_PYTHON3"
+ENV PATH="$PATH_PYTHON2" VIRTUAL_ENV="$VIRTUAL_ENV_PYTHON2"
 
 COPY requirements.txt /tmp/install/requirements.txt
 RUN install-requirements.py --default-versions /home/kat/docker-base/base-requirements.txt -r /tmp/install/requirements.txt
