@@ -46,7 +46,7 @@ traceback2
 unittest2
 urllib3
 
-git+ssh://git@github.com/ska-sa/katdal#egg=katdal
-git+ssh://git@github.com/ska-sa/katpoint#egg=katpoint
-git+ssh://git@github.com/ska-sa/katsdpservices#egg=katsdpservices
-git+ssh://git@github.com/ska-sa/katsdptelstate#egg=katsdptelstate
+katdal @ git+https://git@github.com/ska-sa/katdal
+katpoint @ git+https://git@github.com/ska-sa/katpoint
+katsdpservices @ git+https://git@github.com/ska-sa/katsdpservices
+katsdptelstate @ git+https://git@github.com/ska-sa/katsdptelstate
