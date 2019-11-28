@@ -2,12 +2,12 @@ argparse
 backports-abc
 backports.ssl-match-hostname
 boto==2.48.0
-botocore==1.10.16
+botocore
 certifi
 chardet
 dask
-defusedxml==0.5.0
-docutils==0.13.1
+defusedxml
+docutils
 enum34
 fakeredis
 funcsigs
@@ -16,8 +16,8 @@ futures
 h5py
 idna
 ipaddress
-jmespath==0.9.3
-katcp==0.6.3
+jmespath
+katcp
 katversion
 linecache2
 llvmlite
@@ -32,8 +32,9 @@ ply
 pyephem
 pyfits==3.4
 pygelf
+pyjwt
 pysolr==3.3.3
-python-dateutil==2.5.3
+python-dateutil
 python-lzf
 rdbtools
 redis
