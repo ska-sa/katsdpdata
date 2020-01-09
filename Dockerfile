@@ -1,4 +1,4 @@
-FROM sdp-docker-registry.kat.ac.za:5000/docker-base-build
+FROM sdp-docker-registry.kat.ac.za:5000/docker-base-build:python2
 
 MAINTAINER Thomas Bennett "tbennett@ska.ac.za"
 
