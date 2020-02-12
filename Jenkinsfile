@@ -7,5 +7,5 @@ katsdp.setDependencies(['ska-sa/katsdpdockerbase/python2',
                         'ska-sa/katdal/master', 'ska-sa/katpoint/master',
                         'ska-sa/katsdpservices/master',
                         'ska-sa/katsdptelstate/master'])
-katsdp.standardBuild()
+katsdp.standardBuild(katsdpdockerbase_ref: 'python2')
 katsdp.mail('cschollar@ska.ac.za thomas@ska.ac.za')
