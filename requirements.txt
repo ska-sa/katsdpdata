@@ -5,6 +5,7 @@ boto==2.48.0
 botocore
 certifi
 chardet
+cityhash==0.2.3post9
 dask
 defusedxml
 docutils
