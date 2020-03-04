@@ -7,7 +7,6 @@ certifi
 chardet
 cityhash==0.2.3post9
 dask
-defusedxml
 docutils
 enum34
 fakeredis
