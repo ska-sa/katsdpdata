@@ -132,7 +132,13 @@ class MetaDataHandler(object):
         #ProductName is mapped internally by OODT. Pop it if we're going to insert directly into SOLR.
         prod_met.pop('ProductName', None) 
         met.update(prod_met)
-        self.solr.add([met])
+        while True:
+            try:
+                self.solr.add([met])
+            except pysolr.SolrError:
+                sleep(10)
+                continue
+            break
         return self.get_prod_met(met['id'])
 
     def get_prod_met(self, prod_id=None):
