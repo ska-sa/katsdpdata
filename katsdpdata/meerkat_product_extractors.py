@@ -52,8 +52,8 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
 
     def _extract_instrument_name(self):
        """Exrac the instrument from the enviroment variable if it exists"""
-       if 'INSTRUMENT' in os.environ:
-           self.metadata['Instrument'] = os.environ['INSTRUMENT']
+       if 'SITENAME' in os.environ:
+           self.metadata['Instrument'] = os.environ['SITENAME']
 
 
 class MeerKATFlagProductMetExtractor(MetExtractor):
@@ -100,5 +100,5 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
     def _extract_instrument_name(self):
        """Extract the instrument from the enviroment variable if it exists.
        """
-       if 'INSTRUMENT' in os.environ:
-           self.metadata['Instrument'] = os.environ['INSTRUMENT']
+       if 'SITENAME' in os.environ:
+           self.metadata['Instrument'] = os.environ['SITENAME']
