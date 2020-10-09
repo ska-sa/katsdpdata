@@ -1,6 +1,6 @@
 #!groovy
 
-@Library('katsdpjenkins') _
+@Library('katsdpjenkins@python2') _
 
 katsdp.killOldJobs()
 katsdp.setDependencies(['ska-sa/katsdpdockerbase/python2',

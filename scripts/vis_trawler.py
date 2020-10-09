@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 
 """Parallel file uploader to trawl NPY files into S3."""
 
@@ -74,6 +74,7 @@ def main(trawl_dir, boto_dict, solr_url):
             logger.exception("Exception thrown while trawling.")
             break
 
+
 def trawl(trawl_dir, boto_dict, solr_url):
     """Main action for trawling a directory for ingesting products
     into the archive.
@@ -92,7 +93,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     cb_dirs, cs_dirs = list_trawl_dir(trawl_dir)
     # prune cb_dirs
     # this is tested by checking if there are any cs_dirs that start with the cb.
-    # cb's will only be transferred once all their streams have their 
+    # cb's will only be transferred once all their streams have their
     # complete token set.
     for cb in cb_dirs[:]:
         for cs in cs_dirs:
@@ -135,7 +136,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                     except Exception as err:
                         if hasattr(err, 'bucket_name'):
                             set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
-                            #if failed, set a boolean flag to exit the loop.
+                            # if failed, set a boolean flag to exit the loop.
                             failed_ingest = True
                         else:
                             raise
@@ -168,7 +169,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 if hasattr(err, 'bucket_name'):
                     set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
         logger.debug("Upload complete in %.2f sec (%.2f MBps)" %
-                    (log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
+                     (log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
     else:
         logger.debug("No data to upload (%.2f MB)" % (upload_size / 1e6))
     return upload_size
@@ -449,26 +450,27 @@ def s3_create_anon_access_policy(bucket_name):
     anon_access_policy: A json formatted s3 bucket policy
     """
     anon_policy_dict = {
-        "Version":"2012-10-17",
-        "Statement":[
+        "Version": "2012-10-17",
+        "Statement": [
             {
-            "Sid":"AddPerm",
-            "Effect":"Allow",
-            "Principal": "*",
-            "Action":["s3:GetObject"], #, "s3:ListBucket"],
-            "Resource":["arn:aws:s3:::%s/*" % bucket_name]
+                "Sid": "AddPerm",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": ["s3:GetObject"],
+                "Resource": ["arn:aws:s3:::%s/*" % bucket_name]
             },
             {
-            "Sid":"AddPerm",
-            "Effect":"Allow",
-            "Principal": "*",
-            "Action":["s3:ListBucket"],
-            "Resource":["arn:aws:s3:::%s" % bucket_name]
+                 "Sid": "AddPerm",
+                 "Effect": "Allow",
+                 "Principal": "*",
+                 "Action": ["s3:ListBucket"],
+                 "Resource": ["arn:aws:s3:::%s" % bucket_name]
             }
         ]
     }
     anon_access_policy = json.dumps(anon_policy_dict)
     return anon_access_policy
+
 
 def s3_create_bucket(s3_conn, bucket_name):
     """Create an s3 bucket. If S3CreateError and the error
@@ -488,7 +490,7 @@ def s3_create_bucket(s3_conn, bucket_name):
             logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." % (e.status, s3_conn.access_key))
         raise
     except boto.exception.S3CreateError as e:
-        if e.status == 409: #Bucket already exists and you're the ownwer
+        if e.status == 409:  # Bucket already exists and you're the ownwer
             s3_bucket = s3_conn.get_bucket(bucket_name)
         else:
             raise
