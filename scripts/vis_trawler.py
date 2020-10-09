@@ -2,10 +2,7 @@
 
 """Parallel file uploader to trawl NPY files into S3."""
 
-try:
-    import futures
-except ImportError:
-    import concurrent.futures as futures
+import concurrent.futures as futures
 import json
 import logging
 import multiprocessing
@@ -135,7 +132,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                                     (met['id'], ', '.join(met['CAS.ReferenceDatastore'])))
                     except Exception as err:
                         if hasattr(err, 'bucket_name'):
-                            set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
+                            set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err)
                             # if failed, set a boolean flag to exit the loop.
                             failed_ingest = True
                         else:
@@ -157,7 +154,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size = sum(os.path.getsize(f)
                       for f in upload_list if os.path.isfile(f))
     if upload_size > 0:
-        logger.debug("Uploading %.2f MB of data" % (upload_size / 1e6))
+        logger.debug("Uploading %.2f MB of data" % (upload_size // 1e6))
         log_time = {}
         proc_results = parallel_upload(trawl_dir, boto_dict, upload_list, log_time=log_time)
         for pr in proc_results:
@@ -169,9 +166,9 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 if hasattr(err, 'bucket_name'):
                     set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
         logger.debug("Upload complete in %.2f sec (%.2f MBps)" %
-                     (log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
+                     (log_time['PARALLEL_UPLOAD'], upload_size // 1e6 // log_time['PARALLEL_UPLOAD']))
     else:
-        logger.debug("No data to upload (%.2f MB)" % (upload_size / 1e6))
+        logger.debug("No data to upload (%.2f MB)" % (upload_size // 1e6))
     return upload_size
 
 
