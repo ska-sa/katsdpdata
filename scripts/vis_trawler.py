@@ -132,7 +132,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                                     (met['id'], ', '.join(met['CAS.ReferenceDatastore'])))
                     except Exception as err:
                         if hasattr(err, 'bucket_name'):
-                            set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err)
+                            set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
                             # if failed, set a boolean flag to exit the loop.
                             failed_ingest = True
                         else:
