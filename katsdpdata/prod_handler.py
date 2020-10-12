@@ -1,7 +1,4 @@
-try:
-    import futures
-except ImportError:
-    import concurrent.futures as futures
+import concurrent.futures as futures
 import logging
 import multiprocessing
 import os
@@ -12,9 +9,8 @@ import time
 import boto
 import boto.s3.connection
 
-import met_handler
-import met_extractors
-
+from . import met_handler
+from . import met_extractors
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +83,6 @@ def get_s3_connection(boto_dict):
             logger.error("Supplied access key (%s) has no permissions on this server.", s3_conn.access_key)
         raise
     return None
-
 
 
 def timeit(func):

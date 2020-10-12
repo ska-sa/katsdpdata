@@ -1,7 +1,7 @@
 import pysolr
 import uuid
 import os
-import urlparse
+import urllib.parse
 import time
 import mimetypes
 
@@ -70,7 +70,7 @@ class MetaDataHandler(object):
         product_types = [mimetypes.guess_type(p)[0]
                          if mimetypes.guess_type(p)[0] else 'application/x-data'
                          for p in original_refs]
-        met['CAS.ReferenceOriginal'] = map(lambda x: urlparse.urlparse('file://'+x).geturl(), original_refs)
+        met['CAS.ReferenceOriginal'] = [urllib.parse.urlparse(x).geturl() for x in sorted(datastore_refs)]
         met['CAS.ReferenceFileSize'] = product_sizes
         met['CAS.ReferenceMimeType'] = product_types
         self.solr.add([met])
@@ -87,7 +87,7 @@ class MetaDataHandler(object):
         -------
         met: dict : metadata containing the _version_ for version tracking commits to solr.
         """
-        met['CAS.ReferenceDatastore'] = map(lambda x: urlparse.urlparse(x).geturl(), sorted(datastore_refs))
+        met['CAS.ReferenceDatastore'] = [urllib.parse.urlparse(x).geturl() for x in sorted(datastore_refs)]
         self.solr.add([met])
         return self.get_prod_met(met['id'])  # return with updated _version_
 
