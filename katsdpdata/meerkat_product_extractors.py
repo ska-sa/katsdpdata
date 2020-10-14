@@ -1,6 +1,7 @@
 import os
 import katdal
 import katsdptelstate
+
 from .met_extractors import MetExtractor, TelescopeProductMetExtractor
 
 
@@ -13,10 +14,10 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     rdb file.
     """
     def __init__(self, cbid_stream_rdb_file):
-        katdata = katdal.open(cbid_stream_rdb_file)
-        metfilename = '{}.met'.format(katdata.source.data.name)
-        super(MeerKATTelescopeProductMetExtractor, self).__init__(katdata, metfilename)
-        self.product_type = 'MeerKATTelescopeProduct'
+       katdata = katdal.open(cbid_stream_rdb_file)
+       metfilename = '{}.met'.format(katdata.source.data.name)
+       super(MeerKATTelescopeProductMetExtractor, self).__init__(katdata, metfilename)
+       self.product_type = 'MeerKATTelescopeProduct'
 
     def extract_metadata(self):
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If
@@ -35,7 +36,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_instrument_name()
             self._metadata_extracted = True
         else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+           print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
@@ -51,9 +52,9 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         self.metadata['CAS.ProductTypeName'] = self.product_type
 
     def _extract_instrument_name(self):
-        """Exrac the instrument from the enviroment variable if it exists"""
-        if 'INSTRUMENT' in os.environ:
-            self.metadata['Instrument'] = os.environ['INSTRUMENT']
+       """Exrac the instrument from the enviroment variable if it exists"""
+       if 'INSTRUMENT' in os.environ:
+           self.metadata['Instrument'] = os.environ['INSTRUMENT']
 
 
 class MeerKATFlagProductMetExtractor(MetExtractor):
@@ -65,11 +66,11 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
     rdb file.
     """
     def __init__(self, cbid_stream_rdb_file):
-        self._ts = katsdptelstate.TelescopeState()
-        self._ts.load_from_file(cbid_stream_rdb_file)
-        metfilename = '{}.met'.format(self._ts['capture_block_id']+'_'+self._ts['stream_name'])
-        super(MeerKATFlagProductMetExtractor, self).__init__(metfilename)
-        self.product_type = 'MeerKATFlagProduct'
+       self._ts = katsdptelstate.TelescopeState()
+       self._ts.load_from_file(cbid_stream_rdb_file)
+       metfilename = '{}.met'.format(self._ts['capture_block_id']+'_'+self._ts['stream_name'])
+       super(MeerKATFlagProductMetExtractor, self).__init__(metfilename)
+       self.product_type = 'MeerKATFlagProduct'
 
     def extract_metadata(self):
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If
@@ -83,7 +84,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
             self._extract_instrument_name()
             self._metadata_extracted = True
         else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+           print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
@@ -98,7 +99,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         self.metadata['CAS.ProductTypeName'] = self.product_type
 
     def _extract_instrument_name(self):
-        """Extract the instrument from the enviroment variable if it exists.
-        """
-        if 'INSTRUMENT' in os.environ:
-            self.metadata['Instrument'] = os.environ['INSTRUMENT']
+       """Extract the instrument from the enviroment variable if it exists.
+       """
+       if 'INSTRUMENT' in os.environ:
+           self.metadata['Instrument'] = os.environ['INSTRUMENT']
