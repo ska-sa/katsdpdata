@@ -2,7 +2,8 @@ import os
 import katdal
 import katsdptelstate
 
-from met_extractors import MetExtractor, TelescopeProductMetExtractor
+from .met_extractors import MetExtractor, TelescopeProductMetExtractor
+
 
 class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """A class for handling MeerKAT telescope metadata extraction from a katdal object.
