@@ -4,10 +4,8 @@ import katsdptelstate
 
 from meerkat_product_extractors import MeerKATTelescopeProductMetExtractor, MeerKATFlagProductMetExtractor
 
-
 class ProductTypeDetectionError(Exception):
     pass
-
 
 def file_type_detection(filename):
     """Detect product type by using the file extension.
@@ -24,7 +22,6 @@ def file_type_detection(filename):
     if ext == '.rdb':
         return telstate_detection(filename)
     raise ProductTypeDetectionError('%s from %s not a valid file type.' % (ext, filename))
-
 
 def telstate_detection(filename):
     """File is an .rdb files. Any .rdb files passed are assumed to be
