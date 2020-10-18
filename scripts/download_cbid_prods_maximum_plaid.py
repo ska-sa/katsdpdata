@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 
 import katsdpservices
 import logging
@@ -8,14 +8,14 @@ import sys
 from optparse import OptionParser
 
 from katsdpdata.prod_handler import make_boto_dict
-from katsdpdata.prod_handler import get_capture_block_buckets
 from katsdpdata.prod_handler import download_stream_products_plaid
 
+
 def main(download_dir, capture_block_id, boto_dict, solr_url):
-    download_stream_products_plaid(download_dir,
-                            capture_block_id,
-                            solr_url,
-                            boto_dict)
+    download_stream_products_plaid(download_dir, capture_block_id,
+                                   solr_url, boto_dict)
+
+
 if __name__ == "__main__":
     katsdpservices.setup_logging()
     logging.basicConfig(level=logging.INFO)
@@ -29,8 +29,9 @@ if __name__ == "__main__":
                       help="S3 gateway host address [default = %default]")
     parser.add_option("--s3-port", type="int", default=7480,
                       help="S3 gateway port [default = %default]")
-    parser.add_option("--solr-url", default="http://kat-archive.kat.ac.za:8983/solr/kat_core",
-                      help="Solr end point for metadata extraction [default = %default]")
+    parser.add_option("--solr-url",
+                      default="http://kat-archive.kat.ac.za:8983/solr/kat_core",
+                      help="Solr end point [default = %default]")
 
     (options, args) = parser.parse_args()
     if len(args) < 1:
