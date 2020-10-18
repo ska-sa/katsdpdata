@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import os
 import sys
 
@@ -12,15 +13,15 @@ parser = OptionParser(usage=usage)
 if (len(sys.argv) == 2):
     filename = sys.argv[1]
 else:
-    print parser.format_help()
+    print(parser.format_help())
     sys.exit(0)
 
 metfilename = '%s.%s' % (filename, 'met')
 if os.path.isfile(metfilename):
-    print 'Metadate file %s already exists.' % (metfilename)
+    print('Metadate file %s already exists.' % (metfilename))
     sys.exit(0)
 
-#met extractor specific
+# met extractor specific
 met_extractor = FileBasedTelescopeProductMetExtractor.factory(filename)
 met_extractor.extract_metadata()
 met_extractor.write_metadatafile()
