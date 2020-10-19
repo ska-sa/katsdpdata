@@ -376,30 +376,6 @@ class MeerKATAR1TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtract
             print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
 
-class RTSReductionProductMetExtractor(ReductionProductMetExtractor):
-    """A class for handling RTS reduction systems metadata extraction.
-
-    Parameters
-    ----------
-    prod_name : string : the name of a heirachical product to ingest.
-    """
-    def __init__(self, prod_name):
-        super(RTSReductionProductMetExtractor, self).__init__(prod_name)
-        self.product_type = 'RTSReductionProduct'
-
-
-class MeerKATAR1ReductionProductMetExtractor(ReductionProductMetExtractor):
-    """A class for handling AR1 reduction systems metadata extraction.
-
-    Parameters
-    ----------
-    prod_name : string : the name of a heirachical product to ingest.
-    """
-    def __init__(self, prod_name):
-        super(MeerKATAR1ReductionProductMetExtractor, self).__init__(prod_name)
-        self.product_type = 'MeerKATAR1ReductionProduct'
-
-
 class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """A class for handling MeerKAT telescope metadata extraction from a katdal object.
 
@@ -498,3 +474,32 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         """
         if 'INSTRUMENT' in os.environ:
             self.metadata['Instrument'] = os.environ['INSTRUMENT']
+
+
+def file_mime_detection(katfile):
+    """Fuction to instantiate the correct metadata extraction class. The
+    following file extentions are are currently detected: '.h5' and '.rdb'.
+
+    Parameters:
+    ----------
+    katfile: string : name of file for mime detecetion.
+    """
+    file_ext = os.path.splitext(katfile)[1]
+    if file_ext == '.h5':
+        katdata = katdal.open(katfile)
+        # atleast one antenna starts with 'ant'
+        if katdata.ants[0].name.startswith('ant'):
+            # todo: replace with KAT7TelescopeProductMetExtractor
+            return KatFileProductMetExtractor(katdata)
+        # proposal id must mention RTS at least once
+        elif 'proposal_id' in katdata.obs_params and katdata.obs_params['proposal_id'].count('RTS') >= 1:
+            return RTSTelescopeProductMetExtractor(katdata)
+        # everything else must be ar1
+        else:
+            return MeerKATAR1TelescopeProductMetExtractor(katdata)
+    elif file_ext == '.rdb':
+        if 'sdp_l0' in katfile:
+            return MeerKATTelescopeProductMetExtractor(katfile)
+        elif 'sdp_l1_flags' in katfile:
+            return MeerKATFlagProductMetExtractor(katfile)
+    raise MetExtractorException("File extention not supported %s" % (file_ext))
