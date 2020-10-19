@@ -208,7 +208,7 @@ class FileBasedTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         """
         file_ext = os.path.splitext(katfile)[1]
         if file_ext == '.h5':  # Correlator data  Remove and put in crawler
-           katdata = katdal.open(katfile)
+            katdata = katdal.open(katfile)
             # atleast one antenna starts with 'ant'
             if katdata.ants[0].name.startswith('ant'):
                 # todo: replace with KAT7TelescopeProductMetExtractor
@@ -496,4 +496,3 @@ class ObitReductionProductMetExtractor(MetExtractor):
             if k in date_valued:
                 met[k] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.strptime(v, '%Y-%m-%d'))
         self.metadata.update(met)
-

@@ -70,7 +70,7 @@ class MetaDataHandler(object):
         product_types = [mimetypes.guess_type(p)[0]
                          if mimetypes.guess_type(p)[0] else 'application/x-data'
                          for p in original_refs]
-        met['CAS.ReferenceOriginal'] = [urllib.parse.urlparse(x).geturl() for x in sorted(datastore_refs)]
+        met['CAS.ReferenceOriginal'] = [urllib.parse.urlparse(x).geturl() for x in sorted(original_refs)]
         met['CAS.ReferenceFileSize'] = product_sizes
         met['CAS.ReferenceMimeType'] = product_types
         self.solr.add([met])
