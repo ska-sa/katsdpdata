@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from setuptools import setup, find_packages
 
 setup(
@@ -9,16 +9,14 @@ setup(
     packages = find_packages(),
     setup_requires = ["katversion"],
     install_requires = [
-        "pysolr>=3.2.0"#,
-        #"MySQL-python"
-    ],
+        "boto", "katdal", "katpoint", "katsdpservices", "katsdptelstate",
+        "numpy", "pysolr>=3.2.0"],
     url = 'http://ska.ac.za/',
     scripts = [
         "scripts/tel_prod_met_extractor.py",
         "scripts/download_cbid_prods.py",
         "scripts/download_cbid_prods_maximum_plaid.py",
-        "scripts/vis_trawler.py"
-    ],
+        "scripts/vis_trawler.py"],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
@@ -26,10 +24,9 @@ setup(
         "Operating System :: OS Independent",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Scientific/Engineering :: Astronomy",
-    ],
+        "Topic :: Scientific/Engineering :: Astronomy"],
     platforms = [ "OS Independent" ],
-    keywords="kat ska",
+    keywords="meerkat ska",
     zip_safe = False,
     use_katversion = True
 )
