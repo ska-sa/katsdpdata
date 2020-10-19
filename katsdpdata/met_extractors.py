@@ -398,37 +398,6 @@ class MeerKATAR1TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtract
             print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
 
-class ReductionProductMetExtractor(MetExtractor):
-    """A base class for handling reduction systems metadata extraction.
-
-    self.product_type is not set
-
-    Parameters
-    ----------
-    prod_name : string : the name of a heirachical product to ingest.
-    """
-    def __init__(self, prod_name):
-        self.picklefile = None
-        picklefile = next((p for p in os.listdir(prod_name) if p.endswith('.met.pickle')), None)
-        if picklefile:
-            self._picklefile = os.path.join(prod_name, picklefile)
-        else:
-            raise MetExtractorException('Cannot find a *.met.pickle file in %s' % (prod_name))
-        super(ReductionProductMetExtractor, self).__init__('%s.%s' % (prod_name, 'met',))
-
-    def extract_metadata(self):
-        if not self._metadata_extracted:
-            self._extract_metadata_product_type()
-            self._extract_metadata_from_pickle()
-            self._metadata_extracted = True
-        else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
-
-    def _extract_metadata_from_pickle(self):
-        with open(self._picklefile) as pickled_met:
-            self.metadata.update(pickle.load(pickled_met))
-
-
 class RTSReductionProductMetExtractor(ReductionProductMetExtractor):
     """A class for handling RTS reduction systems metadata extraction.
 
@@ -451,48 +420,3 @@ class MeerKATAR1ReductionProductMetExtractor(ReductionProductMetExtractor):
     def __init__(self, prod_name):
         super(MeerKATAR1ReductionProductMetExtractor, self).__init__(prod_name)
         self.product_type = 'MeerKATAR1ReductionProduct'
-
-
-class ObitReductionProductMetExtractor(MetExtractor):
-    """Used for extracting metdata from a KAT Cont Pipe VOTable xml file.
-
-    Parameters
-    ----------
-    prod_name : string : the name of a heirachical product to ingest.
-    def __init__(self, prod_name):
-            super(PulsarSearchProductMetExtractor, self).__init__(prod_name+'.met')
-                    self.product_type = 'PulsarSearchProduct'
-                            self.product_name = prod_name"""
-    def __init__(self, prod_name):
-        votable_file = next((p for p in os.listdir(prod_name) if p.endswith('_VOTable.xml')), None)
-        tree = ElementTree.parse(os.path.join(prod_name, votable_file))
-        votable = tree.getroot()
-        for child in votable:
-            if child.tag == 'resource' and child.attrib['name'] == 'Project Data':
-                project_data = child
-                break
-        if project_data:
-            self.project_data = project_data
-        else:
-            raise MetExtractorException('Cannot find a *_VOTable.xml file in %s' % (prod_name))
-        super(ObitReductionProductMetExtractor, self).__init__('%s.%s' % (prod_name, 'met',))
-        self.product_type = 'ObitReductionProduct'
-
-    def extract_metadata(self):
-        if not self._metadata_extracted:
-            self._extract_metadata_product_type()
-            self._extract_metadata_from_votable()
-            self._metadata_extracted = True
-        else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
-
-    def _extract_metadata_from_votable(self):
-        met = dict([[param.attrib['name'], param.attrib['value']] for param in self.project_data.getchildren() if param.tag == 'param'])
-        mult_valued = ['AmpCals', 'BPCals', 'DlyCals', 'PhyCals', 'PhsCals', 'anNames', 'freqCov']
-        date_valued = ['obsDate', 'procDate']
-        for k, v in met.iteritems():
-            if k in mult_valued:
-                met[k] = ' '.join(v.split()).split()
-            if k in date_valued:
-                met[k] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.strptime(v, '%Y-%m-%d'))
-        self.metadata.update(met)
