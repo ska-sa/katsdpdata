@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 """Parallel file uploader to trawl NPY files into S3."""
 
