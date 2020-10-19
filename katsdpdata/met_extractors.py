@@ -1,11 +1,12 @@
+import katdal
+import katpoint
+import katsdptelstate
+import numpy
 import os
+import pickle
 import subprocess
 import sys
 import time
-import pickle
-import katpoint
-import katdal
-import numpy
 
 from importlib import reload
 from xml.etree import ElementTree
@@ -196,29 +197,6 @@ class FileBasedTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             if not p[1]:
                 self.metadata['FileDigest'] = p[0].split()[0]
                 print('md5 checksum complete. Digest is %s.' % self.metadata['FileDigest'])
-
-    @staticmethod
-    def factory(katfile):
-        """Static method to instantiate the correct metadata extraction object. The following systems
-        are currently supported: KAT7, RTS, MeerKAT AR1.
-
-        Parameters:
-        ----------
-        katfile: string : name of file to opened with the katdal module.
-        """
-        file_ext = os.path.splitext(katfile)[1]
-        if file_ext == '.h5':  # Correlator data  Remove and put in crawler
-            katdata = katdal.open(katfile)
-            # atleast one antenna starts with 'ant'
-            if katdata.ants[0].name.startswith('ant'):
-                # todo: replace with KAT7TelescopeProductMetExtractor
-                return KatFileProductMetExtractor(katdata)
-            # proposal id must mention RTS at least once
-            elif 'proposal_id' in katdata.obs_params and katdata.obs_params['proposal_id'].count('RTS') >= 1:
-                return RTSTelescopeProductMetExtractor(katdata)
-            # everything else must be ar1
-            else:
-                return MeerKATAR1TelescopeProductMetExtractor(katdata)
 
 
 class KAT7TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
@@ -420,3 +398,103 @@ class MeerKATAR1ReductionProductMetExtractor(ReductionProductMetExtractor):
     def __init__(self, prod_name):
         super(MeerKATAR1ReductionProductMetExtractor, self).__init__(prod_name)
         self.product_type = 'MeerKATAR1ReductionProduct'
+
+
+class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
+    """A class for handling MeerKAT telescope metadata extraction from a katdal object.
+
+    Parameters
+    ----------
+    cbid_stream_rdb_file : string : The full path name of the capture stream
+    rdb file.
+    """
+    def __init__(self, cbid_stream_rdb_file):
+        katdata = katdal.open(cbid_stream_rdb_file)
+        metfilename = '{}.met'.format(katdata.source.data.name)
+        super(MeerKATTelescopeProductMetExtractor, self).__init__(katdata, metfilename)
+        self.product_type = 'MeerKATTelescopeProduct'
+
+    def extract_metadata(self):
+        """Metadata to extract for this product. Test value of self.__metadata_extracted. If
+        True, this method has already been run once. If False, extract metadata.
+        This includes:
+            * extracting the product type
+            * extracting basic hdf5 information
+            * extacting project related information
+        """
+        if not self._metadata_extracted:
+            self._extract_metadata_product_type()
+            self._extract_metadata_from_katdata()
+            self._extract_metadata_for_project()
+            self._extract_metadata_for_capture_stream()
+            self._extract_location_from_katdata()
+            self._extract_instrument_name()
+            self._metadata_extracted = True
+        else:
+            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+
+    def _extract_metadata_for_capture_stream(self):
+        """Extract CaptureStreamId, CaptureBlockId and StreamId.
+        """
+        self.metadata['CaptureBlockId'] = self._katdata.source.metadata.attrs['capture_block_id']
+        self.metadata['StreamId'] = self._katdata.source.metadata.attrs['stream_name']
+        self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
+        self.metadata['Prefix'] = self._katdata.source.data.vis_prefix
+
+    def _extract_metadata_product_type(self):
+        """Override base method. Extract product type to CAS.ProductTypeName.
+        """
+        self.metadata['CAS.ProductTypeName'] = self.product_type
+
+    def _extract_instrument_name(self):
+        """Exrac the instrument from the enviroment variable if it exists"""
+        if 'INSTRUMENT' in os.environ:
+            self.metadata['Instrument'] = os.environ['INSTRUMENT']
+
+
+class MeerKATFlagProductMetExtractor(MetExtractor):
+    """A class for handling MeerKAT flag metadata extraction from a rdb file.
+
+    Parameters
+    ----------
+    cbid_stream_rdb_file : string : The full path name of the capture stream
+    rdb file.
+    """
+    def __init__(self, cbid_stream_rdb_file):
+        self._ts = katsdptelstate.TelescopeState()
+        self._ts.load_from_file(cbid_stream_rdb_file)
+        metfilename = '{}.met'.format(self._ts['capture_block_id']+'_'+self._ts['stream_name'])
+        super(MeerKATFlagProductMetExtractor, self).__init__(metfilename)
+        self.product_type = 'MeerKATFlagProduct'
+
+    def extract_metadata(self):
+        """Metadata to extract for this product. Test value of self.__metadata_extracted. If
+        True, this method has already been run once. If False, extract metadata.
+        This includes:
+            * extracting the product type
+        """
+        if not self._metadata_extracted:
+            self._extract_metadata_product_type()
+            self._extract_metadata_for_capture_stream()
+            self._extract_instrument_name()
+            self._metadata_extracted = True
+        else:
+            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+
+    def _extract_metadata_for_capture_stream(self):
+        """Extract CaptureStreamId, CaptureBlockId and StreamId.
+        """
+        self.metadata['CaptureBlockId'] = self._ts['capture_block_id']
+        self.metadata['StreamId'] = self._ts['stream_name']
+        self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
+
+    def _extract_metadata_product_type(self):
+        """Override base method. Extract product type to CAS.ProductTypeName.
+        """
+        self.metadata['CAS.ProductTypeName'] = self.product_type
+
+    def _extract_instrument_name(self):
+        """Extract the instrument from the enviroment variable if it exists.
+        """
+        if 'INSTRUMENT' in os.environ:
+            self.metadata['Instrument'] = os.environ['INSTRUMENT']
