@@ -1,14 +1,14 @@
 import katdal
 import katpoint
 import katsdptelstate
-import numpy
+import math
+import numpy as np
 import os
 import pickle
 import subprocess
 import sys
 import time
 
-from importlib import reload
 from xml.etree import ElementTree
 
 
@@ -57,19 +57,21 @@ class MetExtractor(object):
         xml_tree.set('xmlns:cas', 'http://oodt.jpl.nasa.gov/1.0/cas')
         for k in self.metadata.keys():
             keyval = ElementTree.SubElement(xml_tree, 'keyval')
+            keyval.tail = '\n'
             key = ElementTree.SubElement(keyval, 'key')
             key.text = str(k)
+            key.tail = '\n'
             if isinstance(self.metadata[k], list):
                 for text in self.metadata[k]:
                     val = ElementTree.SubElement(keyval, 'val')
                     val.text = text
+                    val.tail = '\n'
             else:
                 val = ElementTree.SubElement(keyval, 'val')
                 val.text = self.metadata[k]
-        # utf8 hickup
-        reload(sys)
-        sys.setdefaultencoding('utf8')
-        return ElementTree.tostring(xml_tree)
+                val.tail = '\n'
+        to_string = ElementTree.tostring(xml_tree, method='xml')
+        return to_string.decode('utf8')
 
     def extract_metadata(self):
         raise NotImplementedError
@@ -97,7 +99,7 @@ class TelescopeProductMetExtractor(MetExtractor):
     def _extract_metadata_from_katdata(self):
         """Populate self.metadata: Get information using katdal"""
         self.metadata['Antennas'] = [a.name for a in self._katdata.ants]
-        self.metadata['CenterFrequency'] = str(self._katdata.channel_freqs[self._katdata.channels[-1]/2])
+        self.metadata['CenterFrequency'] = "%.2f" % self._katdata.channel_freqs[math.floor(self._katdata.channels[-1]/2)]
         self.metadata['ChannelWidth'] = str(self._katdata.channel_width)
         self.metadata['MinFreq'] = str(min(self._katdata.freqs))
         self.metadata['MaxFreq'] = str(max(self._katdata.freqs) + self._katdata.channel_width)
@@ -116,9 +118,9 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
         self.metadata['Observer'] = self._katdata.observer
         self.metadata['RefAntenna'] = self._katdata.ref_ant
-        self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(self._katdata.start_time))
+        int_secs = math.floor(self._katdata.start_time.secs)
+        self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(int_secs))
         self.metadata['Targets'] = [t.name for t in self._katdata.catalogue.targets if t.name not in ['None', 'Nothing', 'azel', 'radec']]
-
         try:
             self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
         except KeyError:
@@ -146,7 +148,7 @@ class TelescopeProductMetExtractor(MetExtractor):
                 if -90 <= el <= 90:
                     self.metadata["ElAz"].append("%f, %f" % (el, katpoint.wrap_angle(az, 360)))
                 else:
-                    self.metadata["ElAz"].append("%f, %f" % ((numpy.clip(el, -90, 90)), katpoint.wrap_angle(az, 360)))
+                    self.metadata["ElAz"].append("%f, %f" % ((np.clip(el, -90, 90)), katpoint.wrap_angle(az, 360)))
 
     def _extract_metadata_for_project(self):
         """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
