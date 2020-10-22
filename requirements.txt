@@ -6,7 +6,7 @@ botocore
 certifi
 chardet
 cityhash==0.2.3post9
-dask
+dask==2.12.0
 docutils
 enum34
 fakeredis
@@ -17,7 +17,10 @@ h5py
 idna
 ipaddress
 jmespath
-katcp
+katdal==0.16
+katpoint==0.9
+katsdpservices==1.0
+katsdptelstate==0.10
 katversion
 linecache2
 llvmlite
@@ -30,14 +33,13 @@ numpy
 pbr
 ply
 pyephem
-pyfits==3.4
-pygelf
-pyjwt
+pygelf==0.3.6
+pyjwt==1.7.1
 pysolr==3.3.3
 python-dateutil
 python-lzf
 rdbtools
-redis
+redis==3.4.1
 requests
 singledispatch
 six
@@ -46,8 +48,3 @@ tornado
 traceback2
 unittest2
 urllib3
-
-katdal @ git+https://github.com/ska-sa/katdal
-katpoint @ git+https://github.com/ska-sa/katpoint
-katsdpservices @ git+https://github.com/ska-sa/katsdpservices
-katsdptelstate @ git+https://github.com/ska-sa/katsdptelstate
