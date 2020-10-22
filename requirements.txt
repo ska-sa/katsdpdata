@@ -1,50 +1,32 @@
-argparse
-backports-abc
-backports.ssl-match-hostname
 boto==2.48.0
-botocore
-certifi
-chardet
-cityhash==0.2.3post9
-dask==2.12.0
-docutils
-enum34
-fakeredis
-funcsigs
-future
-futures
-h5py
-idna
-ipaddress
-jmespath
+certifi # requests
+chardet # requests
+cityhash # katdal
+dask # katdal
+ephem # pyephem
+future # katdal
+future # katpoint
+h5py # katdal
+idna # requests
 katdal==0.16
 katpoint==0.9
 katsdpservices==1.0
 katsdptelstate==0.10
 katversion
-linecache2
-llvmlite
-mock
-msgpack
-netifaces
-nose
-numba
-numpy
-pbr
-ply
-pyephem
-pygelf==0.3.6
-pyjwt==1.7.1
+llvmlite # numba
+msgpack # katsdptelstate
+netifaces # katsdpservices
+netifaces # katsdptelstate
+numba # katdal
+numpy # katdal
+numpy # katpoint
+numpy # katsdptelstate
+pyephem # katpoint
+pygelf # katsdpservices
+pyjwt # katdal
 pysolr==3.3.3
-python-dateutil
-python-lzf
-rdbtools
+rdbtools # katdal
 redis==3.4.1
-requests
-singledispatch
-six
-toolz
-tornado
-traceback2
-unittest2
-urllib3
+requests # pysolr
+toolz>=0.7.3 # dask[array]
+urllib3 # requests
