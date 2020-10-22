@@ -1,14 +1,16 @@
 katsdpdata
 ==========
 
-Data search and retrieval library for the MeerKAT project.
+This package serves as a placeholder for the data tranfer script, which performs metadata extraction and transfers MeerKAT data products from the LOP (Link Out Protection) buffer to the MTPA (Medium Term Preservation Archive) at the CHCP.
 
-Must build the psrchive docker before building the katsdpdata docker as it
-is the base
+It also contains legacy metadata extractor code for use with KAT7, RTS and MeerKATAR1 .h5 files.
 
-psrchive_docker
-===============
-Docker image containing the software necessary to open and read beamformer data
+LOP to MTPA transfer script:
+* scripts/vis_trawler.py 
 
-Build this as sdp-docker-registry.kat.ac.za:5000/psrchive if you
-need it to work with the katsdpdata Dockerfile
+Stand alone metadata extractor:
+* scripts/tel_prod_met_extractor.py {.h5/.rdb} - creates a CAS format (xml) .met file containing extracted metadata.
+
+Download utilities for use with MTPA:
+* scripts/download_cbid_prods.py
+* scripts/download_cbid_prods_maximum_plaid.py
