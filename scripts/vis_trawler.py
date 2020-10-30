@@ -7,6 +7,7 @@ import json
 import logging
 import multiprocessing
 import os
+import pysolr
 import re
 import sys
 import socket
@@ -54,11 +55,13 @@ def main(trawl_dir, boto_dict, solr_url):
             if ret == 0:
                 # if we did not upload anything, probably a good idea to sleep for SLEEP_TIME
                 time.sleep(SLEEP_TIME)
-        except (socket.error, boto.exception.S3ResponseError):
-            logger.error("Exception thrown while trawling. Test s3 connection before trawling.")
+        except (socket.error, boto.exception.S3ResponseError, pysolr.SolrError):
+            logger.error("Exception thrown while trawling. Test solr and s3 connection before continuing.")
             while True:
                 try:
                     s3_conn = get_s3_connection(boto_dict)
+                    solr_conn = pysolr.Solr()
+                    solr_conn.ping()
                 except Exception:
                     logger.error('Caught exception.')
                     logger.info('Sleeping for %i before continuing.' % (SLEEP_TIME))
