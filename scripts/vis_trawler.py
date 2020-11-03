@@ -61,9 +61,10 @@ def main(trawl_dir, boto_dict, solr_url):
                 try:
                     s3_conn = get_s3_connection(boto_dict)
                     solr_conn = pysolr.Solr(solr_url)
-                    solr_conn.ping()
-                except Exception:
+                    solr_conn.search('*:*')
+                except Exception as e:
                     logger.error('Caught exception.')
+                    logger.debug('Exception: %s' % str(e))
                     logger.info('Sleeping for %i before continuing.' % (SLEEP_TIME))
                     time.sleep(SLEEP_TIME)
                 else:
