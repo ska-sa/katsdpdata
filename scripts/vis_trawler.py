@@ -60,7 +60,7 @@ def main(trawl_dir, boto_dict, solr_url):
             while True:
                 try:
                     s3_conn = get_s3_connection(boto_dict)
-                    solr_conn = pysolr.Solr()
+                    solr_conn = pysolr.Solr(solr_url)
                     solr_conn.ping()
                 except Exception:
                     logger.error('Caught exception.')
