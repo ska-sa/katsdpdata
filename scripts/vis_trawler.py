@@ -2,8 +2,12 @@
 
 """Parallel file uploader to trawl NPY files into S3."""
 
+import boto
+import boto.s3.connection
 import concurrent.futures as futures
 import json
+import katsdpservices
+import katsdpdata.met_detectors
 import logging
 import multiprocessing
 import os
@@ -15,15 +19,6 @@ import shutil
 import time
 
 from optparse import OptionParser
-
-import boto
-import boto.s3.connection
-
-import katsdpservices
-
-import katsdpdata.meerkat_product_extractors
-import katsdpdata.met_handler
-import katsdpdata.met_detectors
 
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
 CAPTURE_STREAM_REGEX = "^[0-9]{10}[-_].*$"
