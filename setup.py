@@ -7,7 +7,7 @@ setup(
     author="Thomas Bennett, Chris Schollar",
     author_email="thomas@ska.ac.za, cschollar@ska.ac.za",
     packages=find_packages(),
-    #setup_requires=["katversion"],
+    setup_requires=["katversion"],
     install_requires=[
         "boto", "katdal", "katpoint", "katsdpservices",
         "katsdptelstate", "numpy", "pysolr"],
