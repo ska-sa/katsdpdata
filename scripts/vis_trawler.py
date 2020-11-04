@@ -8,6 +8,8 @@ import concurrent.futures as futures
 import json
 import katsdpservices
 import katsdpdata.met_detectors
+import katsdpdata.met_extractors
+import katsdpdata.met_handler
 import logging
 import multiprocessing
 import os
