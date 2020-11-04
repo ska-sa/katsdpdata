@@ -47,7 +47,8 @@ def s3_create_bucket(s3_conn, bucket_name, bucket_acl="private"):
             s3_bucket.set_acl(default_acl)
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
-            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server.", e.status, s3_conn.access_key)
+            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server.",
+                         e.status, s3_conn.access_key)
         raise
     return s3_bucket
 
@@ -72,7 +73,8 @@ def get_s3_connection(boto_dict):
         # reliable way to test connection and access keys
         return s3_conn
     except socket.error as e:
-        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)", s3_conn.host, s3_conn.port, e)
+        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)",
+                     s3_conn.host, s3_conn.port, e)
         raise
     except boto.exception.S3ResponseError as e:
         if e.error_code == "InvalidAccessKeyId":
@@ -261,7 +263,8 @@ def get_stream_product(download_dir, s3_bucket, boto_dict):
 
 def get_capture_block_buckets(capture_block_id, solr_url):
     solr = pysolr.Solr(solr_url)
-    search_types = ' OR '.join('CAS.ProductTypeName:{}'.format(pt) for pt in ['MeerKATTelescopeProduct', 'MeerKATFlagProduct'])
+    search_types = ' OR '.join('CAS.ProductTypeName:{}'.format(pt)
+                               for pt in ['MeerKATTelescopeProduct', 'MeerKATFlagProduct'])
     return_fields = ', '.join(['CAS.ProductName, CAS.ReferenceDatastore'])
     res = solr.search('CaptureBlockId:{} AND ({})'.format(capture_block_id, search_types),
                       fl=return_fields)

@@ -1,15 +1,13 @@
 import katdal
 import katpoint
 import katsdptelstate
-import math
 import numpy as np
 import os
-import pickle
 import subprocess
-import sys
 import time
 
 from xml.etree import ElementTree
+from math import floor
 
 
 class MetExtractorException(Exception):
@@ -99,11 +97,12 @@ class TelescopeProductMetExtractor(MetExtractor):
     def _extract_metadata_from_katdata(self):
         """Populate self.metadata: Get information using katdal"""
         self.metadata['Antennas'] = [a.name for a in self._katdata.ants]
-        self.metadata['CenterFrequency'] = "%.2f" % self._katdata.channel_freqs[math.floor(self._katdata.channels[-1]/2)]
+        self.metadata['CenterFrequency'] = "%.2f" % self._katdata.channel_freqs[floor(self._katdata.channels[-1]/2)]
         self.metadata['ChannelWidth'] = str(self._katdata.channel_width)
         self.metadata['MinFreq'] = str(min(self._katdata.freqs))
         self.metadata['MaxFreq'] = str(max(self._katdata.freqs) + self._katdata.channel_width)
-        self.metadata['Bandwidth'] = str(max(self._katdata.freqs) - min(self._katdata.freqs) + self._katdata.channel_width)
+        self.metadata['Bandwidth'] = str(max(self._katdata.freqs) - min(self._katdata.freqs) +
+                                         self._katdata.channel_width)
         self.metadata['Description'] = self._katdata.description
         self.metadata['Details'] = str(self._katdata)
         self.metadata['DumpPeriod'] = '%.4f' % (self._katdata.dump_period)
@@ -114,15 +113,18 @@ class TelescopeProductMetExtractor(MetExtractor):
         else:
             self.metadata['FileSize'] = str(self._katdata.size)
         self.metadata['KatfileVersion'] = self._katdata.version
-        self.metadata['KatpointTargets'] = [t.description for t in self._katdata.catalogue.targets if t.name not in ['None', 'Nothing']]
+        self.metadata['KatpointTargets'] = [t.description for t in self._katdata.catalogue.targets
+                                            if t.name not in ['None', 'Nothing']]
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
         self.metadata['Observer'] = self._katdata.observer
         self.metadata['RefAntenna'] = self._katdata.ref_ant
-        int_secs = math.floor(self._katdata.start_time.secs)
+        int_secs = floor(self._katdata.start_time.secs)
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(int_secs))
-        self.metadata['Targets'] = [t.name for t in self._katdata.catalogue.targets if t.name not in ['None', 'Nothing', 'azel', 'radec']]
+        self.metadata['Targets'] = [t.name for t in self._katdata.catalogue.targets
+                                    if t.name not in ['None', 'Nothing', 'azel', 'radec']]
         try:
-            self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'], self._katdata.obs_params['script_arguments'])
+            self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'],
+                                                         self._katdata.obs_params['script_arguments'])
         except KeyError:
             pass
 
@@ -151,7 +153,8 @@ class TelescopeProductMetExtractor(MetExtractor):
                     self.metadata["ElAz"].append("%f, %f" % ((np.clip(el, -90, 90)), katpoint.wrap_angle(az, 360)))
 
     def _extract_metadata_for_project(self):
-        """Populate self.metadata: Grab if available proposal, program block and project id's from the observation script arguments."""
+        """Populate self.metadata: Grab if available proposal, program block and project id's
+        from the observation script arguments."""
         # ProposalId
         if 'proposal_id' in self._katdata.obs_params:
             self.metadata['ProposalId'] = self._katdata.obs_params['proposal_id']
@@ -165,7 +168,8 @@ class TelescopeProductMetExtractor(MetExtractor):
         if 'issue_id' in self._katdata.obs_params and self._katdata.obs_params['issue_id'] != '':
             self.metadata['IssueId'] = self._katdata.obs_params['issue_id']
         # ProposalDescription
-        if 'proposal_description' in self._katdata.obs_params and self._katdata.obs_params['proposal_description'] != '':
+        if ('proposal_description' in self._katdata.obs_params and
+                self._katdata.obs_params['proposal_description'] != ''):
             self.metadata['ProposalDescription'] = self._katdata.obs_params['proposal_description']
 
 
@@ -336,15 +340,9 @@ class MeerKATAR1TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtract
         self.product_type = 'MeerKATAR1TelescopeProduct'
 
     def _extract_sub_array_details(self):
-        try:
-            self.metadata['SubarrayProductId'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['subarray_product_id'])
-            self.metadata['SubarrayNumber'] = str(pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_sub_nr']))
-            self.metadata['SubarrayProduct'] = pickle.loads(self._katdata.file['TelescopeState'].attrs['sub_product'])
-
-        except IndexError:
-            self.metadata['SubarrayProductId'] = self._katdata.file['TelescopeState'].attrs['subarray_product_id']
-            self.metadata['SubarrayNumber'] = str(self._katdata.file['TelescopeState'].attrs['sub_sub_nr'])
-            self.metadata['SubarrayProduct'] = self._katdata.file['TelescopeState'].attrs['sub_product']
+        self.metadata['SubarrayProductId'] = self._katdata.file['TelescopeState'].attrs['subarray_product_id']
+        self.metadata['SubarrayNumber'] = str(self._katdata.file['TelescopeState'].attrs['sub_sub_nr'])
+        self.metadata['SubarrayProduct'] = self._katdata.file['TelescopeState'].attrs['sub_product']
 
     def _extract_metadata_for_auto_reduction(self):
         """Populate self.metadata with information scraped from self"""
