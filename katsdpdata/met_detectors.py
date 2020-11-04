@@ -1,6 +1,6 @@
 import os
 import katsdptelstate
-from .meerkat_product_extractors import MeerKATTelescopeProductMetExtractor, MeerKATFlagProductMetExtractor
+from .met_extractors import MeerKATTelescopeProductMetExtractor, MeerKATFlagProductMetExtractor
 
 
 class ProductTypeDetectionError(Exception):
