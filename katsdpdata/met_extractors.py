@@ -1,6 +1,7 @@
 import katdal
 import katpoint
 import katsdptelstate
+import logging
 import numpy as np
 import os
 import subprocess
@@ -8,6 +9,8 @@ import time
 
 from xml.etree import ElementTree
 from math import floor
+
+logger = logging.getLogger(__name__)
 
 
 class MetExtractorException(Exception):
@@ -195,14 +198,14 @@ class FileBasedTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         if os.path.isfile(md5_filename):
             with open(md5_filename, 'r') as md5:
                 self.metadata['FileDigest'] = md5.read().strip()
-                print('Digest is %s.' % self.metadata['FileDigest'])
+                logger.debug('Digest is %s.', self.metadata['FileDigest'])
             os.remove(md5_filename)
         else:
-            print('Calculating the md5 checksum for %s. This may take a while.' % (self.katfile))
+            logger.info('Calculating the md5 checksum for %s. This may take a while.', self.katfile)
             p = subprocess.Popen(['md5sum', self.katfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
             if not p[1]:
                 self.metadata['FileDigest'] = p[0].split()[0]
-                print('md5 checksum complete. Digest is %s.' % self.metadata['FileDigest'])
+                logger.info('md5 checksum complete. Digest is %s.', self.metadata['FileDigest'])
 
 
 class KAT7TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
@@ -249,7 +252,7 @@ class KAT7TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
             self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+            logger.warning("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
 
 class KatFileProductMetExtractor(KAT7TelescopeProductMetExtractor):
@@ -310,7 +313,7 @@ class RTSTelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
             self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+            logger.warning("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
 
 class MeerKATAR1TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtractor):
@@ -373,7 +376,7 @@ class MeerKATAR1TelescopeProductMetExtractor(FileBasedTelescopeProductMetExtract
             self._extract_location_from_katdata()
             self._metadata_extracted = True
         else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+            logger.warning("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
 
 class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
@@ -407,7 +410,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             self._extract_instrument_name()
             self._metadata_extracted = True
         else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+            logger.warning("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
@@ -455,7 +458,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
             self._extract_instrument_name()
             self._metadata_extracted = True
         else:
-            print("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
+            logger.warning("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
