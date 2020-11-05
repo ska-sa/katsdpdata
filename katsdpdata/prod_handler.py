@@ -181,7 +181,7 @@ def transfer_files_to_s3(trawl_dir, boto_dict, file_list):
             os.unlink(filename)
             transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
         else:
-            logger.debug("%s not deleted. Only uploaded %i of %i bytes." % (filename, res, file_size))
+            logger.debug("%s not deleted. Only uploaded %i of %i bytes.", filename, res, file_size)
     return transfer_list
 
 

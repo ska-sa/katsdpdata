@@ -61,8 +61,8 @@ def main(trawl_dir, boto_dict, solr_url):
                     solr_conn.search('*:*')
                 except Exception as e:
                     logger.error('Caught exception.')
-                    logger.debug('Exception: %s' % str(e))
-                    logger.info('Sleeping for %i before continuing.' % (SLEEP_TIME))
+                    logger.debug('Exception: %s', str(e))
+                    logger.info('Sleeping for %i before continuing.', SLEEP_TIME)
                     time.sleep(SLEEP_TIME)
                 else:
                     s3_conn.close()
@@ -155,21 +155,21 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size = sum(os.path.getsize(f)
                       for f in upload_list if os.path.isfile(f))
     if upload_size > 0:
-        logger.debug("Uploading %.2f MB of data" % (upload_size // 1e6))
+        logger.debug("Uploading %.2f MB of data", (upload_size // 1e6))
         log_time = {}
         proc_results = parallel_upload(trawl_dir, boto_dict, upload_list, log_time=log_time)
         for pr in proc_results:
             try:
                 res = pr.result()
-                logger.debug("%i transfers from future." % (len(res)))
+                logger.debug("%i transfers from future.", len(res))
             except Exception as err:
                 # test s3 problems, else mark as borken
                 if hasattr(err, 'bucket_name'):
                     set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
-        logger.debug("Upload complete in %.2f sec (%.2f MBps)" %
-                     (log_time['PARALLEL_UPLOAD'], upload_size // 1e6 // log_time['PARALLEL_UPLOAD']))
+        logger.debug("Upload complete in %.2f sec (%.2f MBps)",
+                     log_time['PARALLEL_UPLOAD'], (upload_size // 1e6 // log_time['PARALLEL_UPLOAD']))
     else:
-        logger.debug("No data to upload (%.2f MB)" % (upload_size // 1e6))
+        logger.debug("No data to upload (%.2f MB)", (upload_size // 1e6))
     return upload_size
 
 
@@ -183,7 +183,7 @@ def set_failed_token(prod_dir, msg=None):
     """
     failed_token_file = os.path.join(prod_dir, "failed")
     if not os.path.isfile(failed_token_file):
-        logger.warning("Exception: %s from future." % (msg))
+        logger.warning("Exception: %s from future.", msg)
         if not msg:
             msg = ""
         with open(failed_token_file, "w") as failed_token:
@@ -193,7 +193,7 @@ def set_failed_token(prod_dir, msg=None):
 def cleanup(dir_name):
     """Recursive delete the supplied directory supplied directory.
     Should be a completed product."""
-    logger.info("%s is complete. Deleting directory tree." % (dir_name))
+    logger.info("%s is complete. Deleting directory tree.", dir_name)
     return shutil.rmtree(dir_name)
 
 
@@ -229,7 +229,7 @@ def ingest_vis_product(trawl_dir, prod_id, original_refs, prod_met_extractor, so
         met = mh.get_prod_met(prod_id)
     if "CAS.ProductTransferStatus" in met and met["CAS.ProductTransferStatus"] == "RECEIVED":
         err = katsdpdata.met_extractors.MetExtractorException(
-            "%s marked as RECEIVED, while trying to create new product." % (prod_id))
+            "%s marked as RECEIVED, while trying to create new product.", prod_id)
         err.bucket_name = os.path.relpath(original_refs[0], trawl_dir).split("/", 1)[0]
         raise err
     # set metadata
@@ -309,7 +309,7 @@ def list_trawl_files(prod_dir, file_match, file_writing, complete_token, time_ou
     complete = False
     # check for failed token, if there return an empty list and incomplete.
     if os.path.isfile(os.path.join(prod_dir, "failed")):
-        logger.warning("%s so not processing, moving to failed directory." % (os.path.join(prod_dir, "failed")))
+        logger.warning("%s so not processing, moving to failed directory.", os.path.join(prod_dir, "failed"))
         # move product to failed dir
         failed_dir = os.path.join(os.path.split(prod_dir)[0], "failed")
         if not os.path.isdir(failed_dir):
@@ -360,7 +360,7 @@ def transfer_files(trawl_dir, boto_dict, file_list):
             os.unlink(filename)
             transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
         else:
-            logger.debug("%s not deleted. Only uploaded %i of %i bytes." % (filename, res, file_size))
+            logger.debug("%s not deleted. Only uploaded %i of %i bytes.", filename, res, file_size)
     return transfer_list
 
 
@@ -374,7 +374,7 @@ def timeit(func):
             name = kwargs.get("log_name", func.__name__.upper())
             kwargs["log_time"][name] = te - ts
         else:
-            logger.info(("%s %.2f ms") % (func.__name__, (te - ts)))
+            logger.info("%s %.2f ms", func.__name__, (te - ts))
         return result
     return wrapper
 
@@ -388,9 +388,9 @@ def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
         workers = len(file_list)
     else:
         workers = max_workers
-    logger.info("Using %i workers" % (workers))
+    logger.info("Using %i workers", workers)
     files = [file_list[i::workers] for i in range(workers)]
-    logger.info("Processing %i files" % (len(file_list)))
+    logger.info("Processing %i files", len(file_list))
     procs = []
     with futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for f in files:
@@ -428,16 +428,16 @@ def get_s3_connection(boto_dict):
         # reliable way to test connection and access keys
         return s3_conn
     except socket.error as e:
-        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)" %
-                     (s3_conn.host, s3_conn.port, e))
+        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)",
+                     s3_conn.host, s3_conn.port, e)
         raise
     except boto.exception.S3ResponseError as e:
         if e.error_code == "InvalidAccessKeyId":
-            logger.error("Supplied access key %s is not for a valid S3 user." % (s3_conn.access_key))
+            logger.error("Supplied access key %s is not for a valid S3 user.", s3_conn.access_key)
         if e.error_code == "SignatureDoesNotMatch":
             logger.error("Supplied secret key is not valid for specified user.")
         if e.status == 403 or e.status == 409:
-            logger.error("Supplied access key (%s) has no permissions on this server." % (s3_conn.access_key))
+            logger.error("Supplied access key (%s) has no permissions on this server.", s3_conn.access_key)
         raise
     return None
 
@@ -486,8 +486,8 @@ def s3_create_bucket(s3_conn, bucket_name):
         s3_bucket.set_policy(s3_bucket_policy)
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
-            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." %
-                         (e.status, s3_conn.access_key))
+            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server.",
+                         e.status, s3_conn.access_key)
         raise
     except boto.exception.S3CreateError as e:
         if e.status == 409:  # Bucket already exists and you're the ownwer
