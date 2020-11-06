@@ -10,7 +10,7 @@ setup(
     setup_requires=["katversion"],
     install_requires=[
         "boto", "katdal", "katpoint", "katsdpservices",
-        "katsdptelstate", "katversion", "numpy", "pysolr"],
+        "katsdptelstate", "numpy", "pysolr"],
     url='http://ska.ac.za/',
     scripts=[
         "scripts/tel_prod_met_extractor.py",
