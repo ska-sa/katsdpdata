@@ -426,9 +426,9 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         self.metadata['CAS.ProductTypeName'] = self.product_type
 
     def _extract_instrument_name(self):
-        """Exrac the instrument from the enviroment variable if it exists"""
-        if 'INSTRUMENT' in os.environ:
-            self.metadata['Instrument'] = os.environ['INSTRUMENT']
+        """Extract the instrument from the environment variable if it exists"""
+        if 'SITENAME' in os.environ:
+            self.metadata['Instrument'] = os.environ['SITENAME']
 
 
 class MeerKATFlagProductMetExtractor(MetExtractor):
@@ -480,8 +480,8 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
 
 
 def file_mime_detection(katfile):
-    """Fuction to instantiate the correct metadata extraction class. The
-    following file extentions are are currently detected: '.h5' and '.rdb'.
+    """Function to instantiate the correct metadata extraction class. The
+    following file extensions are are currently detected: '.h5' and '.rdb'.
 
     Parameters:
     ----------
@@ -490,19 +490,21 @@ def file_mime_detection(katfile):
     file_ext = os.path.splitext(katfile)[1]
     if file_ext == '.h5':
         katdata = katdal.open(katfile)
-        # atleast one antenna starts with 'ant'
+        # 'katdata.ants' are sorted alphabetically.
+        # KAT7 antennas start with 'ant'. MeerKAT (AR1 and onwards) antennas start with 'm'.
+        # If the first antenna starts with 'ant' consider it KAT7 data.
         if katdata.ants[0].name.startswith('ant'):
-            # todo: replace with KAT7TelescopeProductMetExtractor
             return KatFileProductMetExtractor(katdata)
-        # proposal id must mention RTS at least once
+        # if 'proposal_id' mention RTS at least once then it's an RTS file.
         elif 'proposal_id' in katdata.obs_params and katdata.obs_params['proposal_id'].count('RTS') >= 1:
             return RTSTelescopeProductMetExtractor(katdata)
-        # everything else must be ar1
+        # everything else that is .h5 must be MeerKAT AR1 and onwards
         else:
             return MeerKATAR1TelescopeProductMetExtractor(katdata)
+    # vis trawler uses os.environ['SITENAME'] to differentiate instruments when extracting metadata.
     elif file_ext == '.rdb':
         if 'sdp_l0' in katfile:
             return MeerKATTelescopeProductMetExtractor(katfile)
         elif 'sdp_l1_flags' in katfile:
             return MeerKATFlagProductMetExtractor(katfile)
-    raise MetExtractorException("File extention not supported %s" % (file_ext))
+    raise MetExtractorException("File extension not supported %s" % (file_ext))
