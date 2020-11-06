@@ -4,8 +4,7 @@ chardet # requests
 cityhash # katdal
 dask # katdal
 ephem # pyephem
-future # katdal
-future # katpoint
+future # katdal, katpoint
 h5py # katdal
 idna # requests
 katdal==0.16
@@ -15,12 +14,9 @@ katsdptelstate==0.10
 katversion
 llvmlite # numba
 msgpack # katsdptelstate
-netifaces # katsdpservices
-netifaces # katsdptelstate
+netifaces # katsdpservices, katsdptelstate
 numba # katdal
-numpy # katdal
-numpy # katpoint
-numpy # katsdptelstate
+numpy # katdal, katpoint, katsdptelstate
 pyephem # katpoint
 pygelf # katsdpservices
 pyjwt # katdal
