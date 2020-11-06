@@ -14,7 +14,6 @@ setup(
     url='http://ska.ac.za/',
     scripts=[
         "scripts/tel_prod_met_extractor.py",
-        "scripts/download_cbid_prods.py",
         "scripts/download_cbid_prods_maximum_plaid.py",
         "scripts/vis_trawler.py"],
     classifiers=[
