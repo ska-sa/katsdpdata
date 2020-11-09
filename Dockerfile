@@ -22,3 +22,4 @@ COPY . /tmp/install/katsdpdata
 WORKDIR /tmp/install/katsdpdata
 RUN python ./setup.py clean
 RUN pip install --no-deps .
+RUN pip check
