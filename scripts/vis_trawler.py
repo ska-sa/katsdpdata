@@ -60,9 +60,9 @@ def main(trawl_dir, boto_dict, solr_url):
                     solr_conn = pysolr.Solr(solr_url)
                     solr_conn.search('*:*')
                 except Exception as e:
-                    logger.error('Caught exception.')
+                    logger.debug('Caught exception.')
                     logger.debug('Exception: %s', str(e))
-                    logger.info('Sleeping for %i before continuing.', SLEEP_TIME)
+                    logger.debug('Sleeping for %i before continuing.', SLEEP_TIME)
                     time.sleep(SLEEP_TIME)
                 else:
                     s3_conn.close()
@@ -374,7 +374,7 @@ def timeit(func):
             name = kwargs.get("log_name", func.__name__.upper())
             kwargs["log_time"][name] = te - ts
         else:
-            logger.info("%s %.2f ms", func.__name__, (te - ts))
+            logger.debug("%s %.2f ms", func.__name__, (te - ts))
         return result
     return wrapper
 
@@ -388,9 +388,9 @@ def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
         workers = len(file_list)
     else:
         workers = max_workers
-    logger.info("Using %i workers", workers)
+    logger.debug("Using %i workers", workers)
     files = [file_list[i::workers] for i in range(workers)]
-    logger.info("Processing %i files", len(file_list))
+    logger.debug("Processing %i files", len(file_list))
     procs = []
     with futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for f in files:
@@ -490,7 +490,7 @@ def s3_create_bucket(s3_conn, bucket_name):
                          e.status, s3_conn.access_key)
         raise
     except boto.exception.S3CreateError as e:
-        if e.status == 409:  # Bucket already exists and you're the ownwer
+        if e.status == 409:  # Bucket already exists and you're the owner
             s3_bucket = s3_conn.get_bucket(bucket_name)
         else:
             raise
