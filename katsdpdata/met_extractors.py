@@ -117,6 +117,8 @@ class TelescopeProductMetExtractor(MetExtractor):
         else:
             self.metadata['FileSize'] = str(self._katdata.size)
         self.metadata['KatfileVersion'] = self._katdata.version
+        # katpoint target strings could be used directly to create a katpoint target from the string
+        # so radec/azel are valid katpoint targets (unlike Targets)
         self.metadata['KatpointTargets'] = [t.description for t in self._katdata.catalogue.targets
                                             if t.name not in ['None', 'Nothing']]
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
@@ -124,6 +126,7 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['RefAntenna'] = self._katdata.ref_ant
         int_secs = floor(self._katdata.start_time.secs)
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(int_secs))
+        # targets are for archive string searches and radec/azel polute string searches
         self.metadata['Targets'] = [t.name for t in self._katdata.catalogue.targets
                                     if t.name not in ['None', 'Nothing', 'azel', 'radec']]
         try:
