@@ -7,9 +7,6 @@ import boto.s3.connection
 import concurrent.futures as futures
 import json
 import katsdpservices
-import katsdpdata.met_detectors
-import katsdpdata.met_extractors
-import katsdpdata.met_handler
 import logging
 import multiprocessing
 import os
@@ -20,6 +17,12 @@ import socket
 import shutil
 import time
 
+from katsdpdata.met_detectors import file_type_detection
+from katsdpdata.met_extractors import MetExtractorException
+from katsdpdata.met_handler import MetaDataHandler
+from katsdpdata.prod_handler import get_s3_connection
+from katsdpdata.prod_handler import make_boto_dict
+from katsdpdata.prod_handler import redact_key
 from optparse import OptionParser
 
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
@@ -121,7 +124,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 if rdb_lite in cb_files and rdb_full in cb_files:
                     try:
                         try:
-                            prod_met_extractor = katsdpdata.met_detectors.file_type_detection(rdb_lite)
+                            prod_met_extractor = file_type_detection(rdb_lite)
                         except Exception as err:
                             bucket_name = os.path.relpath(rdb_lite, trawl_dir).split("/", 1)[0]
                             err.bucket_name = bucket_name
@@ -222,13 +225,13 @@ def ingest_vis_product(trawl_dir, prod_id, original_refs, prod_met_extractor, so
         err.filename = original_refs[0]
         raise
     # product metadata extraction
-    mh = katsdpdata.met_handler.MetaDataHandler(solr_url, pm_extractor.product_type, prod_id, prod_id)
+    mh = MetaDataHandler(solr_url, pm_extractor.product_type, prod_id, prod_id)
     if not mh.get_prod_met(prod_id):
         met = mh.create_core_met()
     else:
         met = mh.get_prod_met(prod_id)
     if "CAS.ProductTransferStatus" in met and met["CAS.ProductTransferStatus"] == "RECEIVED":
-        err = katsdpdata.met_extractors.MetExtractorException(
+        err = MetExtractorException(
             "%s marked as RECEIVED, while trying to create new product.", prod_id)
         err.bucket_name = os.path.relpath(original_refs[0], trawl_dir).split("/", 1)[0]
         raise err
@@ -364,22 +367,6 @@ def transfer_files(trawl_dir, boto_dict, file_list):
     return transfer_list
 
 
-def timeit(func):
-    """Taken from an example from the internet."""
-    def wrapper(*args, **kwargs):
-        ts = time.time()
-        result = func(*args, **kwargs)
-        te = time.time()
-        if "log_time" in kwargs:
-            name = kwargs.get("log_name", func.__name__.upper())
-            kwargs["log_time"][name] = te - ts
-        else:
-            logger.debug("%s %.2f ms", func.__name__, (te - ts))
-        return result
-    return wrapper
-
-
-@timeit
 def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
     """
     """
@@ -397,49 +384,6 @@ def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
             procs.append(executor.submit(transfer_files, trawl_dir, boto_dict, f))
         executor.shutdown(wait=True)
     return procs
-
-
-# cut and paste with modification from katsdpmetawriter/scripts/meta_writer.py
-def make_boto_dict(s3_args):
-    """Create a dict of keyword parameters suitable for passing into a boto.connect_s3 call using the supplied args."""
-    return {"host": s3_args.s3_host,
-            "port": s3_args.s3_port,
-            "is_secure": False,
-            "calling_format": boto.s3.connection.OrdinaryCallingFormat()}
-
-
-# cut and paste with modification from katsdpmetawriter/scripts/meta_writer.py
-def get_s3_connection(boto_dict):
-    """Test the connection to S3 as described in the args, and return
-    the current user id and the connection object.
-    In general we are more concerned with informing the user why the
-    connection failed, rather than raising exceptions. Users should always
-    check the return value and make appropriate decisions.
-    If set, fail_on_boto will not suppress boto exceptions. Used when verifying
-    credentials.
-    Returns
-    -------
-    s3_conn : S3Connection
-        A connection to the s3 endpoint. None if a connection error occurred.
-    """
-    s3_conn = boto.connect_s3(**boto_dict)
-    try:
-        s3_conn.get_canonical_user_id()
-        # reliable way to test connection and access keys
-        return s3_conn
-    except socket.error as e:
-        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)",
-                     s3_conn.host, s3_conn.port, e)
-        raise
-    except boto.exception.S3ResponseError as e:
-        if e.error_code == "InvalidAccessKeyId":
-            logger.error("Supplied access key %s is not for a valid S3 user.", s3_conn.access_key)
-        if e.error_code == "SignatureDoesNotMatch":
-            logger.error("Supplied secret key is not valid for specified user.")
-        if e.status == 403 or e.status == 409:
-            logger.error("Supplied access key (%s) has no permissions on this server.", s3_conn.access_key)
-        raise
-    return None
 
 
 def s3_create_anon_access_policy(bucket_name):
@@ -487,7 +431,7 @@ def s3_create_bucket(s3_conn, bucket_name):
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
             logger.error("Error status %s. Supplied access key (%s) has no permissions on this server.",
-                         e.status, s3_conn.access_key)
+                         e.status, redact_key(s3_conn.access_key))
         raise
     except boto.exception.S3CreateError as e:
         if e.status == 409:  # Bucket already exists and you're the owner
