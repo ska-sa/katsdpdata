@@ -20,4 +20,5 @@ RUN install-requirements.py -d ~/docker-base/base-requirements.txt -r /tmp/insta
 # Install the current package
 COPY . /tmp/install/katsdpdata
 WORKDIR /tmp/install/katsdpdata
-RUN python ./setup.py clean && pip install --no-index .
+RUN python ./setup.py clean
+RUN pip install --no-deps .
