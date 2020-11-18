@@ -127,8 +127,20 @@ class TelescopeProductMetExtractor(MetExtractor):
         int_secs = floor(self._katdata.start_time.secs)
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(int_secs))
         # targets are for archive string searches and radec/azel polute string searches
-        self.metadata['Targets'] = [t.name for t in self._katdata.catalogue.targets
-                                    if t.name not in ['None', 'Nothing', 'azel', 'radec']]
+        target_names = []
+        for t in self._katdata.catalogue.targets:
+            if t.name not in ['None', 'Nothing', 'azel', 'radec']:
+                target_names.append(t.name)
+            for alias in t.aliases:
+                if alias:
+                    target_names.append(alias)
+        self.metadata['Targets'] = list(set(target_names))
+        # @idea: another more general approach to generating a good set of targets would be
+        # to use an external lookup based on sky position to find alternates:
+        # >>> from astropy.coordinates import SkyCoord
+        # >>> SkyCoord.from_name('PKS 1934-63')
+        # <SkyCoord (ICRS): (ra, dec) in deg
+        #     (294.85427796, -63.71267375)>
         try:
             self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'],
                                                          self._katdata.obs_params['script_arguments'])
