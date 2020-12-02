@@ -159,8 +159,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                       for f in upload_list if os.path.isfile(f))
     if upload_size > 0:
         logger.debug("Uploading %.2f MB of data", (upload_size // 1e6))
-        log_time = {}
-        proc_results = parallel_upload(trawl_dir, boto_dict, upload_list, log_time=log_time)
+        proc_results = parallel_upload(trawl_dir, boto_dict, upload_list)
         for pr in proc_results:
             try:
                 res = pr.result()
@@ -169,8 +168,6 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 # test s3 problems, else mark as borken
                 if hasattr(err, 'bucket_name'):
                     set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
-        logger.debug("Upload complete in %.2f sec (%.2f MBps)",
-                     log_time['PARALLEL_UPLOAD'], (upload_size // 1e6 // log_time['PARALLEL_UPLOAD']))
     else:
         logger.debug("No data to upload (%.2f MB)", (upload_size // 1e6))
     return upload_size
@@ -367,7 +364,7 @@ def transfer_files(trawl_dir, boto_dict, file_list):
     return transfer_list
 
 
-def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
+def parallel_upload(trawl_dir, boto_dict, file_list):
     """
     """
     max_workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
