@@ -141,6 +141,11 @@ class TelescopeProductMetExtractor(MetExtractor):
         # >>> SkyCoord.from_name('PKS 1934-63')
         # <SkyCoord (ICRS): (ra, dec) in deg
         #     (294.85427796, -63.71267375)>
+        # @todo: remove blank target names
+        # There are also "blank" target names like
+        # 'Az: 57:17:44.8 El: 114:35:29.6'
+        # 'Ra: 3:49:10.99 Dec: 114:35:29.6'
+        # Delete them with 'startswith'
         try:
             self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'],
                                                          self._katdata.obs_params['script_arguments'])
