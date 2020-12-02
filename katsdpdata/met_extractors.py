@@ -117,6 +117,8 @@ class TelescopeProductMetExtractor(MetExtractor):
         else:
             self.metadata['FileSize'] = str(self._katdata.size)
         self.metadata['KatfileVersion'] = self._katdata.version
+        # katpoint target strings could be used directly to create a katpoint target from the string
+        # so radec/azel are valid katpoint targets (unlike Targets)
         self.metadata['KatpointTargets'] = [t.description for t in self._katdata.catalogue.targets
                                             if t.name not in ['None', 'Nothing']]
         self.metadata['NumFreqChannels'] = str(len(self._katdata.channels))
@@ -124,8 +126,26 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['RefAntenna'] = self._katdata.ref_ant
         int_secs = floor(self._katdata.start_time.secs)
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(int_secs))
-        self.metadata['Targets'] = [t.name for t in self._katdata.catalogue.targets
-                                    if t.name not in ['None', 'Nothing', 'azel', 'radec']]
+        # targets are for archive string searches and radec/azel polute string searches
+        target_names = []
+        for t in self._katdata.catalogue.targets:
+            if t.name not in ['None', 'Nothing', 'azel', 'radec']:
+                target_names.append(t.name)
+            for alias in t.aliases:
+                if alias:
+                    target_names.append(alias)
+        self.metadata['Targets'] = list(set(target_names))
+        # @idea: another more general approach to generating a good set of targets would be
+        # to use an external lookup based on sky position to find alternates:
+        # >>> from astropy.coordinates import SkyCoord
+        # >>> SkyCoord.from_name('PKS 1934-63')
+        # <SkyCoord (ICRS): (ra, dec) in deg
+        #     (294.85427796, -63.71267375)>
+        # @todo: remove blank target names
+        # There are also "blank" target names like
+        # 'Az: 57:17:44.8 El: 114:35:29.6'
+        # 'Ra: 3:49:10.99 Dec: 114:35:29.6'
+        # Delete them with 'startswith'
         try:
             self.metadata['InstructionSet'] = '%s %s' % (self._katdata.obs_params['script_name'],
                                                          self._katdata.obs_params['script_arguments'])
