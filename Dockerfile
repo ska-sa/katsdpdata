@@ -1,4 +1,4 @@
-FROM sdp-docker-registry.kat.ac.za:5000/docker-base-build:python2
+FROM sdp-docker-registry.kat.ac.za:5000/docker-base-build
 
 MAINTAINER Thomas Bennett "tbennett@ska.ac.za"
 
@@ -11,12 +11,15 @@ RUN apt-get -y update && apt-get -y install \
     libhdf5-dev
 USER kat
 
-ENV PATH="$PATH_PYTHON2" VIRTUAL_ENV="$VIRTUAL_ENV_PYTHON2"
+ENV PATH="$PATH_PYTHON3" VIRTUAL_ENV="$VIRTUAL_ENV_PYTHON3"
 
-COPY requirements.txt /tmp/install/requirements.txt
-RUN install-requirements.py --default-versions /home/kat/docker-base/base-requirements.txt -r /tmp/install/requirements.txt
+RUN mkdir -p /tmp/install/katsdpdata
+COPY --chown=kat:kat requirements.txt /tmp/install/requirements.txt
+RUN install-requirements.py -d ~/docker-base/base-requirements.txt -r /tmp/install/requirements.txt
 
 # Install the current package
 COPY . /tmp/install/katsdpdata
 WORKDIR /tmp/install/katsdpdata
-RUN python ./setup.py clean && pip install --no-index .
+RUN python ./setup.py clean
+RUN pip install --no-deps .
+RUN pip check

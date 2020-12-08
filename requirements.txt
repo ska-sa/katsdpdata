@@ -1,53 +1,28 @@
-argparse
-backports-abc
-backports.ssl-match-hostname
 boto==2.48.0
-botocore
-certifi
-chardet
-cityhash==0.2.3post9
-dask
-docutils
-enum34
-fakeredis
-funcsigs
-future
-futures
-h5py
-idna
-ipaddress
-jmespath
-katcp
+certifi                 # via requests
+chardet                 # via requests
+cityhash                # via katdal
+dask                    # via katdal
+ephem                   # via pyephem
+future                  # via katdal, katpoint
+h5py                    # via katdal
+idna                    # via requests
+katdal==0.16
+katpoint==0.9
+katsdpservices==1.0
+katsdptelstate==0.10
 katversion
-linecache2
-llvmlite
-mock
-msgpack
-netifaces
-nose
-numba
-numpy
-pbr
-ply
-pyephem
-pyfits==3.4
-pygelf
-pyjwt
+llvmlite                # via numba
+msgpack                 # via katsdptelstate
+netifaces               # via katsdpservices, katsdptelstate
+numba                   # via katdal
+numpy                   # via katdal, katpoint, katsdptelstate
+pyephem                 # via katpoint
+pygelf                  # via katsdpservices
+pyjwt                   # via katdal
 pysolr==3.3.3
-python-dateutil
-python-lzf
-rdbtools
-redis
-requests
-singledispatch
-six
-toolz
-tornado
-traceback2
-unittest2
-urllib3
-
-katdal @ git+https://github.com/ska-sa/katdal
-katpoint @ git+https://github.com/ska-sa/katpoint
-katsdpservices @ git+https://github.com/ska-sa/katsdpservices
-katsdptelstate @ git+https://github.com/ska-sa/katsdptelstate
+rdbtools                # via katdal
+redis==3.4.1
+requests                # via pysolr
+toolz>=0.7.3            # via dask[array]
+urllib3                 # via requests

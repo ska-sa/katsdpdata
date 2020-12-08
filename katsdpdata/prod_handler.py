@@ -1,28 +1,12 @@
-try:
-    import futures
-except ImportError:
-    import concurrent.futures as futures
 import logging
-import multiprocessing
-import os
-import pysolr
 import socket
-import time
 
 import boto
 import boto.s3.connection
 
-import met_handler
-import met_extractors
-
-
 logger = logging.getLogger(__name__)
 
 
-CPU_MULTIPLIER = 10
-
-
-# cut and paste with modification from katsdpmetawriter/scripts/meta_writer.py
 def make_boto_dict(s3_args):
     """Create a dict of keyword parameters suitable for passing into a boto.connect_s3 call using the supplied args."""
     return {"host": s3_args.s3_host,
@@ -31,32 +15,6 @@ def make_boto_dict(s3_args):
             "calling_format": boto.s3.connection.OrdinaryCallingFormat()}
 
 
-def s3_create_bucket(s3_conn, bucket_name, bucket_acl="private"):
-    """Create an s3 bucket, if it fails on a 403 or 409 error, print an error
-    message and reraise the exception.
-    Returns
-    ------
-    s3_bucket : boto.s3.bucket.Bucket
-        An S3 Bucket object
-    bucket_ack : string : the access control lst to set for the bucket
-    """
-    valid_acls = ["private", "public-read", "public-read-write", "authenticated-read"]
-    default_acl = "private"
-    try:
-        s3_bucket = s3_conn.create_bucket(bucket_name)
-        if bucket_acl in valid_acls:
-            s3_bucket.set_acl(bucket_acl)
-        else:
-            logger.error("Bucket ACL %s, not in %s, setting to %s", bucket_acl, valid_acls, default_acl)
-            s3_bucket.set_acl(default_acl)
-    except boto.exception.S3ResponseError as e:
-        if e.status == 403 or e.status == 409:
-            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server.", e.status, s3_conn.access_key)
-        raise
-    return s3_bucket
-
-
-# cut and paste with modification from katsdpmetawriter/scripts/meta_writer.py
 def get_s3_connection(boto_dict):
     """Test the connection to S3 as described in the args, and return
     the current user id and the connection object.
@@ -76,229 +34,20 @@ def get_s3_connection(boto_dict):
         # reliable way to test connection and access keys
         return s3_conn
     except socket.error as e:
-        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)", s3_conn.host, s3_conn.port, e)
+        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)",
+                     s3_conn.host, s3_conn.port, e)
         raise
     except boto.exception.S3ResponseError as e:
         if e.error_code == "InvalidAccessKeyId":
-            logger.error("Supplied access key %s is not for a valid S3 user.", s3_conn.access_key)
+            logger.error("Supplied access key %s is not for a valid S3 user.", redact_key(s3_conn.access_key))
         if e.error_code == "SignatureDoesNotMatch":
             logger.error("Supplied secret key is not valid for specified user.")
         if e.status == 403 or e.status == 409:
-            logger.error("Supplied access key (%s) has no permissions on this server.", s3_conn.access_key)
+            logger.error("Supplied access key (%s) has no permissions on this server.", redact_key(s3_conn.access_key))
         raise
     return None
 
 
-
-def timeit(func):
-    """Taken from an example from the internet."""
-    def wrapper(*args, **kwargs):
-        ts = time.time()
-        result = func(*args, **kwargs)
-        te = time.time()
-        if "log_time" in kwargs:
-            name = kwargs.get("log_name", func.__name__.upper())
-            kwargs["log_time"][name] = te - ts
-        else:
-            logger.info("%s %.2f ms", func.__name__, (te - ts))
-        return result
-    return wrapper
-
-
-@timeit
-def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
-    """
-    """
-    workers = min(len(file_list), CPU_MULTIPLIER * multiprocessing.cpu_count())
-    logger.info("Using %i workers", workers)
-    files = [file_list[i::workers] for i in range(workers)]
-    logger.info("Processing %i files", len(file_list))
-    procs = []
-    with futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        for f in files:
-            procs.append(executor.submit(transfer_files_to_s3, trawl_dir, boto_dict, f))
-        executor.shutdown(wait=True)
-    return procs
-
-
-def parallel_download(download_dir, boto_dict, bucket_name, key_list):
-    max_workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
-    if len(key_list) < max_workers:
-        workers = len(key_list)
-    else:
-        workers = max_workers
-    logger.info("Using %i workers", workers)
-    bucket_keys = [key_list[i::workers] for i in range(workers)]
-    logger.info("Processing %i files", len(key_list))
-    procs = []
-    with futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        for k in bucket_keys:
-            procs.append(executor.submit(transfer_files_from_s3, download_dir, boto_dict, bucket_name, k))
-        executor.shutdown(wait=True)
-    return procs
-
-
-def transfer_files_from_s3(download_dir, boto_dict, bucket_name, bucket_keys):
-    s3_conn = get_s3_connection(boto_dict)
-    bucket = s3_conn.get_bucket(bucket_name)
-    transfer_list = []
-    for key in bucket_keys:
-        k = bucket.get_key(key)
-        download_filename = os.path.join(download_dir, k.bucket.name, k.name)
-        if not os.path.isdir(os.path.split(download_filename)[0]):
-            os.makedirs(os.path.split(download_filename)[0])
-        if not os.path.isfile(download_filename):
-            logger.info("Downloading %s", k.name)
-            k.get_contents_to_filename(download_filename)
-            transfer_list.append(download_filename)
-            # TODO: can we confirm the filesize is correct?
-        else:
-            logger.info("%s exists, skipping.", download_filename)
-    return transfer_list
-
-
-def transfer_files_to_s3(trawl_dir, boto_dict, file_list):
-    """Transfer file list to s3.
-
-    Parameters
-    ----------
-    trawl_dir: string : The full path to the trawl directory
-    boto_dict: dict : parameter dict for boto connection.
-    file_list: list : a list of full path to files to transfer.
-
-    Returns
-    -------
-    transfer_list: list : a list of s3 URLs that where transfered.
-    """
-    s3_conn = get_s3_connection(boto_dict)
-    bucket = None
-    transfer_list = []
-    for filename in file_list:
-        bucket_name, key_name = os.path.relpath(filename, trawl_dir).split("/", 1)
-        file_size = os.path.getsize(filename)
-        if not bucket or bucket.name != bucket_name:
-            bucket = s3_create_bucket(s3_conn, bucket_name)
-        key = bucket.new_key(key_name)
-        res = key.set_contents_from_filename(filename)
-        if res == file_size:
-            os.unlink(filename)
-            transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
-        else:
-            logger.debug("%s not deleted. Only uploaded %i of %i bytes." % (filename, res, file_size))
-    return transfer_list
-
-
-def ingest_stream_product(trawl_dir, prod_id, original_refs, prod_met_extractor, solr_url, boto_dict):
-    """Ingest a product into the archive. This includes extracting and uploading
-    metadata and then moving the product into the archive.
-
-    Parameters
-    ----------
-    trawl_dir: string : full path to directory to trawl for ingest product.
-    prod_id: string : unique id for the product.
-    original_refs : list : list of product file(s).
-    product_met_extractor: class : a metadata extractor class.
-    solr_url: string : sorl endpoint for metadata queries and upload.
-    boto_dict: dict : parameter dict for boto connection.
-
-    Returns
-    -------
-    met : dict : a metadata dictionary with uploaded key:value pairs.
-    """
-    try:
-        pm_extractor = prod_met_extractor(original_refs[0])
-        pm_extractor.extract_metadata()
-    except Exception as err:
-        bucket_name = os.path.relpath(original_refs[0], trawl_dir).split("/", 1)[0]
-        err.bucket_name = bucket_name
-        err.filename = original_refs[0]
-        raise
-    # product metadata extraction
-    mh = met_handler.MetaDataHandler(solr_url, pm_extractor.product_type, prod_id, prod_id)
-    if not mh.get_prod_met(prod_id):
-        met = mh.create_core_met()
-    else:
-        met = mh.get_prod_met(prod_id)
-    if "CAS.ProductTransferStatus" in met and met["CAS.ProductTransferStatus"] == "RECEIVED":
-        err = met_extractors.MetExtractorException(
-            "%s marked as RECEIVED, while trying to create new product." % (prod_id))
-        err.bucket_name = os.path.relpath(original_refs[0], trawl_dir).split("/", 1)[0]
-        raise err
-    # set metadata
-    met = mh.set_product_transferring(met)
-    # prepend the most common path to conform to hierarchical products
-    met_original_refs = list(original_refs)
-    met_original_refs.insert(0, os.path.dirname(os.path.commonprefix(original_refs)))
-    met = mh.add_ref_original(met, met_original_refs)
-    met = mh.add_prod_met(met, pm_extractor.metadata)
-    procs = parallel_upload(trawl_dir, boto_dict, original_refs)
-    transfer_list = []
-    for p in procs:
-        for r in p.result():
-            transfer_list.append(r)
-    # prepend the most common path to conform to hierarchical products
-    met_transfer_refs = list(transfer_list)
-    met_transfer_refs.insert(0, os.path.dirname(os.path.commonprefix(transfer_list)))
-    met = mh.add_ref_datastore(met, met_transfer_refs)
-    met = mh.set_product_received(met)
-    return met
-
-
-def get_stream_product(download_dir, s3_bucket, boto_dict):
-    download_dir = os.path.abspath(download_dir)
-    s3_conn = get_s3_connection(boto_dict)
-
-    if s3_bucket.startswith('s3://'):
-        bucket_name = os.path.split(s3_bucket)[1]
-    else:
-        bucket_name = s3_bucket
-    bucket = s3_conn.get_bucket(bucket_name)
-    for k in bucket:
-        download_filename = os.path.join(download_dir, k.bucket.name, k.name)
-        if not os.path.isdir(os.path.split(download_filename)[0]):
-            os.makedirs(os.path.split(download_filename)[0])
-        if not os.path.isfile(download_filename):
-            logger.info("Downloading %s", k.name)
-            k.get_contents_to_filename(download_filename)
-        else:
-            logger.info("%s exists, skipping.", download_filename)
-
-
-def get_capture_block_buckets(capture_block_id, solr_url):
-    solr = pysolr.Solr(solr_url)
-    search_types = ' OR '.join('CAS.ProductTypeName:{}'.format(pt) for pt in ['MeerKATTelescopeProduct', 'MeerKATFlagProduct'])
-    return_fields = ', '.join(['CAS.ProductName, CAS.ReferenceDatastore'])
-    res = solr.search('CaptureBlockId:{} AND ({})'.format(capture_block_id, search_types),
-                      fl=return_fields)
-    s3_buckets = []
-    for d in res.docs:
-        s3_buckets.append('s3://{}'.format(d['CAS.ProductName']))
-        s3_buckets.append(d['CAS.ReferenceDatastore'][0])
-    return list(set(s3_buckets))
-
-
-def download_stream_products(download_dir, capture_block_id, solr_url, boto_dict):
-    bucket_names = get_capture_block_buckets(capture_block_id, solr_url)
-    for bn in bucket_names:
-        get_stream_product(download_dir, bn, boto_dict)
-
-
-def download_stream_products_plaid(download_dir, capture_block_id, solr_url, boto_dict):
-    bucket_names = get_capture_block_buckets(capture_block_id, solr_url)
-    for bn in [b.strip('s3://') for b in bucket_names]:
-        s3_conn = get_s3_connection(boto_dict)
-        try:
-            bucket = s3_conn.get_bucket(bn)
-        except boto.exception.S3ResponseError:
-            logger.error("Bucket %s does not seem to exist!", bn)
-        else:
-            bucket_name = bucket.name
-            keys = bucket.get_all_keys(max_keys=1000)
-            next_marker = keys.next_marker
-            parallel_download(download_dir, boto_dict, bucket_name, [k.name for k in keys])
-            while next_marker:
-                logger.info("Downloading next 1000 keys. Starting from key %s.", next_marker)
-                keys = bucket.get_all_keys(max_keys=1000, marker=keys.next_marker)
-                parallel_download('.', boto_dict, bucket_name, [k.name for k in keys])
-                next_marker = keys.next_marker
-    logger.info("%s downloaded to %s.", capture_block_id, download_dir)
+def redact_key(s3_key):
+    redacted_key = s3_key[:3] + "############" + s3_key[-3:]
+    return redacted_key

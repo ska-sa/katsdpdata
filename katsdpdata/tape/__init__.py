@@ -1,1 +1,0 @@
-from .tapeinterface import TapeLibraryAutomate

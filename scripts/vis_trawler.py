@@ -1,31 +1,29 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Parallel file uploader to trawl NPY files into S3."""
 
-try:
-    import futures
-except ImportError:
-    import concurrent.futures as futures
+import boto
+import boto.s3.connection
+import concurrent.futures as futures
 import json
+import katsdpservices
 import logging
 import multiprocessing
 import os
+import pysolr
 import re
 import sys
 import socket
 import shutil
 import time
 
+from katsdpdata.met_detectors import file_type_detection
+from katsdpdata.met_extractors import MetExtractorException
+from katsdpdata.met_handler import MetaDataHandler
+from katsdpdata.prod_handler import get_s3_connection
+from katsdpdata.prod_handler import make_boto_dict
+from katsdpdata.prod_handler import redact_key
 from optparse import OptionParser
-
-import boto
-import boto.s3.connection
-
-import katsdpservices
-
-import katsdpdata.meerkat_product_extractors
-import katsdpdata.met_handler
-import katsdpdata.met_detectors
 
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
 CAPTURE_STREAM_REGEX = "^[0-9]{10}[-_].*$"
@@ -57,14 +55,17 @@ def main(trawl_dir, boto_dict, solr_url):
             if ret == 0:
                 # if we did not upload anything, probably a good idea to sleep for SLEEP_TIME
                 time.sleep(SLEEP_TIME)
-        except (socket.error, boto.exception.S3ResponseError):
-            logger.error("Exception thrown while trawling. Test s3 connection before trawling.")
+        except (socket.error, boto.exception.S3ResponseError, pysolr.SolrError):
+            logger.error("Exception thrown while trawling. Test solr and s3 connection before continuing.")
             while True:
                 try:
                     s3_conn = get_s3_connection(boto_dict)
-                except Exception:
-                    logger.error('Caught exception.')
-                    logger.info('Sleeping for %i before continuing.' % (SLEEP_TIME))
+                    solr_conn = pysolr.Solr(solr_url)
+                    solr_conn.search('*:*')
+                except Exception as e:
+                    logger.debug('Caught exception.')
+                    logger.debug('Exception: %s', str(e))
+                    logger.debug('Sleeping for %i before continuing.', SLEEP_TIME)
                     time.sleep(SLEEP_TIME)
                 else:
                     s3_conn.close()
@@ -73,6 +74,7 @@ def main(trawl_dir, boto_dict, solr_url):
         except Exception:
             logger.exception("Exception thrown while trawling.")
             break
+
 
 def trawl(trawl_dir, boto_dict, solr_url):
     """Main action for trawling a directory for ingesting products
@@ -92,7 +94,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     cb_dirs, cs_dirs = list_trawl_dir(trawl_dir)
     # prune cb_dirs
     # this is tested by checking if there are any cs_dirs that start with the cb.
-    # cb's will only be transferred once all their streams have their 
+    # cb's will only be transferred once all their streams have their
     # complete token set.
     for cb in cb_dirs[:]:
         for cs in cs_dirs:
@@ -122,7 +124,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 if rdb_lite in cb_files and rdb_full in cb_files:
                     try:
                         try:
-                            prod_met_extractor = katsdpdata.met_detectors.file_type_detection(rdb_lite)
+                            prod_met_extractor = file_type_detection(rdb_lite)
                         except Exception as err:
                             bucket_name = os.path.relpath(rdb_lite, trawl_dir).split("/", 1)[0]
                             err.bucket_name = bucket_name
@@ -134,8 +136,9 @@ def trawl(trawl_dir, boto_dict, solr_url):
                                     (met['id'], ', '.join(met['CAS.ReferenceDatastore'])))
                     except Exception as err:
                         if hasattr(err, 'bucket_name'):
+                            logger.exception("Caught exception while extracting metadata from %s.", err.filename)
                             set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
-                            #if failed, set a boolean flag to exit the loop.
+                            # if failed, set a boolean flag to exit the loop.
                             failed_ingest = True
                         else:
                             raise
@@ -156,21 +159,18 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size = sum(os.path.getsize(f)
                       for f in upload_list if os.path.isfile(f))
     if upload_size > 0:
-        logger.debug("Uploading %.2f MB of data" % (upload_size / 1e6))
-        log_time = {}
-        proc_results = parallel_upload(trawl_dir, boto_dict, upload_list, log_time=log_time)
+        logger.debug("Uploading %.2f MB of data", (upload_size // 1e6))
+        proc_results = parallel_upload(trawl_dir, boto_dict, upload_list)
         for pr in proc_results:
             try:
                 res = pr.result()
-                logger.debug("%i transfers from future." % (len(res)))
+                logger.debug("%i transfers from future.", len(res))
             except Exception as err:
                 # test s3 problems, else mark as borken
                 if hasattr(err, 'bucket_name'):
                     set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
-        logger.debug("Upload complete in %.2f sec (%.2f MBps)" %
-                    (log_time['PARALLEL_UPLOAD'], upload_size / 1e6 / log_time['PARALLEL_UPLOAD']))
     else:
-        logger.debug("No data to upload (%.2f MB)" % (upload_size / 1e6))
+        logger.debug("No data to upload (%.2f MB)", (upload_size // 1e6))
     return upload_size
 
 
@@ -184,7 +184,7 @@ def set_failed_token(prod_dir, msg=None):
     """
     failed_token_file = os.path.join(prod_dir, "failed")
     if not os.path.isfile(failed_token_file):
-        logger.warning("Exception: %s from future." % (msg))
+        logger.warning("Exception: %s from future.", msg)
         if not msg:
             msg = ""
         with open(failed_token_file, "w") as failed_token:
@@ -194,7 +194,7 @@ def set_failed_token(prod_dir, msg=None):
 def cleanup(dir_name):
     """Recursive delete the supplied directory supplied directory.
     Should be a completed product."""
-    logger.info("%s is complete. Deleting directory tree." % (dir_name))
+    logger.info("%s is complete. Deleting directory tree.", dir_name)
     return shutil.rmtree(dir_name)
 
 
@@ -223,14 +223,14 @@ def ingest_vis_product(trawl_dir, prod_id, original_refs, prod_met_extractor, so
         err.filename = original_refs[0]
         raise
     # product metadata extraction
-    mh = katsdpdata.met_handler.MetaDataHandler(solr_url, pm_extractor.product_type, prod_id, prod_id)
+    mh = MetaDataHandler(solr_url, pm_extractor.product_type, prod_id, prod_id)
     if not mh.get_prod_met(prod_id):
         met = mh.create_core_met()
     else:
         met = mh.get_prod_met(prod_id)
     if "CAS.ProductTransferStatus" in met and met["CAS.ProductTransferStatus"] == "RECEIVED":
-        err = katsdpdata.met_extractors.MetExtractorException(
-            "%s marked as RECEIVED, while trying to create new product." % (prod_id))
+        err = MetExtractorException(
+            "%s marked as RECEIVED, while trying to create new product.", prod_id)
         err.bucket_name = os.path.relpath(original_refs[0], trawl_dir).split("/", 1)[0]
         raise err
     # set metadata
@@ -310,7 +310,7 @@ def list_trawl_files(prod_dir, file_match, file_writing, complete_token, time_ou
     complete = False
     # check for failed token, if there return an empty list and incomplete.
     if os.path.isfile(os.path.join(prod_dir, "failed")):
-        logger.warning("%s so not processing, moving to failed directory." % (os.path.join(prod_dir, "failed")))
+        logger.warning("%s so not processing, moving to failed directory.", os.path.join(prod_dir, "failed"))
         # move product to failed dir
         failed_dir = os.path.join(os.path.split(prod_dir)[0], "failed")
         if not os.path.isdir(failed_dir):
@@ -361,27 +361,11 @@ def transfer_files(trawl_dir, boto_dict, file_list):
             os.unlink(filename)
             transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
         else:
-            logger.debug("%s not deleted. Only uploaded %i of %i bytes." % (filename, res, file_size))
+            logger.error("%s not deleted. Only uploaded %i of %i bytes.", filename, res, file_size)
     return transfer_list
 
 
-def timeit(func):
-    """Taken from an example from the internet."""
-    def wrapper(*args, **kwargs):
-        ts = time.time()
-        result = func(*args, **kwargs)
-        te = time.time()
-        if "log_time" in kwargs:
-            name = kwargs.get("log_name", func.__name__.upper())
-            kwargs["log_time"][name] = te - ts
-        else:
-            logger.info(("%s %.2f ms") % (func.__name__, (te - ts)))
-        return result
-    return wrapper
-
-
-@timeit
-def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
+def parallel_upload(trawl_dir, boto_dict, file_list):
     """
     """
     max_workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
@@ -389,57 +373,15 @@ def parallel_upload(trawl_dir, boto_dict, file_list, **kwargs):
         workers = len(file_list)
     else:
         workers = max_workers
-    logger.info("Using %i workers" % (workers))
+    logger.debug("Using %i workers", workers)
     files = [file_list[i::workers] for i in range(workers)]
-    logger.info("Processing %i files" % (len(file_list)))
+    logger.debug("Processing %i files", len(file_list))
     procs = []
     with futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for f in files:
             procs.append(executor.submit(transfer_files, trawl_dir, boto_dict, f))
         executor.shutdown(wait=True)
     return procs
-
-
-# cut and paste with modification from katsdpmetawriter/scripts/meta_writer.py
-def make_boto_dict(s3_args):
-    """Create a dict of keyword parameters suitable for passing into a boto.connect_s3 call using the supplied args."""
-    return {"host": s3_args.s3_host,
-            "port": s3_args.s3_port,
-            "is_secure": False,
-            "calling_format": boto.s3.connection.OrdinaryCallingFormat()}
-
-
-# cut and paste with modification from katsdpmetawriter/scripts/meta_writer.py
-def get_s3_connection(boto_dict):
-    """Test the connection to S3 as described in the args, and return
-    the current user id and the connection object.
-    In general we are more concerned with informing the user why the
-    connection failed, rather than raising exceptions. Users should always
-    check the return value and make appropriate decisions.
-    If set, fail_on_boto will not suppress boto exceptions. Used when verifying
-    credentials.
-    Returns
-    -------
-    s3_conn : S3Connection
-        A connection to the s3 endpoint. None if a connection error occurred.
-    """
-    s3_conn = boto.connect_s3(**boto_dict)
-    try:
-        s3_conn.get_canonical_user_id()
-        # reliable way to test connection and access keys
-        return s3_conn
-    except socket.error as e:
-        logger.error("Failed to connect to S3 host %s:%i. Please check network and host address. (%s)" % (s3_conn.host, s3_conn.port, e))
-        raise
-    except boto.exception.S3ResponseError as e:
-        if e.error_code == "InvalidAccessKeyId":
-            logger.error("Supplied access key %s is not for a valid S3 user." % (s3_conn.access_key))
-        if e.error_code == "SignatureDoesNotMatch":
-            logger.error("Supplied secret key is not valid for specified user.")
-        if e.status == 403 or e.status == 409:
-            logger.error("Supplied access key (%s) has no permissions on this server." % (s3_conn.access_key))
-        raise
-    return None
 
 
 def s3_create_anon_access_policy(bucket_name):
@@ -449,26 +391,27 @@ def s3_create_anon_access_policy(bucket_name):
     anon_access_policy: A json formatted s3 bucket policy
     """
     anon_policy_dict = {
-        "Version":"2012-10-17",
-        "Statement":[
+        "Version": "2012-10-17",
+        "Statement": [
             {
-            "Sid":"AddPerm",
-            "Effect":"Allow",
-            "Principal": "*",
-            "Action":["s3:GetObject"], #, "s3:ListBucket"],
-            "Resource":["arn:aws:s3:::%s/*" % bucket_name]
+                "Sid": "AddPerm",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": ["s3:GetObject"],
+                "Resource": ["arn:aws:s3:::%s/*" % bucket_name]
             },
             {
-            "Sid":"AddPerm",
-            "Effect":"Allow",
-            "Principal": "*",
-            "Action":["s3:ListBucket"],
-            "Resource":["arn:aws:s3:::%s" % bucket_name]
+                 "Sid": "AddPerm",
+                 "Effect": "Allow",
+                 "Principal": "*",
+                 "Action": ["s3:ListBucket"],
+                 "Resource": ["arn:aws:s3:::%s" % bucket_name]
             }
         ]
     }
     anon_access_policy = json.dumps(anon_policy_dict)
     return anon_access_policy
+
 
 def s3_create_bucket(s3_conn, bucket_name):
     """Create an s3 bucket. If S3CreateError and the error
@@ -485,10 +428,11 @@ def s3_create_bucket(s3_conn, bucket_name):
         s3_bucket.set_policy(s3_bucket_policy)
     except boto.exception.S3ResponseError as e:
         if e.status == 403 or e.status == 409:
-            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server." % (e.status, s3_conn.access_key))
+            logger.error("Error status %s. Supplied access key (%s) has no permissions on this server.",
+                         e.status, redact_key(s3_conn.access_key))
         raise
     except boto.exception.S3CreateError as e:
-        if e.status == 409: #Bucket already exists and you're the ownwer
+        if e.status == 409:  # Bucket already exists and you're the owner
             s3_bucket = s3_conn.get_bucket(bucket_name)
         else:
             raise
