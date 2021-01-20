@@ -1,6 +1,7 @@
-FROM sdp-docker-registry.kat.ac.za:5000/docker-base-build
+ARG KATSDPDOCKERBASE_REGISTRY=quay.io/ska-sa
 
-MAINTAINER Thomas Bennett "tbennett@ska.ac.za"
+FROM $KATSDPDOCKERBASE_REGISTRY/docker-base-build as build
+LABEL maintainer="Thomas Bennett <tbennett@ska.ac.za>"
 
 # Suppress debconf warnings
 ENV DEBIAN_FRONTEND noninteractive
