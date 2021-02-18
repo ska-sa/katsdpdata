@@ -128,13 +128,17 @@ class TelescopeProductMetExtractor(MetExtractor):
         self.metadata['StartTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(int_secs))
         # targets are for archive string searches and radec/azel polute string searches
         target_names = []
+        time_on_targets = []
         for t in self._katdata.catalogue.targets:
-            if t.name not in ['None', 'Nothing', 'azel', 'radec']:
+            if t.name not in ['None', 'Nothing', 'azel', 'radec'] and t.name not in target_names:
                 target_names.append(t.name)
+                time_on_targets.append(self.time_on_target(self._katdata, t))
             for alias in t.aliases:
-                if alias:
+                if alias and alias not in target_names:
                     target_names.append(alias)
-        self.metadata['Targets'] = list(set(target_names))
+                    time_on_targets.append(self.time_on_target(self._katdata, t))
+        self.metadata['Targets'] = target_names
+        self.metadata['IntegrationTime'] = [str(t) for t in time_on_targets] # elementtree doesn't like int's
         # @idea: another more general approach to generating a good set of targets would be
         # to use an external lookup based on sky position to find alternates:
         # >>> from astropy.coordinates import SkyCoord
@@ -195,6 +199,36 @@ class TelescopeProductMetExtractor(MetExtractor):
         if ('proposal_description' in self._katdata.obs_params and
                 self._katdata.obs_params['proposal_description'] != ''):
             self.metadata['ProposalDescription'] = self._katdata.obs_params['proposal_description']
+
+    # This is copied from katsdpimager.
+    # TODO: Find a way that we can share this functionality between repos.
+    def target_mask(
+            self,
+            dataset: katdal.DataSet,
+            target: katpoint.Target) -> np.ndarray:
+        """Get boolean mask of dumps where the target is being tracked."""
+        # Based on katdal.DataSet.select, but we don't actually use select because
+        # we don't want to modify the dataset.
+        scan_sensor = dataset.sensor['Observation/scan_state']
+        track_mask = (scan_sensor == 'track')
+        target_index_sensor = dataset.sensor['Observation/target_index']
+        target_index = dataset.catalogue.targets.index(target)
+        mask = (target_index_sensor == target_index) & track_mask
+        return mask
+
+    # This is copied from katsdpimager (only changing the return type).
+    # TODO: Find a way that we can share this functionality between repos.
+    def time_on_target(
+            self, dataset: katdal.DataSet, target: katpoint.Target) -> int:
+        """Seconds spent tracking the target.
+        This might be a slight under-report, because dumps that span the
+        boundaries are marked as not tracking by katdal, but may have partial
+        data that was nevertheless usable.
+        Rounding to seconds is precise enough for our application.
+        """
+        mask = self.target_mask(dataset, target)
+        result = dataset.dump_period * np.sum(mask)
+        return int(result)
 
 
 class FileBasedTelescopeProductMetExtractor(TelescopeProductMetExtractor):
