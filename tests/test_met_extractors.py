@@ -1,6 +1,4 @@
 """Tests for the met extractor."""
-# import pytest
-
 from katsdpdata.met_extractors import \
     file_mime_detection, \
     MeerKATTelescopeProductMetExtractor
