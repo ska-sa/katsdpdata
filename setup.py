@@ -26,5 +26,12 @@ setup(
     platforms=["OS Independent"],
     keywords="meerkat ska",
     zip_safe=False,
-    use_katversion=True
+    use_katversion=True,
+    test_suite="tests",
+    setup_requires=[
+        "pytest-runner",
+    ],
+    tests_require=[
+         "pytest"
+    ]
 )
