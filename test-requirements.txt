@@ -10,5 +10,4 @@ zipp==3.4.0
 pyparsing==2.4.7
 pytest==6.2.2
 coverage==5.4
-pytest-cov
-pytest-cov-2.11.1
+pytest-cov==2.11.1
