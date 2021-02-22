@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from setuptools import setup, find_packages
 
+
 setup(
     name="katsdpdata",
     description="Data search and retrieval library for the MeerKAT project",
@@ -28,10 +29,9 @@ setup(
     zip_safe=False,
     use_katversion=True,
     test_suite="tests",
-    setup_requires=[
-        "pytest-runner",
-    ],
-    tests_require=[
-         "pytest"
-    ]
+    extras_require={
+        'test': [
+            "pytest",
+        ]
+    }
 )
