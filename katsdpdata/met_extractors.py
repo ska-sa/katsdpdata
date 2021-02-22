@@ -138,7 +138,7 @@ class TelescopeProductMetExtractor(MetExtractor):
                     target_names.append(alias)
                     time_on_targets.append(self.time_on_target(self._katdata, t))
         self.metadata['Targets'] = target_names
-        self.metadata['IntegrationTime'] = [str(t) for t in time_on_targets] # elementtree doesn't like int's
+        self.metadata['IntegrationTime'] = [str(t) for t in time_on_targets]  # elementtree doesn't like int's
         # @idea: another more general approach to generating a good set of targets would be
         # to use an external lookup based on sky position to find alternates:
         # >>> from astropy.coordinates import SkyCoord

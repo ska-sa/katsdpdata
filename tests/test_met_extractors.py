@@ -11,12 +11,11 @@ def test_met_integration_time():
     """
     met_extractor = file_mime_detection('./tests/1testdata_sdp_l0.rdb')
     met_extractor.extract_metadata()
-    ## did we get the correct MeerKAT MetExtractor
+    # did we get the correct MeerKAT MetExtractor
     assert isinstance(met_extractor, MeerKATTelescopeProductMetExtractor)
-    ## Integration Time (Time on Target)
+    # Integration Time (Time on Target)
     assert 'IntegrationTime' in met_extractor.metadata
     assert (
         len(met_extractor.metadata['Targets']) ==
         len(met_extractor.metadata['IntegrationTime']))
     assert met_extractor.metadata['IntegrationTime'][0] == '2390'
-
