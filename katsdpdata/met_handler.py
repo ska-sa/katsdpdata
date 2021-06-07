@@ -11,7 +11,7 @@ class MetaDataHandlerException(Exception):
     pass
 
 
-class MetaDataHandler(object):
+class MetaDataHandler:
     """Class for generating solr metadata that follows a OODT styled data product.
 
     Parameters
@@ -173,3 +173,12 @@ class MetaDataHandler(object):
         met = self.get_prod_met(prod_id)
         self.solr.delete(id=prod_id)
         return met
+
+
+class MetaDataHandlerL1(MetaDataHandler):
+    pass
+
+
+class MetaDataHandlerL2(MetaDataHandler):
+    pass
+
