@@ -175,10 +175,12 @@ class MetaDataHandler:
         return met
 
 
-class MetaDataHandlerL1(MetaDataHandler):
+class S3MetaDataHandler:
+    # TODO: SPR1-1016
     pass
 
 
-class MetaDataHandlerL2(MetaDataHandler):
+class L1ProdMetaDataHandler:
+    # TODO: SPR1-1016
     pass
 

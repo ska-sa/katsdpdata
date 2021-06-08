@@ -82,6 +82,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
         wait for a set time before trawling directory again.
     """
     product_factory = ProductFactory(trawl_dir, logger)
+    # TODO: Set the "CREATED" state for RDBs that where removed here....
     total_pruned = product_factory.prune_rdb_products()
     logger.info(
         f'A total of { total_pruned } RDB products will not be transferred this '
@@ -93,9 +94,13 @@ def trawl(trawl_dir, boto_dict, solr_url):
         rdb_product.discover_trawl_files()
         if rdb_product.completed_and_transferred():
             rdb_product.cleanup()
+            rdb_product.update_state('TRANSFER_DONE')
         else:
-            transfer_result = rdb_product.transfer(trawl_dir, solr_url)  # TODO: Move this to using the Uploader
+            # TODO: Move this to using the Uploader
+            transfer_result = rdb_product.transfer(
+                trawl_dir, solr_url, boto_dict)
             if transfer_result == 'Failed':
+                rdb_product.update_state('FAILED')
                 break
     upload_list = []
     max_parallel_transfers = MAX_TRANSFERS

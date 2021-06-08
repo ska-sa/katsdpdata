@@ -5,14 +5,9 @@
 import boto
 import boto.s3.connection
 import concurrent.futures as futures
-import json
-import katsdpservices
 import multiprocessing
 import os
-import pysolr
 import re
-import sys
-import socket
 import shutil
 import time
 from pathlib import PurePath
@@ -21,10 +16,8 @@ from katsdpdata.met_detectors import file_type_detection
 from katsdpdata.met_extractors import MetExtractorException
 from katsdpdata.met_handler import MetaDataHandler
 from katsdpdata.utilities import get_s3_connection
-from katsdpdata.utilities import make_boto_dict
 from katsdpdata.utilities import redact_key
 from katsdpdata.utilities import s3_create_anon_access_policy
-from optparse import OptionParser
 
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
 CAPTURE_STREAM_L0_REGEX = "^[0-9]{10}[-_].*l0$"
@@ -35,6 +28,7 @@ SLEEP_TIME = 20
 
 
 class Uploader:
+
     def __init__(self, logger, trawl_dir, boto_dict, upload_files):
         self.logger = logger
         self.trawl_dir = trawl_dir
@@ -167,8 +161,7 @@ class Product:
                 failed_token.write(msg)
 
     def _discover_trawl_files(
-            self, file_match, file_writing, complete_token,
-            time_out=10):
+            self, file_match, file_writing, complete_token, time_out=10):
         """Return a list of all trawled files in a directory. Files need to
         match the glob pattern. Also, add the complete token if found. Timeout
         after a while, we're going to trim the upload list anyway.
@@ -251,8 +244,9 @@ class Product:
             os.path.getsize(f) for f in self._staged_for_transfer
             if os.path.isfile(f))
 
-    def ingest_vis_product(self, trawl_dir, prod_id, original_refs,
-                           prod_met_extractor, solr_url, boto_dict):
+    def ingest_vis_product(
+            self, trawl_dir, prod_id, original_refs, prod_met_extractor,
+            solr_url, boto_dict):
         """Ingest a product into the archive. This includes extracting and uploading
         metadata and then moving the product into the archive.
 
@@ -263,6 +257,7 @@ class Product:
         original_refs : list : list of product file(s).
         prod_met_extractor: class : a metadata extractor class.
         solr_url: string : sorl endpoint for metadata queries and upload.
+        boto_dict: dict
 
         Returns
         -------
@@ -272,8 +267,8 @@ class Product:
             pm_extractor = prod_met_extractor(original_refs[0])
             pm_extractor.extract_metadata()
         except Exception as err:
-            bucket_name = \
-            os.path.relpath(original_refs[0], trawl_dir).split("/", 1)[0]
+            bucket_name = os.path.relpath(
+                original_refs[0], trawl_dir).split("/", 1)[0]
             err.bucket_name = bucket_name
             err.filename = original_refs[0]
             raise
@@ -311,11 +306,8 @@ class Product:
         met = mh.set_product_received(met)
         return met
 
-    @staticmethod
-    def product_regex():
-        pass
-
     def update_state(self, transition, solr_url):
+        # TODO: Fix this.
         mh = MetaDataHandler(
             solr_url, self.product_type, self.product_name, self.key)
         current_state = mh.get_state()
@@ -344,7 +336,8 @@ class Product:
         return {}
 
     def metadata_created(self):
-        # TODO: get the set of metadata that needs to be obtained on the "create" step
+        # TODO: get the set of metadata that needs to be obtained on the
+        # TODO: "create" step
         return {}
 
 
@@ -362,7 +355,7 @@ class RDBProduct(Product):
     def metadata_transfer_complete(self):
         return {}
 
-    def transfer(self, trawl_dir, solr_url):
+    def transfer(self, trawl_dir, solr_url, boto_dict):
         # TODO: hive this out to only transfer files
         if not self.file_matches:
             return 'Empty'
@@ -387,7 +380,7 @@ class RDBProduct(Product):
                         err.filename = rdb_lite
                         raise
                     met = self.ingest_vis_product(
-                        trawl_dir, os.path.relpath(rdb_prod, self.self.product_path),
+                        trawl_dir, os.path.relpath(rdb_prod, self.product_path),
                         [rdb_lite, rdb_full], prod_met_extractor, solr_url,
                         boto_dict)
                     self.logger.info(
