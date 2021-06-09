@@ -310,26 +310,26 @@ class Product:
         # TODO: Fix this.
         mh = MetaDataHandler(
             solr_url, self.product_type, self.product_name, self.key)
-        current_state = mh.get_state()
+        current_state = mh.get_state(self.key)
         if transition == 'TRANSFER_DONE':
             if current_state == 'TRANSFERRING':
-                self.solr.set_state(self.id, 'RECEIVED')
-                self.solr.set_metadata(self.metadata_transfer_complete())
+                mh.set_product_status(self.key, 'RECEIVED')
+                mh.create_s3_met()
             elif current_state == 'RESTAGING':
-                self.solr.set_state('RESTAGED')
-                self.solr.set_metadata(self.metadata_transfer_complete())
+                mh.set_product_status('RESTAGED')
+                mh.create_s3_met()
         elif transition == 'PRODUCT_DETECTED':
             if current_state == 'None':
-                self.solr.set_state('CREATED')
-                self.solr.set_metadata(self.metadata_created())
+                mh.set_product_status('CREATED')
+                mh.create_core_met()
             elif current_state == 'ARCHIVED':
-                self.solr.set_state('RECREATED')
+                mh.set_product_status('RECREATED')
         elif transition == 'TRANSFER_STARTED':
             if current_state == 'CREATED' or not current_state:
-                self.solr.set_state('TRANSFERRING')
-                self.solr.set_metadata(self.metadata_product())
+                mh.set_product_status('TRANSFERRING')
+                mh.create_core_met()
             elif current_state in ['RECREATED', 'ARCHIVED']:
-                self.solr.set_state('RESTAGING')
+                mh.set_product_status('RESTAGING')
 
     def metadata_transfer_complete(self):
         # TODO: this should include all the bucket stats we care about

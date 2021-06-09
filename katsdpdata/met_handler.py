@@ -11,7 +11,7 @@ class MetaDataHandlerException(Exception):
     pass
 
 
-class MetaDataHandler:
+class MetDataHandlerSuper:
     """Class for generating solr metadata that follows a OODT styled data product.
 
     Parameters
@@ -22,8 +22,8 @@ class MetaDataHandler:
     product_id: string : Unique identifier for product. If set to none,
                          product will have a self generated uuid.
     """
+
     def __init__(self, solr_url, product_type, product_name, product_id=None):
-        super(MetaDataHandler, self).__init__()
         self.solr_url = solr_url
         self.solr = pysolr.Solr(self.solr_url)
         self.product_type = product_type
@@ -32,6 +32,111 @@ class MetaDataHandler:
             self.product_id = product_id
         else:
             self.product_id = str(uuid.uuid4())
+
+    def get_prod_met(self, prod_id=None):
+        """Get the metadata for a product, if prod_id is not specified, use self.prod_id.
+
+        Parameters
+        ----------
+        prod_id: string : the product id to find.
+
+        Returns
+        -------
+        met: dict : metadata containing the _version_ for version tracking commits to solr.
+        """
+        copy_fields = ['Observer_lowercase']
+        if not prod_id:
+            prod_id = self.prod_id
+        query = 'id:{}'.format(prod_id)
+        res = self.solr.search(query)
+        if res.hits == 0:
+            return None
+        elif res.hits > 1:
+            raise MetaDataHandlerException('{} returned for {}'.format(res.hits, query))
+        # filter out copy field
+        doc = res.docs[0]
+        for c in copy_fields:
+            doc.pop(c, None)
+        return doc
+
+    def del_prod_met(self, prod_id):
+        """Delete product metadata. Use with caution, as will delete product metadata
+        from solr.
+
+        Parameters
+        ----------
+        prod_id: string : the product id to delete.
+        """
+        met = self.get_prod_met(prod_id)
+        self.solr.delete(id=prod_id)
+        return met
+
+    def set_product_transferring(self, met):
+        """Set product transfer status while transfering to the backend storage.
+
+        Parameters
+        ----------
+        met: dict : metadata dict, a local copy of the solr doc to update.
+
+        Returns
+        -------
+        met: dict : metadata containing the _version_ for version tracking commits to solr.
+        """
+        met['CAS.ProductReceivedTime'] = ''
+        met['CAS.ProductTransferStatus'] = 'TRANSFERRING'
+        self.solr.add([met])
+        return self.get_prod_met(met['id'])   # return with updated _version_
+
+    def set_product_received(self, met):
+        """Set product transfer status once received into the backend storage.
+
+        Parameters
+        ----------
+        met: dict : metadata dict, a local copy of the solr doc to update.
+
+        Returns
+        -------
+        met: dict : metadata containing the _version_ for version tracking commits to solr.
+        """
+        met['CAS.ProductReceivedTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        met['CAS.ProductTransferStatus'] = 'RECEIVED'
+        self.solr.add([met])
+        return self.get_prod_met(met['id'])   # return with updated _version_
+
+    def set_product_created(self, met):
+        """Set product transfer status while transfering to the backend storage.
+
+        Parameters
+        ----------
+        met: dict : metadata dict, a local copy of the solr doc to update.
+
+        Returns
+        -------
+        met: dict : metadata containing the _version_ for version tracking commits to solr.
+        """
+        met['CAS.ProductReceivedTime'] = ''
+        met['CAS.ProductTransferStatus'] = 'CREATED'
+        self.solr.add([met])
+        return self.get_prod_met(met['id'])   # return with updated _version_
+
+    def set_product_status(self, status, met):
+        met['CAS.ProductTransferStatus'] = status
+        self.solr.add([met], fieldUpdates={'CAS.ProductTransferStatus': 'set'})
+
+    def create_s3_met(self):
+        return {}
+
+    def get_state(self, prod_id):
+        met = self.get_prod_met(prod_id)
+        return met['CAS.ProductTransferStatus'] or None
+
+
+
+class MetaDataHandler(MetDataHandlerSuper):
+    """keeping the original name of this class to avoid possible import issues
+    """
+    def __init__(self, *argv, **kwargs):
+        super().__init__(*argv, **kwargs)
 
     def create_core_met(self):
         """Create the core OODT style metadata.
@@ -91,37 +196,6 @@ class MetaDataHandler:
         self.solr.add([met])
         return self.get_prod_met(met['id'])  # return with updated _version_
 
-    def set_product_transferring(self, met):
-        """Set product transfer status while transfering to the backend storage.
-
-        Parameters
-        ----------
-        met: dict : metadata dict, a local copy of the solr doc to update.
-
-        Returns
-        -------
-        met: dict : metadata containing the _version_ for version tracking commits to solr.
-        """
-        met['CAS.ProductReceivedTime'] = ''
-        met['CAS.ProductTransferStatus'] = 'TRANSFERRING'
-        self.solr.add([met])
-        return self.get_prod_met(met['id'])   # return with updated _version_
-
-    def set_product_received(self, met):
-        """Set product transfer status once received into the backend storage.
-
-        Parameters
-        ----------
-        met: dict : metadata dict, a local copy of the solr doc to update.
-
-        Returns
-        -------
-        met: dict : metadata containing the _version_ for version tracking commits to solr.
-        """
-        met['CAS.ProductReceivedTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-        met['CAS.ProductTransferStatus'] = 'RECEIVED'
-        self.solr.add([met])
-        return self.get_prod_met(met['id'])   # return with updated _version_
 
     def add_prod_met(self, met, prod_met):
         """Add the product based metadata to solr.
@@ -136,51 +210,32 @@ class MetaDataHandler:
         self.solr.add([met])
         return self.get_prod_met(met['id'])
 
-    def get_prod_met(self, prod_id=None):
-        """Get the metadata for a product, if prod_id is not specified, use self.prod_id.
 
-        Parameters
-        ----------
-        prod_id: string : the product id to find.
+class ProdMetaDataHandler(MetDataHandlerSuper):
+    # TODO: SPR1-1016
+    def create_core_met(self):
+        """Create the core OODT style metadata.
 
         Returns
         -------
         met: dict : metadata containing the _version_ for version tracking commits to solr.
         """
-        copy_fields = ['Observer_lowercase']
-        if not prod_id:
-            prod_id = self.prod_id
-        query = 'id:{}'.format(prod_id)
-        res = self.solr.search(query)
-        if res.hits == 0:
-            return None
-        elif res.hits > 1:
-            raise MetaDataHandlerException('{} returned for {}'.format(res.hits, query))
-        # filter out copy field
-        doc = res.docs[0]
-        for c in copy_fields:
-            doc.pop(c, None)
-        return doc
-
-    def del_prod_met(self, prod_id):
-        """Delete product metadata. Use with caution, as will delete product metadata
-        from solr.
-
-        Parameters
-        ----------
-        prod_id: string : the product id to delete.
-        """
-        met = self.get_prod_met(prod_id)
-        self.solr.delete(id=prod_id)
-        return met
+        new_met = {}
+        new_met['id'] = self.product_id
+        new_met['CaptureStreamId'] = self.product_id
+        new_met['CAS.ProductId'] = self.product_id
+        new_met['CAS.ProductName'] = self.product_name
+        new_met['CAS.ProductTypeId'] = 'urn:kat:{}'.format(self.product_type)
+        new_met['CAS.ProductTypeName'] = self.product_type  # MeerKATFlagProduct
+        self.solr.add([new_met])
+        return self.get_prod_met(self.product_id)  # return with _version_
 
 
-class S3MetaDataHandler:
-    # TODO: SPR1-1016
-    pass
-
-
-class L1ProdMetaDataHandler:
-    # TODO: SPR1-1016
-    pass
+        # "CAS.ProductTransferStatus": "ARCHIVED",
+        # "CAS.ProductTypeName": "MeerKATFlagProduct", // This is the only thing that will be different between L0 and L1
+        # "id": "1521643937_sdp_l1_flags",
+        # "CaptureBlockId": "1521643937",
+        # "CAS.ProductStructure": "Hierarchical",
+        # "CAS.ProductName": "1521643937_sdp_l1_flags",
+        # "StreamId": "sdp_l1_flags",
 
