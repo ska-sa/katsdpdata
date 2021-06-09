@@ -83,6 +83,8 @@ def trawl(trawl_dir, boto_dict, solr_url):
     """
     product_factory = ProductFactory(trawl_dir, logger)
     # TODO: Set the "CREATED" state for RDBs that where removed here....
+    # TODO: The prune can be dropped after the actual vis products are in SOLR
+    # TODO: See https://skaafrica.atlassian.net/browse/SPR1-1113
     total_pruned = product_factory.prune_rdb_products()
     logger.info(
         f'A total of { total_pruned } RDB products will not be transferred this '

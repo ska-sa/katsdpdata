@@ -22,6 +22,8 @@ from katsdpdata.utilities import s3_create_anon_access_policy
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
 CAPTURE_STREAM_L0_REGEX = "^[0-9]{10}[-_].*l0$"
 CAPTURE_STREAM_L1_REGEX = "^[0-9]{10}[-_].*l1-flags$"
+# TODO: This needs to be softcoded
+# TODO: https://skaafrica.atlassian.net/browse/SPR1-1111
 MAX_TRANSFERS = 5000
 CPU_MULTIPLIER = 10
 SLEEP_TIME = 20
@@ -127,6 +129,15 @@ class Uploader:
                     product_path = PurePath(self.trawl_dir, err.bucket_name)
                     Product(product_path, self.logger).set_failed_token(str(err))
                     failed_count += 1
+
+    def check_for_multipart(self):
+        """Check whether we need have a file bigger than 5GB to make multipart upload
+        This will be done in
+        https://skaafrica.atlassian.net/browse/SPR1-1114
+
+        :return:
+        """
+        raise NotImplementedError
 
 
 class Product:
@@ -361,6 +372,8 @@ class RDBProduct(Product):
             return 'Empty'
 
         # find all unique products
+        # TODO: This looks like a hangover from historic l1 RDBs.
+        # TODO: If this is no longer needed this code can be simplified quite a bit!
         rdb_prods = list(set([re.match('^.*[0-9]{10}_[^.]*', cbf).group()
                          for cbf in self.file_matches
                          if re.match('^.*[0-9]{10}_[^.]*', cbf) is not None]))
