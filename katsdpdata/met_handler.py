@@ -46,7 +46,7 @@ class MetDataHandlerSuper:
         """
         copy_fields = ['Observer_lowercase']
         if not prod_id:
-            prod_id = self.prod_id
+            prod_id = self.product_id
         query = 'id:{}'.format(prod_id)
         res = self.solr.search(query)
         if res.hits == 0:

@@ -94,19 +94,18 @@ def trawl(trawl_dir, boto_dict, solr_url):
         # TODO: Use the update_state method for RDB products just like the other products
         # check for conditions
         rdb_product.discover_trawl_files()
-        if rdb_product.completed_and_transferred():
-            rdb_product.cleanup()
-            rdb_product.update_state('TRANSFER_DONE')
         else:
-            # TODO: Move this to using the Uploader
+            # TODO: Move this PRODUCT_DETECTED
+
             transfer_result = rdb_product.transfer(
                 trawl_dir, solr_url, boto_dict)
             if transfer_result == 'Failed':
                 rdb_product.update_state('FAILED')
                 break
     upload_list = []
-    max_parallel_transfers = MAX_TRANSFERS
+    max_batch_transfers = MAX_TRANSFERS
     for product_list in [
+            product_factory.get_rdb_products(),
             product_factory.get_l1_products(),
             product_factory.get_l0_products()]:
         for product in product_list:
@@ -116,8 +115,8 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 product.cleanup()
             elif product.file_matches:
                 product.update_state('PRODUCT_DETECTED')
-                max_parallel_transfers = product.stage_for_transfer(
-                    max_parallel_transfers)
+                max_batch_transfers = product.stage_for_transfer(
+                    max_batch_transfers)
                 if product.is_staged():
                     upload_list.append(product)
 

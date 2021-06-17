@@ -13,7 +13,7 @@ import time
 from pathlib import PurePath
 
 from katsdpdata.met_detectors import file_type_detection
-from katsdpdata.met_extractors import MetExtractorException
+from katsdpdata.met_extractors import MetExtractorException, file_mime_detection
 from katsdpdata.met_handler import MetaDataHandler
 from katsdpdata.utilities import get_s3_connection
 from katsdpdata.utilities import redact_key
@@ -255,9 +255,84 @@ class Product:
             os.path.getsize(f) for f in self._staged_for_transfer
             if os.path.isfile(f))
 
-    def ingest_vis_product(
-            self, trawl_dir, prod_id, original_refs, prod_met_extractor,
-            solr_url, boto_dict):
+    def update_state(self, transition, solr_url):
+        # TODO: Fix this.
+        mh = MetaDataHandler(
+            solr_url, self.product_type, self.product_name, self.key)
+        current_state = mh.get_state(self.key)
+        if transition == 'TRANSFER_DONE':
+            if current_state == 'TRANSFERRING':
+                mh.set_product_status(self.key, 'RECEIVED')
+                mh.create_s3_met()
+            elif current_state == 'RESTAGING':
+                mh.set_product_status(self.key, 'RESTAGED')
+                mh.create_s3_met()
+        elif transition == 'PRODUCT_DETECTED':
+            if current_state == 'None':
+                try:
+                    mh.set_product_status(self.key, 'CREATED')
+                    self.metadata_when_created(mh)
+                except Exception as err:
+                    return 'FAILED'
+            elif current_state == 'ARCHIVED':
+                mh.set_product_status(self.key, 'RECREATED')
+        elif transition == 'TRANSFER_STARTED':
+            if current_state == 'CREATED' or not current_state:
+                mh.set_product_status(self.key, 'TRANSFERRING')
+                mh.create_core_met()
+            elif current_state in ['RECREATED', 'ARCHIVED']:
+                mh.set_product_status(self.key, 'RESTAGING')
+        return 'SUCCESS'
+
+    def metadata_transfer_complete(self, meta_handler):
+        # TODO: this should include all the bucket stats we care about
+        return {}
+
+    def metadata_when_created(self, meta_handler):
+        # TODO: get the set of metadata that needs to be obtained on the
+        # TODO: "create" step
+        metadata = {}
+        meta_handler.create_core_met(metadata)
+
+    def bucket_name(self):
+        """Get the bucket name from the product_path"""
+        if not self.product_path:
+            return None
+        return [x for x in self.product_path.split(os.sep) if x][-1]
+
+
+class RDBProduct(Product):
+    # Thinking of this as a product might not be technically correct,
+    # but it makes this implementation easier.
+    regex = CAPTURE_BLOCK_REGEX
+
+    def __init__(self, product_path, logger):
+        super().__init__(product_path, logger)
+
+    def discover_trawl_files(self):
+        super()._discover_trawl_files('*.rdb', '*.writing.rdb', 'complete')
+
+    def get_transfer_list(self):
+        transfer_list = []
+        for p in procs:
+            for r in p.result():
+                transfer_list.append(r)
+        return transfer_list
+
+    def metadata_transfer_complete(self, meta_handler):
+        mh = meta_handler
+        # procs = self.parallel_upload(trawl_dir, boto_dict, original_refs)
+        transfer_list = self.get_transfer_list()
+        # prepend the most common path to conform to hierarchical products
+        met_transfer_refs = list(transfer_list)
+        met_transfer_refs.insert(0, os.path.dirname(
+            os.path.commonprefix(transfer_list)))
+        met = mh.get_prod_met()
+        met = mh.add_ref_datastore(met, met_transfer_refs)
+        met = mh.set_product_received(met)
+        return met
+
+    def set_rdb_metadata(self, meta_handler, original_refs):
         """Ingest a product into the archive. This includes extracting and uploading
         metadata and then moving the product into the archive.
 
@@ -274,27 +349,21 @@ class Product:
         -------
         met : dict : a metadata dictionary with uploaded key:value pairs.
         """
+        mh = meta_handler
         try:
-            pm_extractor = prod_met_extractor(original_refs[0])
+            pm_extractor = file_mime_detection(original_refs[0])
             pm_extractor.extract_metadata()
         except Exception as err:
-            bucket_name = os.path.relpath(
-                original_refs[0], trawl_dir).split("/", 1)[0]
-            err.bucket_name = bucket_name
-            err.filename = original_refs[0]
-            raise
-        # product metadata extraction
-        mh = MetaDataHandler(solr_url, pm_extractor.product_type, prod_id,
-                             prod_id)
+            err.bucket_name = self.bucket_name()
+            raise err
         # Either get the product met or at least create the core meta data
-        met = mh.get_prod_met(prod_id) or mh.create_core_met()
+        met = mh.get_prod_met() or mh.create_core_met()
         if "CAS.ProductTransferStatus" in met and met[
             "CAS.ProductTransferStatus"] == "RECEIVED":
             err = MetExtractorException(
                 "%s marked as RECEIVED, while trying to create new product.",
-                prod_id)
-            err.bucket_name = \
-            os.path.relpath(original_refs[0], trawl_dir).split("/", 1)[0]
+                mh.product_id)
+            err.bucket_name = self.bucket_name()
             raise err
         # set metadata
         met = mh.set_product_transferring(met)
@@ -304,111 +373,40 @@ class Product:
             os.path.commonprefix(original_refs)))
         met = mh.add_ref_original(met, met_original_refs)
         met = mh.add_prod_met(met, pm_extractor.metadata)
-        procs = self.parallel_upload(trawl_dir, boto_dict, original_refs)
-        transfer_list = []
-        for p in procs:
-            for r in p.result():
-                transfer_list.append(r)
-        # prepend the most common path to conform to hierarchical products
-        met_transfer_refs = list(transfer_list)
-        met_transfer_refs.insert(0, os.path.dirname(
-            os.path.commonprefix(transfer_list)))
-        met = mh.add_ref_datastore(met, met_transfer_refs)
-        met = mh.set_product_received(met)
         return met
 
-    def update_state(self, transition, solr_url):
-        # TODO: Fix this.
-        mh = MetaDataHandler(
-            solr_url, self.product_type, self.product_name, self.key)
-        current_state = mh.get_state(self.key)
-        if transition == 'TRANSFER_DONE':
-            if current_state == 'TRANSFERRING':
-                mh.set_product_status(self.key, 'RECEIVED')
-                mh.create_s3_met()
-            elif current_state == 'RESTAGING':
-                mh.set_product_status('RESTAGED')
-                mh.create_s3_met()
-        elif transition == 'PRODUCT_DETECTED':
-            if current_state == 'None':
-                mh.set_product_status('CREATED')
-                mh.create_core_met()
-            elif current_state == 'ARCHIVED':
-                mh.set_product_status('RECREATED')
-        elif transition == 'TRANSFER_STARTED':
-            if current_state == 'CREATED' or not current_state:
-                mh.set_product_status('TRANSFERRING')
-                mh.create_core_met()
-            elif current_state in ['RECREATED', 'ARCHIVED']:
-                mh.set_product_status('RESTAGING')
-
-    def metadata_transfer_complete(self):
-        # TODO: this should include all the bucket stats we care about
-        return {}
-
-    def metadata_created(self):
-        # TODO: get the set of metadata that needs to be obtained on the
-        # TODO: "create" step
-        return {}
-
-
-class RDBProduct(Product):
-    # Thinking of this as a product might not be technically correct,
-    # but it makes this implementation easier.
-    regex = CAPTURE_BLOCK_REGEX
-
-    def __init__(self, product_path, logger):
-        super().__init__(product_path, logger)
-
-    def discover_trawl_files(self):
-        super()._discover_trawl_files('*.rdb', '*.writing.rdb', 'complete')
-
-    def metadata_transfer_complete(self):
-        return {}
-
-    def transfer(self, trawl_dir, solr_url, boto_dict):
-        # TODO: hive this out to only transfer files
-        if not self.file_matches:
-            return 'Empty'
-
-        # find all unique products
-        # TODO: This looks like a hangover from historic l1 RDBs.
-        # TODO: If this is no longer needed this code can be simplified quite a bit!
-        rdb_prods = list(set([re.match('^.*[0-9]{10}_[^.]*', cbf).group()
-                         for cbf in self.file_matches
-                         if re.match('^.*[0-9]{10}_[^.]*', cbf) is not None]))
-        # keep track of when a product failes to ingest. Break out of the loop at the first
-        # failure so that the directory is listed again and the failed token is detected.
-        # list the rdb prods in order, so that if l0 is broken
-        # product directory is marked as failed and no further streams are transferred.
-        for rdb_prod in sorted(rdb_prods):
-            rdb_lite, rdb_full = rdb_prod + '.rdb', rdb_prod + '.full.rdb'
-            if rdb_lite in self.file_matches and rdb_full in self.file_matches:
-                try:
-                    try:
-                        prod_met_extractor = file_type_detection(rdb_lite)
-                    except Exception as err:
-                        bucket_name = os.path.relpath(rdb_lite, trawl_dir).split("/", 1)[0]
-                        err.bucket_name = bucket_name
-                        err.filename = rdb_lite
-                        raise
-                    met = self.ingest_vis_product(
-                        trawl_dir, os.path.relpath(rdb_prod, self.product_path),
-                        [rdb_lite, rdb_full], prod_met_extractor, solr_url,
-                        boto_dict)
-                    self.logger.info(
-                        '%s ingested into archive with datastore refs:%s.' %
-                        (met['id'], ', '.join(met['CAS.ReferenceDatastore'])))
-                except Exception as err:
-                    if hasattr(err, 'bucket_name'):
-                        self.logger.exception("Caught exception while extracting metadata from %s.", err.filename)
-                        self.set_failed_token(os.path.join(trawl_dir, err.bucket_name), str(err))
-                        # if failed, set a boolean flag to exit the loop.
-                        return 'Failed'
-                    else:
-                        raise
+    def metadata_when_created(self, meta_handler):
+        rdb_prod = self.rdb_file_prefix()
+        rdb_lite, rdb_full = rdb_prod + '.rdb', rdb_prod + '.full.rdb'
+        if not (
+                rdb_lite in self.file_matches and
+                rdb_full in self.file_matches):
+            return 'INCOMPLETE'
+        try:
+            met = self.set_rdb_metadata(
+                meta_handler, [rdb_lite, rdb_full])
+            self.logger.info(
+                '%s ingested metadata to SOLR refs:%s.' %
+                (met['id'], ', '.join(met['CAS.ReferenceDatastore'])))
+        except Exception as err:
+            if hasattr(err, 'bucket_name'):
+                err.filename = rdb_lite
+                self.logger.exception(
+                    "Caught exception while extracting metadata from %s.",
+                    err.filename)
+                self.set_failed_token(self.product_path, str(err))
+                # if failed, set a boolean flag to exit the loop.
+                return 'Failed'
+            else:
+                raise
         return "Completed"
 
+    def rdb_file_prefix(self):
+         return list(set([
+            re.match('^.*[0-9]{10}_[^.]*', cbf).group()
+            for cbf in self.file_matches
+            if re.match('^.*[0-9]{10}_[^.]*', cbf) is not None
+        ]))[0]
 
 class L0Product(Product):
     regex = CAPTURE_STREAM_L0_REGEX
@@ -426,7 +424,7 @@ class L1Product(Product):
     def update_status(self, status):
         pass
 
-    def metadata_transfer_complete(self):
+    def metadata_transfer_complete(self, meta_handler):
         return {}
 
 
