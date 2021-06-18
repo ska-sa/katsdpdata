@@ -54,7 +54,8 @@ class Uploader:
         except boto.exception.S3ResponseError as e:
             if e.status == 403 or e.status == 409:
                 self.logger.error(
-                    "Error status %s. Supplied access key (%s) has no permissions on this server.",
+                    "Error status %s. Supplied access key (%s) "
+                    "has no permissions on this server.",
                     e.status, redact_key(s3_conn.access_key))
             raise
         except boto.exception.S3CreateError as e:
@@ -210,6 +211,7 @@ class Product:
             if not os.path.isdir(failed_dir):
                 os.mkdir(failed_dir)
             shutil.move(prod_dir, failed_dir)
+            self.update_state('FAILED')
             return
         self.complete = False
         for root, dirnames, filenames in os.walk(prod_dir):
@@ -284,6 +286,8 @@ class Product:
                 mh.create_core_met()
             elif current_state in ['RECREATED', 'ARCHIVED']:
                 mh.set_product_status('RESTAGING')
+        elif transition == 'FAILED':
+            mh.set_product_created('FAILED')
         return 'SUCCESS'
 
     def metadata_transfer_complete(self, meta_handler):
@@ -407,7 +411,6 @@ class RDBProduct(Product):
                 self.logger.exception(
                     "Caught exception while extracting metadata from %s.",
                     err.filename)
-                self.update_state('FAILED')
                 self.set_failed_token(str(err))
                 # if failed, set a boolean flag to exit the loop.
                 return 'Failed'
