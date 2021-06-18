@@ -119,15 +119,17 @@ class MetDataHandlerSuper:
         self.solr.add([met])
         return self.get_prod_met(met['id'])   # return with updated _version_
 
-    def set_product_status(self, status, met):
+    def set_product_status(self, status, met=None):
+        if not met:
+            met = self.get_prod_met()
         met['CAS.ProductTransferStatus'] = status
         self.solr.add([met], fieldUpdates={'CAS.ProductTransferStatus': 'set'})
 
     def create_s3_met(self):
         return {}
 
-    def get_state(self, prod_id):
-        met = self.get_prod_met(prod_id)
+    def get_state(self):
+        met = self.get_prod_met()
         return met['CAS.ProductTransferStatus'] or None
 
 

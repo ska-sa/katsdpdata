@@ -155,6 +155,9 @@ class Product:
         self.complete = None
         self.met_handler = MetaDataHandler
         self.key = ''  # TODO: Extract the real key out of product_path
+        self.solr_url = ''
+        self.product_type = ''
+        self.product_name = ''
 
     def set_failed_token(self, msg=None):
         """Set a failed token for the given product directory.
@@ -255,33 +258,32 @@ class Product:
             os.path.getsize(f) for f in self._staged_for_transfer
             if os.path.isfile(f))
 
-    def update_state(self, transition, solr_url):
+    def update_state(self, transition):
         # TODO: Fix this.
         mh = MetaDataHandler(
-            solr_url, self.product_type, self.product_name, self.key)
-        current_state = mh.get_state(self.key)
+            self.solr_url, self.product_type, self.product_name, self.key)
+        current_state = mh.get_state()
         if transition == 'TRANSFER_DONE':
             if current_state == 'TRANSFERRING':
-                mh.set_product_status(self.key, 'RECEIVED')
+                mh.set_product_status('RECEIVED')
                 mh.create_s3_met()
             elif current_state == 'RESTAGING':
-                mh.set_product_status(self.key, 'RESTAGED')
+                mh.set_product_status('RESTAGED')
                 mh.create_s3_met()
         elif transition == 'PRODUCT_DETECTED':
             if current_state == 'None':
                 try:
-                    mh.set_product_status(self.key, 'CREATED')
                     self.metadata_when_created(mh)
                 except Exception as err:
                     return 'FAILED'
             elif current_state == 'ARCHIVED':
-                mh.set_product_status(self.key, 'RECREATED')
+                mh.set_product_status('RECREATED')
         elif transition == 'TRANSFER_STARTED':
             if current_state == 'CREATED' or not current_state:
-                mh.set_product_status(self.key, 'TRANSFERRING')
+                mh.set_product_status('TRANSFERRING')
                 mh.create_core_met()
             elif current_state in ['RECREATED', 'ARCHIVED']:
-                mh.set_product_status(self.key, 'RESTAGING')
+                mh.set_product_status('RESTAGING')
         return 'SUCCESS'
 
     def metadata_transfer_complete(self, meta_handler):
@@ -291,8 +293,9 @@ class Product:
     def metadata_when_created(self, meta_handler):
         # TODO: get the set of metadata that needs to be obtained on the
         # TODO: "create" step
-        metadata = {}
-        meta_handler.create_core_met(metadata)
+        mh = meta_handler()
+        mh.create_core_met()
+        mh.set_product_status('CREATED')
 
     def bucket_name(self):
         """Get the bucket name from the product_path"""
@@ -376,25 +379,36 @@ class RDBProduct(Product):
         return met
 
     def metadata_when_created(self, meta_handler):
+        """ When the RDB products are first discovered, we want to set the
+        metadata in SOLR.
+
+        :param meta_handler:
+        :return:
+        """
+        mh = meta_handler
         rdb_prod = self.rdb_file_prefix()
         rdb_lite, rdb_full = rdb_prod + '.rdb', rdb_prod + '.full.rdb'
         if not (
                 rdb_lite in self.file_matches and
                 rdb_full in self.file_matches):
-            return 'INCOMPLETE'
+            # The RDBs aren't here yet, weird,
+            # perhaps we are too quick on the draw?
+            return
         try:
-            met = self.set_rdb_metadata(
-                meta_handler, [rdb_lite, rdb_full])
+            met = self.set_rdb_metadata(mh, [rdb_lite, rdb_full])
             self.logger.info(
                 '%s ingested metadata to SOLR refs:%s.' %
                 (met['id'], ', '.join(met['CAS.ReferenceDatastore'])))
+
+            mh.set_product_status('CREATED', met)
         except Exception as err:
             if hasattr(err, 'bucket_name'):
                 err.filename = rdb_lite
                 self.logger.exception(
                     "Caught exception while extracting metadata from %s.",
                     err.filename)
-                self.set_failed_token(self.product_path, str(err))
+                self.update_state('FAILED')
+                self.set_failed_token(str(err))
                 # if failed, set a boolean flag to exit the loop.
                 return 'Failed'
             else:
@@ -429,7 +443,7 @@ class L1Product(Product):
 
 
 class ProductFactory:
-    def __init__(self, trawl_dir, logger):
+    def __init__(self, trawl_dir, logger, solr_url):
         """Creates three lists, that have a valid signature for:
             (1) capture blocks and
             (2) capture l0 streams
@@ -448,8 +462,10 @@ class ProductFactory:
         capture_stream_dirs: list : full path to valid capture stream directories
         """
         self.logger = logger
+        self.solr_url = solr_url
         # get full path to capture block dirs
-        self.capture_block_dirs = self._list_dir_helper(trawl_dir, CAPTURE_BLOCK_REGEX)
+        self.capture_block_dirs = self._list_dir_helper(
+            trawl_dir, CAPTURE_BLOCK_REGEX)
         # get full path to capture stream dirs
         # l0
         self.capture_stream_l0_dirs = self._list_dir_helper(
@@ -481,23 +497,27 @@ class ProductFactory:
 
         :return: int: number of rdb products pruned
         """
-        start_count = len(self.capture_block_dirs)
+        pruned_products = []
         for cb in self.capture_block_dirs[:]:
             for cs in self.capture_stream_l0_dirs:
                 if cs.startswith(cb):
                     self.capture_block_dirs.remove(cb)
+                    pruned_products.append(cb)
                     break
         for cb in self.capture_block_dirs[:]:
             for cs in self.capture_stream_l1_dirs:
                 if cs.startswith(cb):
                     self.capture_block_dirs.remove(cb)
+                    pruned_products.append(cb)
                     break
-        return start_count - len(self.capture_block_dirs)
+        pruned_count = len(pruned_products)
+        self.set_created_on_pruned(pruned_products)
+        return pruned_count
 
     def _get_products_factory(self, product_dirs, product_class):
         return [
-            product_class(product_path, self.logger) for product_path in
-            product_dirs]
+            product_class(product_path, self.logger, self.solr_url)
+            for product_path in product_dirs]
 
     def get_l0_products(self):
         return self._get_products_factory(
@@ -510,3 +530,8 @@ class ProductFactory:
     def get_rdb_products(self):
         return self._get_products_factory(
             self.capture_block_dirs, RDBProduct)
+
+    def set_created_on_pruned(self, pruned_products):
+        # TODO: set the state in the SOLR doc on each of the pruned products
+        # TODO: to created
+        pass
