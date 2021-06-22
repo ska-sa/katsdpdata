@@ -19,6 +19,9 @@ from katsdpdata.utilities import get_s3_connection
 from katsdpdata.utilities import redact_key
 from katsdpdata.utilities import s3_create_anon_access_policy
 
+import logging
+logger = logging.getLogger(__name__)
+
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
 CAPTURE_STREAM_L0_REGEX = "^[0-9]{10}[-_].*l0$"
 CAPTURE_STREAM_L1_REGEX = "^[0-9]{10}[-_].*l1-flags$"
@@ -31,8 +34,7 @@ SLEEP_TIME = 20
 
 class Uploader:
 
-    def __init__(self, logger, trawl_dir, boto_dict, upload_files):
-        self.logger = logger
+    def __init__(self, trawl_dir, boto_dict, upload_files):
         self.trawl_dir = trawl_dir
         self.boto_dict = boto_dict
         self.upload_files = upload_files[:MAX_TRANSFERS]
@@ -53,7 +55,7 @@ class Uploader:
             s3_bucket.set_policy(s3_bucket_policy)
         except boto.exception.S3ResponseError as e:
             if e.status == 403 or e.status == 409:
-                self.logger.error(
+                logger.error(
                     "Error status %s. Supplied access key (%s) "
                     "has no permissions on this server.",
                     e.status, redact_key(s3_conn.access_key))
@@ -93,7 +95,7 @@ class Uploader:
                 os.unlink(filename)
                 transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
             else:
-                self.logger.error(
+                logger.error(
                     "%s not deleted. Only uploaded %i of %i bytes.",
                     filename, res, file_size)
         return transfer_list
@@ -103,9 +105,9 @@ class Uploader:
         """
         max_workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
         workers = min(len(self.upload_files), max_workers)
-        self.logger.debug("Using %i workers", workers)
+        logger.debug("Using %i workers", workers)
         files = [self.upload_files[i::workers] for i in range(workers)]
-        self.logger.debug("Processing %i files", len(self.upload_files))
+        logger.debug("Processing %i files", len(self.upload_files))
         self.procs = []  # Clear procs in case we want to re-use this in future
         with futures.ProcessPoolExecutor(max_workers=workers) as executor:
             for f in files:
@@ -123,12 +125,12 @@ class Uploader:
             failed_count = 0
             try:
                 res = pr.result()
-                self.logger.debug("%i transfers from future.", len(res))
+                logger.debug("%i transfers from future.", len(res))
             except Exception as err:
                 # test s3 problems, else mark as broken
                 if hasattr(err, 'bucket_name'):
                     product_path = PurePath(self.trawl_dir, err.bucket_name)
-                    Product(product_path, self.logger).set_failed_token(str(err))
+                    Product(product_path, logger).set_failed_token(str(err))
                     failed_count += 1
 
     def check_for_multipart(self):
@@ -143,20 +145,19 @@ class Uploader:
 
 class Product:
 
-    def __init__(self, product_path, logger):
+    def __init__(self, product_path, solr_url):
         """
         :param product_path: string : The directory to trawl. Usually the
                                      sub-directory below the top level
                                      trawl directory.
         """
-        self.logger = logger
         self.product_path = product_path
         self.file_matches = []
         self._staged_for_transfer = []
         self.complete = None
         self.met_handler = MetaDataHandler
         self.key = ''  # TODO: Extract the real key out of product_path
-        self.solr_url = ''
+        self.solr_url = solr_url
         self.product_type = ''
         self.product_name = ''
 
@@ -169,7 +170,7 @@ class Product:
         """
         failed_token_file = os.path.join(self.product_path, "failed")
         if not os.path.isfile(failed_token_file):
-            self.logger.warning("Exception: %s from future.", msg)
+            logger.warning("Exception: %s from future.", msg)
             if not msg:
                 msg = ""
             with open(failed_token_file, "w") as failed_token:
@@ -204,7 +205,7 @@ class Product:
         write_ext = file_writing[1:]
         # check for failed token, if there return an empty list and incomplete.
         if os.path.isfile(os.path.join(prod_dir, "failed")):
-            self.logger.warning("%s so not processing, moving to failed directory.",
+            logger.warning("%s so not processing, moving to failed directory.",
                            os.path.join(prod_dir, "failed"))
             # move product to failed dir
             failed_dir = os.path.join(os.path.split(prod_dir)[0], "failed")
@@ -239,7 +240,7 @@ class Product:
     def cleanup(self):
         """Recursive delete the product directory supplied directory.
         Should be a completed product."""
-        self.logger.info("%s is complete. Deleting directory tree.", self.product_path)
+        logger.info("%s is complete. Deleting directory tree.", self.product_path)
         return shutil.rmtree(self.product_path)
 
     def stage_for_transfer(self, max_parallel_transfers):
@@ -247,7 +248,7 @@ class Product:
             self._staged_for_transfer = []
             return 0
         self._staged_for_transfer = self.file_matches[:max_parallel_transfers]
-        return len(self._staged_for_transfer)
+        return max_parallel_transfers - len(self._staged_for_transfer)
 
     def staged_for_transfer(self):
         return self._staged_for_transfer
@@ -313,8 +314,8 @@ class RDBProduct(Product):
     # but it makes this implementation easier.
     regex = CAPTURE_BLOCK_REGEX
 
-    def __init__(self, product_path, logger):
-        super().__init__(product_path, logger)
+    def __init__(self, product_path, solr_url):
+        super().__init__(product_path, solr_url)
 
     def discover_trawl_files(self):
         super()._discover_trawl_files('*.rdb', '*.writing.rdb', 'complete')
@@ -400,7 +401,7 @@ class RDBProduct(Product):
             return
         try:
             met = self.set_rdb_metadata(mh, [rdb_lite, rdb_full])
-            self.logger.info(
+            logger.info(
                 '%s ingested metadata to SOLR refs:%s.' %
                 (met['id'], ', '.join(met['CAS.ReferenceDatastore'])))
 
@@ -408,7 +409,7 @@ class RDBProduct(Product):
         except Exception as err:
             if hasattr(err, 'bucket_name'):
                 err.filename = rdb_lite
-                self.logger.exception(
+                logger.exception(
                     "Caught exception while extracting metadata from %s.",
                     err.filename)
                 self.set_failed_token(str(err))
@@ -446,7 +447,7 @@ class L1Product(Product):
 
 
 class ProductFactory:
-    def __init__(self, trawl_dir, logger, solr_url):
+    def __init__(self, trawl_dir, solr_url):
         """Creates three lists, that have a valid signature for:
             (1) capture blocks and
             (2) capture l0 streams
@@ -464,7 +465,6 @@ class ProductFactory:
         capture_block_dirs: list : full path to valid capture block directories
         capture_stream_dirs: list : full path to valid capture stream directories
         """
-        self.logger = logger
         self.solr_url = solr_url
         # get full path to capture block dirs
         self.capture_block_dirs = self._list_dir_helper(
@@ -519,7 +519,7 @@ class ProductFactory:
 
     def _get_products_factory(self, product_dirs, product_class):
         return [
-            product_class(product_path, self.logger, self.solr_url)
+            product_class(product_path, self.solr_url)
             for product_path in product_dirs]
 
     def get_l0_products(self):

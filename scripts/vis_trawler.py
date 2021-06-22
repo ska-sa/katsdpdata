@@ -19,6 +19,8 @@ from katsdpdata.utilities import make_boto_dict
 
 from katsdpdata.prod_handler import ProductFactory, Uploader, MAX_TRANSFERS
 
+logger = logging.getLogger(__name__)
+
 SLEEP_TIME = 20
 
 
@@ -81,7 +83,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size: int : The size in bytes of data uploaded. Can be used to
         wait for a set time before trawling directory again.
     """
-    product_factory = ProductFactory(trawl_dir, logger, solr_url)
+    product_factory = ProductFactory(trawl_dir, solr_url)
     # TODO: The prune can be dropped after the actual vis products are in SOLR
     # TODO: See https://skaafrica.atlassian.net/browse/SPR1-1113
     total_pruned = product_factory.prune_rdb_products()
@@ -104,7 +106,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 max_batch_transfers = product.stage_for_transfer(
                     max_batch_transfers)
                 if product.is_staged():
-                    upload_list.append(product)
+                    upload_list.append(product.staged_for_transfer())
 
     if not upload_list:
         logger.debug("No data to upload")
@@ -127,7 +129,6 @@ def trawl(trawl_dir, boto_dict, solr_url):
 if __name__ == "__main__":
     katsdpservices.setup_logging()
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("katsdpvistrawler")
     katsdpservices.setup_restart()
 
     parser = OptionParser(usage="vis_trawler.py <trawl_directory>")
