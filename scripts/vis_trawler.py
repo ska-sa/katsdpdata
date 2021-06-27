@@ -99,14 +99,14 @@ def trawl(trawl_dir, boto_dict, solr_url):
         for product in product_list:
             product.discover_trawl_files()
             if product.completed_and_transferred():
-                product.update_state('TRANSFER_DONE')
                 product.cleanup()
+                product.update_state('TRANSFER_DONE')
             elif product.file_matches:
                 product.update_state('PRODUCT_DETECTED')
                 max_batch_transfers = product.stage_for_transfer(
                     max_batch_transfers)
                 if product.is_staged():
-                    upload_list.append(product.staged_for_transfer())
+                    upload_list.append(product)
 
     if not upload_list:
         logger.debug("No data to upload")
@@ -118,9 +118,9 @@ def trawl(trawl_dir, boto_dict, solr_url):
         product.update_state('TRANSFER_STARTED')
         upload_files.extend(product.staged_for_transfer())
     logger.debug("Uploading %.2f MB of data", (upload_size // 1e6))
-    uploader = Uploader(logger, trawl_dir, boto_dict, upload_files)
+    uploader = Uploader(trawl_dir, boto_dict, upload_files)
     uploader.upload()
-    failed_count = uploader.set_failed_tokens()
+    failed_count = uploader.set_failed_tokens(solr_url)
     logger.info(
         f'A total of {failed_count} exceptions where encountered this cycle.')
     return upload_size
