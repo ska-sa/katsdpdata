@@ -141,7 +141,6 @@ class MetDataHandlerSuper:
         return met.get('CAS.ProductTransferStatus', None)
 
 
-
 class MetaDataHandler(MetDataHandlerSuper):
     """keeping the original name of this class to avoid possible import issues
     """

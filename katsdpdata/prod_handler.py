@@ -159,6 +159,16 @@ class Product:
         self.solr_url = solr_url
         self.product_type = ''
         self.product_name = ''  # TODO: This is the same as key
+        self._mh = None
+
+    def mh(self, product_type=None):
+        if self._mh:
+            return self._mh
+        if not product_type:
+            product_type = self.product_type
+        self._mh = self.met_handler(
+            self.solr_url, product_type, self.product_name, self.key)
+        return self._mh
 
     def _get_key_from_product_path(self):
         raise NotImplementedError
@@ -266,9 +276,9 @@ class Product:
     def update_state(self, transition):
         # TODO: Remove all unused logging
         # TODO: Fix this.
-        mh = self.met_handler(
-            self.solr_url, self.product_type, self.product_name, self.key)
+        mh = self.mh()
         current_state = mh.get_state()
+        logger.warning(f'{transition} {current_state} {self.key}')
         if transition == 'TRANSFER_DONE':
             if current_state == 'TRANSFERRING':
                 # mh.create_s3_met()
@@ -278,14 +288,14 @@ class Product:
                 mh.set_product_status('RESTAGED')
         elif transition == 'PRODUCT_DETECTED':
             if current_state == 'None':
-                self.metadata_when_created(mh)
+                self.metadata_when_created()
                 mh.set_product_status('CREATED')
             elif current_state == 'ARCHIVED':
-                self.metadata_when_created(mh)
+                self.metadata_when_created()
                 mh.set_product_status('RECREATED')
         elif transition == 'TRANSFER_STARTED':
             if not current_state:
-                self.metadata_when_created(mh)
+                self.metadata_when_created()
                 mh.set_product_status('TRANSFERRING')
             elif current_state == 'CREATED':
                 mh.set_product_status('TRANSFERRING')
@@ -298,10 +308,10 @@ class Product:
         # TODO: this should include all the bucket stats we care about
         return {}
 
-    def metadata_when_created(self, meta_handler):
+    def metadata_when_created(self):
         # TODO: get the set of metadata that needs to be obtained on the
         # TODO: "create" step
-        mh = meta_handler()
+        mh = self.mh()
         mh.create_core_met()
 
     def bucket_name(self):
@@ -334,10 +344,10 @@ class RDBProduct(Product):
                 transfer_list.append(r)
         return transfer_list
 
-    def metadata_transfer_complete(self, meta_handler):
+    def metadata_transfer_complete(self):
         # TODO: ADD THIS BACK
         return {}
-        mh = meta_handler
+        mh = self.mh()
         # procs = self.parallel_upload(trawl_dir, boto_dict, original_refs)
         transfer_list = self.get_transfer_list()
         # prepend the most common path to conform to hierarchical products
@@ -373,8 +383,7 @@ class RDBProduct(Product):
             err.bucket_name = self.bucket_name()
             raise err
         # Either get the product met or at least create the core meta data
-        mh = self.met_handler(
-            self.solr_url, pm_extractor.product_type, self.product_name, self.key)
+        mh = self.mh(pm_extractor.product_type)
         met = mh.get_prod_met(self.key)
         if not met:
             met = mh.create_core_met()
@@ -394,7 +403,7 @@ class RDBProduct(Product):
         met = mh.add_ref_original(met, met_original_refs)
         mh.add_prod_met(met, pm_extractor.metadata)
 
-    def metadata_when_created(self, meta_handler):
+    def metadata_when_created(self):
         """ When the RDB products are first discovered, we want to set the
         metadata in SOLR.
 
@@ -403,7 +412,6 @@ class RDBProduct(Product):
         :param meta_handler:
         :return:
         """
-        mh = meta_handler
         rdb_prod = self.rdb_file_prefix()
         rdb_lite, rdb_full = f'{rdb_prod}.rdb', f'{rdb_prod}.full.rdb'
         if not (
