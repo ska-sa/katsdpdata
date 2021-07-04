@@ -274,18 +274,15 @@ class Product:
             if os.path.isfile(f))
 
     def update_state(self, transition):
-        # TODO: Remove all unused logging
         # TODO: Fix this.
         mh = self.mh()
         current_state = mh.get_state()
-        logger.warning(f'{transition} {current_state} {self.key}')
         if transition == 'TRANSFER_DONE':
             if current_state == 'TRANSFERRING':
-                # mh.create_s3_met()
                 mh.set_product_status('RECEIVED')
             elif current_state == 'RESTAGING':
-                # mh.create_s3_met()
                 mh.set_product_status('RESTAGED')
+            self.metadata_transfer_complete()
         elif transition == 'PRODUCT_DETECTED':
             if current_state == 'None':
                 self.metadata_when_created()
@@ -304,9 +301,9 @@ class Product:
         elif transition == 'FAILED':
             mh.set_product_status('FAILED')
 
-    def metadata_transfer_complete(self, meta_handler):
+    def metadata_transfer_complete(self):
         # TODO: this should include all the bucket stats we care about
-        return {}
+        pass
 
     def metadata_when_created(self):
         # TODO: get the set of metadata that needs to be obtained on the
@@ -337,27 +334,16 @@ class RDBProduct(Product):
     def discover_trawl_files(self):
         super()._discover_trawl_files('*.rdb', '*.writing.rdb', 'complete')
 
-    def get_transfer_list(self):
-        transfer_list = []
-        for p in self.procs:
-            for r in p.result():
-                transfer_list.append(r)
-        return transfer_list
-
     def metadata_transfer_complete(self):
-        # TODO: ADD THIS BACK
-        return {}
         mh = self.mh()
-        # procs = self.parallel_upload(trawl_dir, boto_dict, original_refs)
-        transfer_list = self.get_transfer_list()
-        # prepend the most common path to conform to hierarchical products
-        met_transfer_refs = list(transfer_list)
-        met_transfer_refs.insert(0, os.path.dirname(
-            os.path.commonprefix(transfer_list)))
         met = mh.get_prod_met()
-        met = mh.add_ref_datastore(met, met_transfer_refs)
-        met = mh.set_product_received(met)
-        return met
+        original_refs = met['CAS.ReferenceOriginal']
+        # I'm cheating a little on this one, because it is too complicated to
+        # get the procs linked back to this product
+        transfer_refs = [
+            ref.replace('file:///data/', 's3://') for ref in original_refs]
+        met = mh.add_ref_datastore(met, transfer_refs)
+        mh.set_product_received(met)
 
     def set_rdb_metadata(self, original_refs):
         """Ingest a product into the archive. This includes extracting and uploading
@@ -430,10 +416,8 @@ class RDBProduct(Product):
                     err.filename)
                 self.set_failed_token(str(err))
                 # if failed, set a boolean flag to exit the loop.
-                return 'Failed'
             else:
                 raise
-        return "Completed"
 
     def rdb_file_prefix(self):
         files = list(set([
