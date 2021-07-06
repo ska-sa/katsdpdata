@@ -357,7 +357,7 @@ class RDBProduct(Product):
         This key is also used as the product ID
         """
         name = os.path.split(self.product_path.rstrip('/'))[1]
-        return f'{name}_sdp_l0'
+        return f'{name}-sdp-l0'
 
     def discover_trawl_files(self):
         """Discover this products trawl files"""
@@ -464,14 +464,14 @@ class L0Product(Product):
     def __init__(self, product_path, solr_url):
         super().__init__(product_path, solr_url)
         self.met_handler = ProdMetaDataHandler
-        self.product_type = 'MeerKATDataProduct'
+        self.product_type = 'MeerKATVisibilityProduct'
 
     def _get_key_from_product_path(self):
         """Private method for getting the key from the product path.
         This key is also used as the product ID
         """
         name = os.path.split(self.product_path.rstrip('/'))[1]
-        return f'{name}_sdp_l0_data'
+        return f'{name}-visibility'
 
     def discover_trawl_files(self):
         """Discover this products trawl files"""
@@ -491,7 +491,7 @@ class L1Product(Product):
         This key is also used as the product ID
         """
         name = os.path.split(self.product_path.rstrip('/'))[1]
-        return f'{name}_sdp_l1_flags'
+        return name
 
     def discover_trawl_files(self):
         """Discover this products trawl files"""
