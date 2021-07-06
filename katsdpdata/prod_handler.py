@@ -39,7 +39,8 @@ class Uploader:
         self.upload_files = upload_files[:MAX_TRANSFERS]
         self.procs = []
 
-    def s3_create_bucket(self, s3_conn, bucket_name):
+    @staticmethod
+    def s3_create_bucket(s3_conn, bucket_name):
         """Create an s3 bucket. If S3CreateError and the error
         status is 409, return a referece to the bucket as it has
         already been created and is owned by you.
@@ -330,8 +331,6 @@ class Product:
         pass
 
     def metadata_when_created(self):
-        # TODO: get the set of metadata that needs to be obtained on the
-        # TODO: "create" step
         mh = self.mh()
         mh.create_core_met()
 
