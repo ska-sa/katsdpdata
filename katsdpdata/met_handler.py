@@ -90,7 +90,7 @@ class MetDataHandlerSuper:
         """
         met['CAS.ProductReceivedTime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         met['CAS.ProductTransferStatus'] = 'RECEIVED'
-        self.solr.add([met])
+        self.solr.add([met], commit=True)
         return self.get_prod_met(met['id'])   # return with updated _version_
 
     def set_product_created(self, met):
@@ -106,7 +106,7 @@ class MetDataHandlerSuper:
         """
         met['CAS.ProductReceivedTime'] = ''
         met['CAS.ProductTransferStatus'] = 'CREATED'
-        self.solr.add([met])
+        self.solr.add([met], commit=True)
         return self.get_prod_met(met['id'])   # return with updated _version_
 
     def set_product_status(self, status, met=None):
@@ -115,12 +115,15 @@ class MetDataHandlerSuper:
         if not met:
             met = self.create_core_met()
         met['CAS.ProductTransferStatus'] = status
-        self.solr.add([met], fieldUpdates={'CAS.ProductTransferStatus': 'set'})
+        self.solr.add(
+            [met],
+            fieldUpdates={'CAS.ProductTransferStatus': 'set'},
+            commit=True)
         return self.get_prod_met(met['id'])
 
     def add_bucket_stats(self, met, bucket_met):
         met.update(bucket_met)
-        self.solr.add([met])
+        self.solr.add([met], commit=True)
         return self.get_prod_met(met['id'])
 
     def get_state(self):
@@ -149,7 +152,7 @@ class MetaDataHandler(MetDataHandlerSuper):
         new_met['CAS.ProductTypeId'] = 'urn:kat:{}'.format(self.product_type)
         new_met['CAS.ProductTypeName'] = self.product_type
         new_met['id'] = self.product_id
-        self.solr.add([new_met])
+        self.solr.add([new_met], commit=True)
         return self.get_prod_met(self.product_id)  # return with _version_
 
     def add_ref_original(self, met, original_refs):
@@ -194,7 +197,7 @@ class MetaDataHandler(MetDataHandlerSuper):
         original_refs = met['CAS.ReferenceOriginal']
         datastore_refs = [replace_file_s3(ref) for ref in original_refs]
         met['CAS.ReferenceDatastore'] = datastore_refs
-        self.solr.add([met])
+        self.solr.add([met], commit=True)
         return self.get_prod_met(met['id'])  # return with updated _version_
 
     def add_ref_datastore(self, met, datastore_refs):
@@ -209,7 +212,7 @@ class MetaDataHandler(MetDataHandlerSuper):
         met: dict : metadata containing the _version_ for version tracking commits to solr.
         """
         met['CAS.ReferenceDatastore'] = [urllib.parse.urlparse(x).geturl() for x in sorted(datastore_refs)]
-        self.solr.add([met])
+        self.solr.add([met], commit=True)
         return self.get_prod_met(met['id'])  # return with updated _version_
 
     def add_prod_met(self, met, prod_met):
@@ -222,7 +225,7 @@ class MetaDataHandler(MetDataHandlerSuper):
         # ProductName is mapped internally by OODT. Pop it if we're going to insert directly into SOLR.
         prod_met.pop('ProductName', None)
         met.update(prod_met)
-        self.solr.add([met])
+        self.solr.add([met], commit=True)
         return self.get_prod_met(met['id'])
 
 
@@ -242,7 +245,7 @@ class ProdMetaDataHandler(MetDataHandlerSuper):
         new_met['CAS.ProductName'] = self.product_name
         new_met['CAS.ProductTypeId'] = 'urn:kat:{}'.format(self.product_type)
         new_met['CAS.ProductTypeName'] = self.product_type  # MeerKATFlagProduct
-        self.solr.add([new_met])
+        self.solr.add([new_met], commit=True)
         return self.get_prod_met(self.product_id)  # return with _version_
 
 
