@@ -74,24 +74,8 @@ class MetDataHandlerSuper:
         prod_id: string : the product id to delete.
         """
         met = self.get_prod_met(prod_id)
-        self.solr.delete(id=prod_id)
+        self.solr.delete(id=prod_id, commit=True)
         return met
-
-    def set_product_transferring(self, met):
-        """Set product transfer status while transfering to the backend storage.
-
-        Parameters
-        ----------
-        met: dict : metadata dict, a local copy of the solr doc to update.
-
-        Returns
-        -------
-        met: dict : metadata containing the _version_ for version tracking commits to solr.
-        """
-        met['CAS.ProductReceivedTime'] = ''
-        met['CAS.ProductTransferStatus'] = 'TRANSFERRING'
-        self.solr.add([met])
-        return self.get_prod_met(met['id'])   # return with updated _version_
 
     def set_product_received(self, met):
         """Set product transfer status once received into the backend storage.
@@ -132,9 +116,12 @@ class MetDataHandlerSuper:
             met = self.create_core_met()
         met['CAS.ProductTransferStatus'] = status
         self.solr.add([met], fieldUpdates={'CAS.ProductTransferStatus': 'set'})
+        return self.get_prod_met(met['id'])
 
-    def create_s3_met(self):
-        return {}
+    def add_bucket_stats(self, met, bucket_met):
+        met.update(bucket_met)
+        self.solr.add([met])
+        return self.get_prod_met(met['id'])
 
     def get_state(self):
         met = self.get_prod_met()
@@ -202,6 +189,8 @@ class MetaDataHandler(MetDataHandlerSuper):
             s3_path = url_parts.path.replace('/data', '/')
             url_parts = url_parts._replace(scheme='s3', path=s3_path)
             return url_parts.geturl()
+        if not 'CAS.ReferenceOriginal' in met:
+            return met
         original_refs = met['CAS.ReferenceOriginal']
         datastore_refs = [replace_file_s3(ref) for ref in original_refs]
         met['CAS.ReferenceDatastore'] = datastore_refs

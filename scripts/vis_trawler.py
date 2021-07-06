@@ -83,7 +83,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size: int : The size in bytes of data uploaded. Can be used to
         wait for a set time before trawling directory again.
     """
-    product_factory = ProductFactory(trawl_dir, solr_url)
+    product_factory = ProductFactory(trawl_dir)
     # TODO: The prune can be dropped after the actual vis products are in SOLR
     # TODO: See https://skaafrica.atlassian.net/browse/SPR1-1113
     total_pruned = product_factory.prune_rdb_products()
@@ -98,6 +98,9 @@ def trawl(trawl_dir, boto_dict, solr_url):
             product_factory.get_l0_products()]:
         for product in product_list:
             product.discover_trawl_files()
+            # TODO: these need to be imported from the envirenoment in future
+            product.solr_url = solr_url
+            product.boto_dict = boto_dict
             if product.completed_and_transferred():
                 product.cleanup()
                 product.update_state('TRANSFER_DONE')
@@ -105,7 +108,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
                 product.update_state('PRODUCT_DETECTED')
                 max_batch_transfers = product.stage_for_transfer(
                     max_batch_transfers)
-                if product.is_staged():
+                if product.is_staged:
                     upload_list.append(product)
 
     if not upload_list:
@@ -116,7 +119,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_files = []
     for product in upload_list:
         product.update_state('TRANSFER_STARTED')
-        upload_files.extend(product.staged_for_transfer())
+        upload_files.extend(product.staged_for_transfer)
     logger.debug("Uploading %.2f MB of data", (upload_size // 1e6))
     uploader = Uploader(trawl_dir, boto_dict, upload_files)
     uploader.upload()

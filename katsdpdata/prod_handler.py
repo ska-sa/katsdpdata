@@ -152,12 +152,14 @@ class Uploader:
 
 class Product:
 
-    def __init__(self, product_path, solr_url):
+    def __init__(self, product_path):
         """
         :param product_path: string : The directory to trawl. Usually the
                                      sub-directory below the top level
                                      trawl directory.
+        TODO: Both of these should be gotten from the environment
         :param solr_url: string: The url to the solr to write metadata to.
+        :param boto_dict: dict: The boto connection dict.
         """
         self.product_path = product_path
         self.file_matches = []
@@ -165,7 +167,8 @@ class Product:
         self.complete = None
         self.met_handler = None
         self.key = self._get_key_from_product_path()
-        self.solr_url = solr_url
+        self.solr_url = ''
+        self.boto_dict = {}
         self.product_type = ''
         self._mh = None
 
@@ -327,8 +330,10 @@ class Product:
             mh.set_product_status('FAILED')
 
     def metadata_transfer_complete(self):
-        # TODO: this should include all the bucket stats we care about
-        pass
+        mh = self.mh()
+        met = mh.get_prod_met()
+        met_bucket = self.get_bucket_stats()
+        mh.add_bucket_stats(met, met_bucket)
 
     def metadata_when_created(self):
         mh = self.mh()
@@ -340,14 +345,35 @@ class Product:
             return None
         return [x for x in self.product_path.split(os.sep) if x][-1]
 
+    def get_bucket_stats(self):
+        """Get the bucket stats from S3"""
+        return {}
+        # TODO: Update the kat_core then these fields can be added
+        bucket_name = self.bucket_name()
+        try:
+            s3_conn = get_s3_connection(self.boto_dict)
+            bucket = s3_conn.get_bucket(bucket_name)
+        except boto.exception.S3ResponseError as e:
+            logger.error(
+                f'Could not get bucket stats for {bucket_name}. '
+                f'It does not seem to exist.')
+            return None
+        met_bucket = {
+            'prefix': bucket.name,
+            'BucketOwner': bucket.get_acl().owner.display_name,
+            'size': sum([k.size for k in bucket.get_all_keys()]),
+            'num_objects': len(bucket.get_all_keys())}
+        return met_bucket
+
+
 
 class RDBProduct(Product):
     # Thinking of this as a product might not be technically correct,
     # but it makes this implementation easier.
     regex = CAPTURE_BLOCK_REGEX
 
-    def __init__(self, product_path, solr_url):
-        super().__init__(product_path, solr_url)
+    def __init__(self, product_path):
+        super().__init__(product_path)
         self.met_handler = MetaDataHandler
         self.product_type = 'MeerKATTelescopeProduct'
 
@@ -366,12 +392,13 @@ class RDBProduct(Product):
         """Update metadata when transfer completes"""
         mh = self.mh()
         met = mh.get_prod_met()
-        mh.add_inferred_ref_datastore(met)
+        met = mh.add_inferred_ref_datastore(met)
         # TODO: We are now setting the state to received again, which isn't
         # TODO: necessary, perhaps we should rather set the time when we set
         # TODO: the state in the state change method?
-        mh.set_product_received(met)
-        # mh.bucket_stats(met, self.key)
+        met = mh.set_product_received(met)
+        met_bucket = self.get_bucket_stats()
+        mh.add_bucket_stats(met, met_bucket)
 
     def set_rdb_metadata(self, original_refs):
         """Ingest a product into the archive. This includes extracting and uploading
@@ -408,9 +435,6 @@ class RDBProduct(Product):
                 mh.product_id)
             err.bucket_name = self.bucket_name()
             raise err
-        # set metadata
-        # met = mh.set_product_transferring(met)
-        # prepend the most common path to conform to hierarchical products
         met_original_refs = list(original_refs)
         met_original_refs.insert(0, os.path.dirname(
             os.path.commonprefix(original_refs)))
@@ -460,8 +484,8 @@ class RDBProduct(Product):
 class L0Product(Product):
     regex = CAPTURE_STREAM_L0_REGEX
 
-    def __init__(self, product_path, solr_url):
-        super().__init__(product_path, solr_url)
+    def __init__(self, product_path):
+        super().__init__(product_path)
         self.met_handler = ProdMetaDataHandler
         self.product_type = 'MeerKATVisibilityProduct'
 
@@ -480,8 +504,8 @@ class L0Product(Product):
 class L1Product(Product):
     regex = CAPTURE_STREAM_L1_REGEX
 
-    def __init__(self, product_path, solr_url):
-        super().__init__(product_path, solr_url)
+    def __init__(self, product_path):
+        super().__init__(product_path)
         self.met_handler = ProdMetaDataHandler
         self.product_type = 'MeerKATFlagProduct'
 
@@ -498,7 +522,7 @@ class L1Product(Product):
 
 
 class ProductFactory:
-    def __init__(self, trawl_dir, solr_url):
+    def __init__(self, trawl_dir):
         """Creates three lists, that have a valid signature for:
             (1) capture blocks and
             (2) capture l0 streams
@@ -516,7 +540,6 @@ class ProductFactory:
         capture_block_dirs: list : full path to valid capture block directories
         capture_stream_dirs: list : full path to valid capture stream directories
         """
-        self.solr_url = solr_url
         # get full path to capture block dirs
         self.capture_block_dirs = self._list_dir_helper(
             trawl_dir, CAPTURE_BLOCK_REGEX)
@@ -570,7 +593,7 @@ class ProductFactory:
 
     def _get_products_factory(self, product_dirs, product_class):
         return [
-            product_class(product_path, self.solr_url)
+            product_class(product_path)
             for product_path in product_dirs]
 
     def get_l0_products(self):
