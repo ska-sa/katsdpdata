@@ -102,7 +102,8 @@ class Uploader:
         return transfer_list
 
     def upload(self):
-        """
+        """ The upload method used to upload all upload candidates this round.
+        This method sets the internal procs attribute
         """
         max_workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
         workers = min(len(self.upload_files), max_workers)
@@ -122,9 +123,9 @@ class Uploader:
             executor.shutdown(wait=True)
 
     def set_failed_tokens(self, solr_url):
-        """
-
-        :return:
+        """ For all the products that have failed we are setting a failed taken
+        # TODO: untangle the solr_url into a softcoded configuration
+        # TODO: https://skaafrica.atlassian.net/browse/SPR1-1111
         """
         for pr in self.procs:
             failed_count = 0
@@ -141,7 +142,7 @@ class Uploader:
     def check_for_multipart(self):
         """Check whether we need have a file bigger than 5GB to make multipart upload
         This will be done in
-        https://skaafrica.atlassian.net/browse/SPR1-1114
+        TODO: https://skaafrica.atlassian.net/browse/SPR1-1114
 
         :return:
         """
@@ -155,6 +156,7 @@ class Product:
         :param product_path: string : The directory to trawl. Usually the
                                      sub-directory below the top level
                                      trawl directory.
+        :param solr_url: string: The url to the solr to write metadata to.
         """
         self.product_path = product_path
         self.file_matches = []
@@ -167,6 +169,10 @@ class Product:
         self._mh = None
 
     def mh(self, product_type=None):
+        """If it already exsists get the metadata handle, else, instantiate it
+        :param product_type: string: String for product type in case we need to
+                                    overwrite the product's product_type
+        """
         if self._mh:
             return self._mh
         if not product_type:
@@ -176,6 +182,9 @@ class Product:
         return self._mh
 
     def _get_key_from_product_path(self):
+        """Abstract private method for getting the key from the product path.
+        This key is also used as the product ID
+        """
         raise NotImplementedError
 
     def set_failed_token(self, msg=None):
@@ -261,25 +270,35 @@ class Product:
         return shutil.rmtree(self.product_path)
 
     def stage_for_transfer(self, max_parallel_transfers):
+        """Based on the limit that we are given we stage as many as possible.
+        :return: int : The remaining updated limit."""
         if not max_parallel_transfers:
             self._staged_for_transfer = []
             return 0
         self._staged_for_transfer = self.file_matches[:max_parallel_transfers]
         return max_parallel_transfers - len(self._staged_for_transfer)
 
+    @property
     def staged_for_transfer(self):
+        """Access to the list of staged files"""
         return self._staged_for_transfer
 
+    @property
     def is_staged(self):
+        """True when files have been staged for transfer"""
         return bool(self._staged_for_transfer)
 
     def upload_size(self):
+        """This product's contribution to the upload size"""
         return sum(
             os.path.getsize(f) for f in self._staged_for_transfer
             if os.path.isfile(f))
 
     def update_state(self, transition):
-        # TODO: Fix this.
+        """The product state machine based on state transitions
+        TODO: There are still some state changes baked into the metadata
+        TODO: handlers, but which are for explicivity duplicated here.
+        """
         mh = self.mh()
         current_state = mh.get_state()
         if transition == 'TRANSFER_DONE':
@@ -289,7 +308,7 @@ class Product:
                 mh.set_product_status('RESTAGED')
             self.metadata_transfer_complete()
         elif transition == 'PRODUCT_DETECTED':
-            if current_state == 'None':
+            if not current_state:
                 self.metadata_when_created()
                 mh.set_product_status('CREATED')
             elif current_state == 'ARCHIVED':
@@ -334,13 +353,18 @@ class RDBProduct(Product):
         self.product_type = 'MeerKATTelescopeProduct'
 
     def _get_key_from_product_path(self):
+        """Private method for getting the key from the product path.
+        This key is also used as the product ID
+        """
         name = os.path.split(self.product_path.rstrip('/'))[1]
         return f'{name}_sdp_l0'
 
     def discover_trawl_files(self):
+        """Discover this products trawl files"""
         super()._discover_trawl_files('*.rdb', '*.writing.rdb', 'complete')
 
     def metadata_transfer_complete(self):
+        """Update metadata when transfer completes"""
         mh = self.mh()
         met = mh.get_prod_met()
         mh.add_inferred_ref_datastore(met)
@@ -425,6 +449,7 @@ class RDBProduct(Product):
                 raise
 
     def rdb_file_prefix(self):
+        """Helper function to get rdb_file_prefix"""
         files = list(set([
             re.match('^.*[0-9]{10}_[^.]*', cbf).group()
             for cbf in self.file_matches
@@ -442,10 +467,14 @@ class L0Product(Product):
         self.product_type = 'MeerKATDataProduct'
 
     def _get_key_from_product_path(self):
+        """Private method for getting the key from the product path.
+        This key is also used as the product ID
+        """
         name = os.path.split(self.product_path.rstrip('/'))[1]
         return f'{name}_sdp_l0_data'
 
     def discover_trawl_files(self):
+        """Discover this products trawl files"""
         super()._discover_trawl_files('*.npy', '*.writing.npy', 'complete')
 
 
@@ -458,17 +487,15 @@ class L1Product(Product):
         self.product_type = 'MeerKATFlagProduct'
 
     def _get_key_from_product_path(self):
+        """Private method for getting the key from the product path.
+        This key is also used as the product ID
+        """
         name = os.path.split(self.product_path.rstrip('/'))[1]
         return f'{name}_sdp_l1_flags'
 
     def discover_trawl_files(self):
+        """Discover this products trawl files"""
         super()._discover_trawl_files('*.npy', '*.writing.npy', 'complete')
-
-    def update_status(self, status):
-        pass
-
-    def metadata_transfer_complete(self, meta_handler):
-        return {}
 
 
 class ProductFactory:
@@ -548,18 +575,23 @@ class ProductFactory:
             for product_path in product_dirs]
 
     def get_l0_products(self):
+        """Get all L0 products"""
         return self._get_products_factory(
             self.capture_stream_l0_dirs, L0Product)
 
     def get_l1_products(self):
+        """Get all L1 products"""
         return self._get_products_factory(
             self.capture_stream_l1_dirs, L1Product)
 
     def get_rdb_products(self):
+        """Get all RDB products"""
         return self._get_products_factory(
             self.capture_block_dirs, RDBProduct)
 
     def set_created_on_pruned(self, pruned_products):
-        # TODO: set the state in the SOLR doc on each of the pruned products
-        # TODO: to created
+        """
+        TODO: set the state in the SOLR doc on each of the pruned products
+        TODO: to created
+        """
         pass
