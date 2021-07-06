@@ -176,6 +176,9 @@ class MetaDataHandler(MetDataHandlerSuper):
         -------
         met: dict : metadata containing the _version_ for version tracking commits to solr.
         """
+        def file_url(file_ref):
+            return urllib.parse.urlparse(file_ref)._replace(scheme='file').geturl()
+
         if len(original_refs) == 0:
             raise MetaDataHandlerException('No product in {}'.format(original_refs))
         elif len(original_refs) == 1:
@@ -186,9 +189,22 @@ class MetaDataHandler(MetDataHandlerSuper):
         product_types = [mimetypes.guess_type(p)[0]
                          if mimetypes.guess_type(p)[0] else 'application/x-data'
                          for p in original_refs]
-        met['CAS.ReferenceOriginal'] = [urllib.parse.urlparse(x).geturl() for x in sorted(original_refs)]
+        met['CAS.ReferenceOriginal'] = [file_url(x) for x in sorted(original_refs)]
         met['CAS.ReferenceFileSize'] = product_sizes
         met['CAS.ReferenceMimeType'] = product_types
+        self.solr.add([met])
+        return self.get_prod_met(met['id'])  # return with updated _version_
+
+    def add_inferred_ref_datastore(self, met):
+        """Handle inferred datastore refereces based on teh orginial reference"""
+        def replace_file_s3(url):
+            url_parts = urllib.parse.urlparse(url)
+            s3_path = url_parts.path.replace('/data', '/')
+            url_parts = url_parts._replace(scheme='s3', path=s3_path)
+            return url_parts.geturl()
+        original_refs = met['CAS.ReferenceOriginal']
+        datastore_refs = [replace_file_s3(ref) for ref in original_refs]
+        met['CAS.ReferenceDatastore'] = datastore_refs
         self.solr.add([met])
         return self.get_prod_met(met['id'])  # return with updated _version_
 

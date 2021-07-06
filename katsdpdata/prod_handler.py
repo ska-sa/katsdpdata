@@ -66,13 +66,16 @@ class Uploader:
                 raise
         return s3_bucket
 
-    def transfer_files(self, trawl_dir, boto_dict, file_list):
+    @staticmethod
+    def transfer_files(trawl_dir, boto_dict, s3_create_bucket, file_list):
         """Transfer file list to s3.
 
         Parameters
         ----------
         trawl_dir: string : The full path to the trawl directory
         boto_dict: dict : parameter dict for boto connection.
+        s3_create_bucket: func : passing the function in because we can't
+                                reference self
         file_list: list : a list of full path to files to transfer.
 
         Returns
@@ -87,12 +90,11 @@ class Uploader:
                 "/", 1)
             file_size = os.path.getsize(filename)
             if not bucket or bucket.name != bucket_name:
-                bucket = self.s3_create_bucket(s3_conn, bucket_name)
+                bucket = s3_create_bucket(s3_conn, bucket_name)
             key = bucket.new_key(key_name)
             res = key.set_contents_from_filename(filename)
             if res == file_size:
                 os.unlink(filename)
-                transfer_list.append("/".join(["s3:/", bucket.name, key.name]))
             else:
                 logger.error(
                     "%s not deleted. Only uploaded %i of %i bytes.",
@@ -112,7 +114,11 @@ class Uploader:
             for f in files:
                 self.procs.append(
                     executor.submit(
-                        self.transfer_files, self.trawl_dir, self.boto_dict, f))
+                        self.transfer_files,
+                        self.trawl_dir,
+                        self.boto_dict,
+                        self.s3_create_bucket,
+                        f))
             executor.shutdown(wait=True)
 
     def set_failed_tokens(self, solr_url):
@@ -158,7 +164,6 @@ class Product:
         self.key = self._get_key_from_product_path()
         self.solr_url = solr_url
         self.product_type = ''
-        self.product_name = ''  # TODO: This is the same as key
         self._mh = None
 
     def mh(self, product_type=None):
@@ -167,7 +172,7 @@ class Product:
         if not product_type:
             product_type = self.product_type
         self._mh = self.met_handler(
-            self.solr_url, product_type, self.product_name, self.key)
+            self.solr_url, product_type, self.key, self.key)
         return self._mh
 
     def _get_key_from_product_path(self):
@@ -326,6 +331,7 @@ class RDBProduct(Product):
     def __init__(self, product_path, solr_url):
         super().__init__(product_path, solr_url)
         self.met_handler = MetaDataHandler
+        self.product_type = 'MeerKATTelescopeProduct'
 
     def _get_key_from_product_path(self):
         name = os.path.split(self.product_path.rstrip('/'))[1]
@@ -337,13 +343,12 @@ class RDBProduct(Product):
     def metadata_transfer_complete(self):
         mh = self.mh()
         met = mh.get_prod_met()
-        original_refs = met['CAS.ReferenceOriginal']
-        # I'm cheating a little on this one, because it is too complicated to
-        # get the procs linked back to this product
-        transfer_refs = [
-            ref.replace('file:///data/', 's3://') for ref in original_refs]
-        met = mh.add_ref_datastore(met, transfer_refs)
+        mh.add_inferred_ref_datastore(met)
+        # TODO: We are now setting the state to received again, which isn't
+        # TODO: necessary, perhaps we should rather set the time when we set
+        # TODO: the state in the state change method?
         mh.set_product_received(met)
+        # mh.bucket_stats(met, self.key)
 
     def set_rdb_metadata(self, original_refs):
         """Ingest a product into the archive. This includes extracting and uploading
@@ -374,7 +379,7 @@ class RDBProduct(Product):
         if not met:
             met = mh.create_core_met()
         if "CAS.ProductTransferStatus" in met and met[
-            "CAS.ProductTransferStatus"] == "RECEIVED":
+                "CAS.ProductTransferStatus"] == "RECEIVED":
             err = MetExtractorException(
                 "%s marked as RECEIVED, while trying to create new product.",
                 mh.product_id)
@@ -434,6 +439,7 @@ class L0Product(Product):
     def __init__(self, product_path, solr_url):
         super().__init__(product_path, solr_url)
         self.met_handler = ProdMetaDataHandler
+        self.product_type = 'MeerKATDataProduct'
 
     def _get_key_from_product_path(self):
         name = os.path.split(self.product_path.rstrip('/'))[1]
@@ -449,6 +455,7 @@ class L1Product(Product):
     def __init__(self, product_path, solr_url):
         super().__init__(product_path, solr_url)
         self.met_handler = ProdMetaDataHandler
+        self.product_type = 'MeerKATFlagProduct'
 
     def _get_key_from_product_path(self):
         name = os.path.split(self.product_path.rstrip('/'))[1]

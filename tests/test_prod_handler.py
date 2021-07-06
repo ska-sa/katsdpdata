@@ -65,7 +65,6 @@ def rdb_product_dir():
     return PurePath(test_dir, 'test_data_directory', '1234567891')
 
 
-
 class TestProductFactory:
     def test_product_factory_product_detection(self, test_trawl_dir):
         """ Assert that the products are being detected correctly.
