@@ -189,7 +189,7 @@ class MetaDataHandler(MetDataHandlerSuper):
         return self.get_prod_met(met['id'])  # return with updated _version_
 
     def add_inferred_ref_datastore(self, met):
-        """Handle inferred datastore refereces based on teh orginial reference"""
+        """Handle inferred datastore references based on the original reference"""
         def replace_file_s3(url):
             url_parts = urllib.parse.urlparse(url)
             s3_path = url_parts.path.replace(DATA_ROOT, '/')

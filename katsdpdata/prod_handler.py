@@ -173,7 +173,7 @@ class Product:
         self._mh = None
 
     def mh(self, product_type=None):
-        """If it already exsists get the metadata handle, else, instantiate it
+        """If it already exists get the metadata handler, else, instantiate it
         :param product_type: string: String for product type in case we need to
                                     overwrite the product's product_type
         """
