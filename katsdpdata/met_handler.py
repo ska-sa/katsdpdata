@@ -247,13 +247,3 @@ class ProdMetaDataHandler(MetDataHandlerSuper):
         new_met['CAS.ProductTypeName'] = self.product_type  # MeerKATFlagProduct
         self.solr.add([new_met], commit=True)
         return self.get_prod_met(self.product_id)  # return with _version_
-
-
-        # "CAS.ProductTransferStatus": "ARCHIVED",
-        # "CAS.ProductTypeName": "MeerKATFlagProduct", // This is the only thing that will be different between L0 and L1
-        # "id": "1521643937_sdp_l1_flags",
-        # "CaptureBlockId": "1521643937",
-        # "CAS.ProductStructure": "Hierarchical",
-        # "CAS.ProductName": "1521643937_sdp_l1_flags",
-        # "StreamId": "sdp_l1_flags",
-
