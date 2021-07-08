@@ -567,25 +567,26 @@ class ProductFactory:
                 re.match(regex, d)]
 
     def prune_rdb_products(self):
-        """ prune cb_dirs
-        this is tested by checking if there are any cs_dirs that start with the cb.
-        cb's will only be transferred once all their streams have their
+        """Pop capture block directories that don't have their streams transmitted.
+        this is tested by checking if there are any capture block stream L0 or
+        L1 dirs that start with the capture block id.
+        RDBs will only be transferred once all their streams have their
         complete token set.
 
         :return: int: number of rdb products pruned
         """
         pruned_products = []
-        for cb in self.capture_block_dirs[:]:
-            for cs in self.capture_stream_l0_dirs:
-                if cs.startswith(cb):
-                    self.capture_block_dirs.remove(cb)
-                    pruned_products.append(cb)
+        for capture_block_dir in self.capture_block_dirs[:]:
+            for stream_dir in self.capture_stream_l0_dirs:
+                if stream_dir.startswith(capture_block_dir):
+                    self.capture_block_dirs.remove(capture_block_dir)
+                    pruned_products.append(capture_block_dir)
                     break
-        for cb in self.capture_block_dirs[:]:
-            for cs in self.capture_stream_l1_dirs:
-                if cs.startswith(cb):
-                    self.capture_block_dirs.remove(cb)
-                    pruned_products.append(cb)
+        for capture_block_dir in self.capture_block_dirs[:]:
+            for flag_dir in self.capture_stream_l1_dirs:
+                if flag_dir.startswith(capture_block_dir):
+                    self.capture_block_dirs.remove(capture_block_dir)
+                    pruned_products.append(capture_block_dir)
                     break
         pruned_count = len(pruned_products)
         self.set_created_on_pruned(pruned_products)
