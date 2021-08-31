@@ -102,3 +102,15 @@ class TestRDBProduct:
                  'ElAz']:
             assert key in product.mh().solr.search('last').doc.keys()
 
+
+class TestL0Prefix:
+    def test_l1_prefix(self):
+        product = L0Product(self, '/data/1234567890-sdp-l1-flags')
+        assert product.prefix == '1234567890-sdp-l1-flags'
+        mh = product.mh()
+        assert mh.prefix == '1234567890-sdp-l1-flags'
+    def test_l0_prefix(self, rdb_product_dir):
+        product = L0Product(self, '/data/1234567890-sdp-l0')
+        assert product.prefix == '1234567890-sdp-l0'
+        mh = product.mh()
+        assert mh.prefix == '1234567890-sdp-l0'

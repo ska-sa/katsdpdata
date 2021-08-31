@@ -473,7 +473,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         self.metadata['CaptureBlockId'] = self._katdata.source.metadata.attrs['capture_block_id']
         self.metadata['StreamId'] = self._katdata.source.metadata.attrs['stream_name']
         self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
-        self.metadata['Prefix'] = self._katdata.source.data.vis_prefix
+        self.metadata['Prefix'] = self._katdata.source.metadata.attrs['capture_block_id']
 
     def _extract_metadata_product_type(self):
         """Override base method. Extract product type to CAS.ProductTypeName.
@@ -521,6 +521,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         self.metadata['CaptureBlockId'] = self._ts['capture_block_id']
         self.metadata['StreamId'] = self._ts['stream_name']
         self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
+        self.metadata['Prefix'] = self._katdata.source.metadata.attrs['capture_block_id']
 
     def _extract_metadata_product_type(self):
         """Override base method. Extract product type to CAS.ProductTypeName.

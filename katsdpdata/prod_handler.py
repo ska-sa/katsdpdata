@@ -167,6 +167,7 @@ class Product:
         self.complete = None
         self.met_handler = None
         self.key = self._get_key_from_product_path()
+        self.prefix = self._get_product_prefix()
         self.solr_url = ''
         self.boto_dict = {}
         self.product_type = ''
@@ -182,13 +183,16 @@ class Product:
         if not product_type:
             product_type = self.product_type
         self._mh = self.met_handler(
-            self.solr_url, product_type, self.key, self.key)
+            self.solr_url, product_type, self.key, self.key, self.prefix)
         return self._mh
 
     def _get_key_from_product_path(self):
         """Abstract private method for getting the key from the product path.
         This key is also used as the product ID
         """
+        raise NotImplementedError
+
+    def _get_product_prefix(self):
         raise NotImplementedError
 
     def set_failed_token(self, msg=None):
@@ -347,8 +351,6 @@ class Product:
 
     def get_bucket_stats(self):
         """Get the bucket stats from S3"""
-        return {}
-        # TODO: Update the kat_core then these fields can be added
         bucket_name = self.bucket_name()
         try:
             s3_conn = get_s3_connection(self.boto_dict)
@@ -358,11 +360,11 @@ class Product:
                 f'Could not get bucket stats for {bucket_name}. '
                 f'It does not seem to exist.')
             return None
+        key_sizes = [k.size for k in bucket.list()]
         met_bucket = {
-            'prefix': bucket.name,
-            'BucketOwner': bucket.get_acl().owner.display_name,
-            'size': sum([k.size for k in bucket.get_all_keys()]),
-            'num_objects': len(bucket.get_all_keys())}
+            'Prefix': bucket.name,
+            'size': sum(key_sizes),
+            'num_objects': len(key_sizes)}
         return met_bucket
 
 
@@ -383,6 +385,9 @@ class RDBProduct(Product):
         """
         name = os.path.split(self.product_path.rstrip('/'))[1]
         return f'{name}-sdp-l0'
+
+    def _get_product_prefix(self):
+        return self._get_key_from_product_path().replace('-sdp-l0', '')
 
     def discover_trawl_files(self):
         """Discover this products trawl files"""
@@ -496,6 +501,10 @@ class L0Product(Product):
         name = os.path.split(self.product_path.rstrip('/'))[1]
         return f'{name}-visibility'
 
+    def _get_product_prefix(self):
+        return self._get_key_from_product_path().replace('-visibility', '-sdp-l0')
+
+
     def discover_trawl_files(self):
         """Discover this products trawl files"""
         super()._discover_trawl_files('*.npy', '*.writing.npy', 'complete')
@@ -508,6 +517,9 @@ class L1Product(Product):
         super().__init__(product_path)
         self.met_handler = ProdMetaDataHandler
         self.product_type = 'MeerKATFlagProduct'
+
+    def _get_product_prefix(self):
+        return self._get_key_from_product_path()
 
     def _get_key_from_product_path(self):
         """Private method for getting the key from the product path.
