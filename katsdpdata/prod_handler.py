@@ -503,7 +503,6 @@ class L0Product(Product):
     def _get_product_prefix(self):
         return self._get_key_from_product_path().replace('-sdp-l0-visibility', '-sdp-l0')
 
-
     def discover_trawl_files(self):
         """Discover this products trawl files"""
         super()._discover_trawl_files('*.npy', '*.writing.npy', 'complete')

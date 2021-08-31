@@ -12,9 +12,11 @@ class STUB_Res:
         self.hits = 0
         self.doc = {}
 
+
 class STUB_Solr:
     def __init__(self, *args, **kwargs):
         self._add = []
+
     def search(self, query):
         res = STUB_Res()
         if not self._add:
@@ -22,10 +24,13 @@ class STUB_Solr:
         res.doc = self._add[-1]
         res.hits = 1
         return res
+
     def add(self, data):
         self._add.append(data[0])
+
     def history(self):
         return self._add
+
     def __getattr__(self, name):
         def method(*args):
             print("solr: " + name + " : ", str(args))
@@ -39,6 +44,7 @@ class STUB_MetaDataHandler(MetaDataHandler):
         self.product_type = 'test_product_type'
         self.product_name = 'test_product_name'
         self.product_id = product_id
+
     def create_core_met(self):
         new_met = {}
         new_met['id'] = self.product_id
@@ -50,6 +56,7 @@ class STUB_MetaDataHandler(MetaDataHandler):
         new_met['id'] = self.product_id
         self.solr.add([new_met])
         return new_met
+
     def get_prod_met(self, key=None):
         return self.solr.search(key).doc
 
@@ -100,14 +107,14 @@ class TestRDBProduct:
         product.metadata_when_created()
         assert product.mh().solr.search('last').hits == 1
         for key in [
-            'CAS.ProductTypeName', 'Antennas', 'CenterFrequency', 'ChannelWidth',
-            'MinFreq', 'MaxFreq', 'Bandwidth', 'Description', 'Details',
-            'DumpPeriod', 'Duration', 'ExperimentID', 'FileSize', 'KatfileVersion',
-            'KatpointTargets', 'NumFreqChannels', 'Observer', 'RefAntenna',
-            'StartTime', 'Targets', 'IntegrationTime', 'InstructionSet',
-            'ProposalId', 'ProgramBlockId', 'ScheduleBlockIdCode',
-            'CaptureBlockId', 'StreamId', 'CaptureStreamId', 'Prefix', 'DecRa',
-            'ElAz']:
+                'CAS.ProductTypeName', 'Antennas', 'CenterFrequency', 'ChannelWidth',
+                'MinFreq', 'MaxFreq', 'Bandwidth', 'Description', 'Details',
+                'DumpPeriod', 'Duration', 'ExperimentID', 'FileSize', 'KatfileVersion',
+                'KatpointTargets', 'NumFreqChannels', 'Observer', 'RefAntenna',
+                'StartTime', 'Targets', 'IntegrationTime', 'InstructionSet',
+                'ProposalId', 'ProgramBlockId', 'ScheduleBlockIdCode',
+                'CaptureBlockId', 'StreamId', 'CaptureStreamId', 'Prefix', 'DecRa',
+                'ElAz']:
             assert key in product.mh().solr.search('last').doc.keys()
 
 
@@ -117,6 +124,7 @@ class TestL0Prefix:
         assert product.prefix == '1234567890-sdp-l1-flags'
         mh = product.mh()
         assert mh.prefix == '1234567890-sdp-l1-flags'
+
     def test_l0_prefix(self, rdb_product_dir):
         product = L0Product('/data/1234567890-sdp-l0')
         assert product.prefix == '1234567890-sdp-l0'
