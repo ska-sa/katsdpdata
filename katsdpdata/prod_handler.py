@@ -347,8 +347,6 @@ class Product:
 
     def get_bucket_stats(self):
         """Get the bucket stats from S3"""
-        return {}
-        # TODO: Update the kat_core then these fields can be added
         bucket_name = self.bucket_name()
         try:
             s3_conn = get_s3_connection(self.boto_dict)
@@ -360,8 +358,7 @@ class Product:
             return None
         met_bucket = {
             'prefix': bucket.name,
-            'BucketOwner': bucket.get_acl().owner.display_name,
-            'size': sum([k.size for k in bucket.get_all_keys()]),
+            'size': sum([k.size for k in bucket.list()]),
             'num_objects': len(bucket.get_all_keys())}
         return met_bucket
 
