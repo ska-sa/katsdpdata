@@ -99,14 +99,15 @@ class TestRDBProduct:
         product.discover_trawl_files()
         product.metadata_when_created()
         assert product.mh().solr.search('last').hits == 1
-        for key in ['CAS.ProductTypeName', 'Antennas', 'CenterFrequency', 'ChannelWidth',
-                 'MinFreq', 'MaxFreq', 'Bandwidth', 'Description', 'Details',
-                 'DumpPeriod', 'Duration', 'ExperimentID', 'FileSize', 'KatfileVersion',
-                 'KatpointTargets', 'NumFreqChannels', 'Observer', 'RefAntenna',
-                 'StartTime', 'Targets', 'IntegrationTime', 'InstructionSet',
-                 'ProposalId', 'ProgramBlockId', 'ScheduleBlockIdCode',
-                 'CaptureBlockId', 'StreamId', 'CaptureStreamId', 'Prefix', 'DecRa',
-                 'ElAz']:
+        for key in [
+            'CAS.ProductTypeName', 'Antennas', 'CenterFrequency', 'ChannelWidth',
+            'MinFreq', 'MaxFreq', 'Bandwidth', 'Description', 'Details',
+            'DumpPeriod', 'Duration', 'ExperimentID', 'FileSize', 'KatfileVersion',
+            'KatpointTargets', 'NumFreqChannels', 'Observer', 'RefAntenna',
+            'StartTime', 'Targets', 'IntegrationTime', 'InstructionSet',
+            'ProposalId', 'ProgramBlockId', 'ScheduleBlockIdCode',
+            'CaptureBlockId', 'StreamId', 'CaptureStreamId', 'Prefix', 'DecRa',
+            'ElAz']:
             assert key in product.mh().solr.search('last').doc.keys()
 
 

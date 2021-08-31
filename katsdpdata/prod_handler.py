@@ -358,7 +358,7 @@ class Product:
         except boto.exception.S3ResponseError as e:
             logger.error(
                 f'Could not get bucket stats for {bucket_name}. '
-                f'It does not seem to exist.')
+                f'It does not seem to exist. {e}')
             return None
         key_sizes = [k.size for k in bucket.list()]
         met_bucket = {
@@ -366,7 +366,6 @@ class Product:
             'size': sum(key_sizes),
             'num_objects': len(key_sizes)}
         return met_bucket
-
 
 
 class RDBProduct(Product):
