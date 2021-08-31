@@ -502,7 +502,7 @@ class L0Product(Product):
         return f'{name}-visibility'
 
     def _get_product_prefix(self):
-        return self._get_key_from_product_path().replace('-visibility', '-sdp-l0')
+        return self._get_key_from_product_path().replace('-sdp-l0-visibility', '-sdp-l0')
 
 
     def discover_trawl_files(self):
