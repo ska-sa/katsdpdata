@@ -29,7 +29,7 @@ class MetDataHandlerSuper:
                          product will have a self generated uuid.
     """
 
-    def __init__(self, solr_url, product_type, product_name, product_id=None):
+    def __init__(self, solr_url, product_type, product_name, product_id=None, prefix=None):
         self.solr_url = solr_url
         self.solr = pysolr.Solr(self.solr_url)
         self.product_type = product_type
@@ -38,6 +38,7 @@ class MetDataHandlerSuper:
             self.product_id = product_id
         else:
             self.product_id = str(uuid.uuid4())
+        self.prefix = prefix
 
     def create_core_met(self):
         raise NotImplementedError
@@ -233,7 +234,6 @@ class MetaDataHandler(MetDataHandlerSuper):
 
 
 class ProdMetaDataHandler(MetDataHandlerSuper):
-    # TODO: SPR1-1016
     def create_core_met(self):
         """Create the core OODT style metadata.
 
@@ -241,6 +241,8 @@ class ProdMetaDataHandler(MetDataHandlerSuper):
         -------
         met: dict : metadata containing the _version_ for version tracking commits to solr.
         """
+        if not self.prefix:
+            raise MetaDataHandlerException('Prefix not specified')
         new_met = {}
         new_met['id'] = self.product_id
         new_met['CaptureStreamId'] = self.product_id
@@ -248,5 +250,6 @@ class ProdMetaDataHandler(MetDataHandlerSuper):
         new_met['CAS.ProductName'] = self.product_name
         new_met['CAS.ProductTypeId'] = 'urn:kat:{}'.format(self.product_type)
         new_met['CAS.ProductTypeName'] = self.product_type  # MeerKATFlagProduct
+        new_met['Prefix'] = self.prefix
         self.solr.add([new_met], commit=True)
         return self.get_prod_met(self.product_id)  # return with _version_
