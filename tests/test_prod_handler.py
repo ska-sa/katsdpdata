@@ -2,8 +2,7 @@
 import pytest
 from os.path import exists
 from pathlib import Path, PurePath
-from katsdpdata.prod_handler import (
-    ProductFactory, RDBProduct, L0Product, L1Product, Product)
+from katsdpdata.prod_handler import ProductFactory, RDBProduct, L0Product, L1Product
 from katsdpdata.met_handler import MetaDataHandler
 
 
