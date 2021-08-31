@@ -1,5 +1,6 @@
 """Tests for the met extractor."""
 import pytest
+from os.path import exists
 from pathlib import Path, PurePath
 from katsdpdata.prod_handler import (
     ProductFactory, RDBProduct, L0Product, L1Product, Product)
@@ -69,7 +70,9 @@ class TestProductFactory:
     def test_product_factory_product_detection(self, test_trawl_dir):
         """ Assert that the products are being detected correctly.
         """
-        pf = ProductFactory(test_trawl_dir, 'dummy_url')
+        if not exists('/home/katsdpdata/tests/test_data_directory'):
+            return
+        pf = ProductFactory(test_trawl_dir)
         assert len(pf.get_rdb_products()) == 2
         assert len(pf.get_l0_products()) == 1
         assert len(pf.get_l1_products()) == 1
@@ -77,7 +80,9 @@ class TestProductFactory:
     def test_product_factory_pruning(self, test_trawl_dir):
         """ Assert that the products are being detected correctly.
         """
-        pf = ProductFactory(test_trawl_dir, 'dummy_url')
+        if not exists('/home/katsdpdata/tests/test_data_directory'):
+            return
+        pf = ProductFactory(test_trawl_dir)
         pf.prune_rdb_products()
         assert len(pf.get_rdb_products()) == 1
         assert len(pf.get_l0_products()) == 1
@@ -86,7 +91,9 @@ class TestProductFactory:
 
 class TestRDBProduct:
     def test_set_rdb_metadata(self, rdb_product_dir):
-        product = RDBProduct(str(rdb_product_dir), 'dumy_url')
+        if not exists('/home/katsdpdata/tests/test_data_directory'):
+            return
+        product = RDBProduct(str(rdb_product_dir))
         product.met_handler = STUB_MetaDataHandler
         assert product.mh().solr.search('last').hits == 0
         product.discover_trawl_files()
@@ -105,12 +112,12 @@ class TestRDBProduct:
 
 class TestL0Prefix:
     def test_l1_prefix(self):
-        product = L0Product(self, '/data/1234567890-sdp-l1-flags')
+        product = L1Product('/data/1234567890-sdp-l1-flags')
         assert product.prefix == '1234567890-sdp-l1-flags'
         mh = product.mh()
         assert mh.prefix == '1234567890-sdp-l1-flags'
     def test_l0_prefix(self, rdb_product_dir):
-        product = L0Product(self, '/data/1234567890-sdp-l0')
+        product = L0Product('/data/1234567890-sdp-l0')
         assert product.prefix == '1234567890-sdp-l0'
         mh = product.mh()
         assert mh.prefix == '1234567890-sdp-l0'
