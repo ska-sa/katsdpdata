@@ -152,8 +152,8 @@ class MetaDataHandler(MetDataHandlerSuper):
         new_met = {}
         new_met['id'] = self.product_id
         new_met['CAS.ProductId'] = self.product_id
-        new_met['CaptureStreamId'] = self.product_id
         new_met['CaptureBlockId'] = self.product_id.split('-')[0]
+        new_met['CaptureStreamId'] = new_met['CaptureBlockId']
         new_met['CAS.ProductName'] = self.product_name
         new_met['CAS.ProductTypeId'] = 'urn:kat:{}'.format(self.product_type)
         new_met['CAS.ProductTypeName'] = self.product_type
