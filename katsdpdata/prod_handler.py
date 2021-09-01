@@ -425,8 +425,13 @@ class RDBProduct(Product):
             pm_extractor = file_mime_detection(original_refs[0])
             pm_extractor.extract_metadata()
         except Exception as err:
-            err.bucket_name = self.bucket_name()
-            raise err
+            try:
+                # We may be missing the original ref, since it is already been transferred.
+                pm_extractor = file_mime_detection(original_refs[1])
+                pm_extractor.extract_metadata()
+            except Exception as err:
+                err.bucket_name = self.bucket_name()
+                raise err
         # Either get the product met or at least create the core meta data
         mh = self.mh(pm_extractor.product_type)
         met = mh.get_prod_met(self.key)
