@@ -427,6 +427,7 @@ class RDBProduct(Product):
         except Exception as err:
             try:
                 # We may be missing the original ref, since it is already been transferred.
+                logger.info(f'Cannot open {original_refs[0]}. The exeception encountered was {err}')
                 pm_extractor = file_mime_detection(original_refs[1])
                 pm_extractor.extract_metadata()
             except Exception as err:
