@@ -404,7 +404,7 @@ class RDBProduct(Product):
         met_bucket = self.get_bucket_stats()
         mh.add_bucket_stats(met, met_bucket)
 
-    def set_rdb_metadata(self, original_refs):
+    def set_rdb_metadata(self, available_refs, original_refs):
         """Ingest a product into the archive. This includes extracting and uploading
         metadata and then moving the product into the archive.
 
@@ -422,17 +422,11 @@ class RDBProduct(Product):
         met : dict : a metadata dictionary with uploaded key:value pairs.
         """
         try:
-            pm_extractor = file_mime_detection(original_refs[0])
+            pm_extractor = file_mime_detection(available_refs[0])
             pm_extractor.extract_metadata()
         except Exception as err:
-            try:
-                # We may be missing the original ref, since it is already been transferred.
-                logger.info(f'Cannot open {original_refs[0]}. The exeception encountered was {err}')
-                pm_extractor = file_mime_detection(original_refs[1])
-                pm_extractor.extract_metadata()
-            except Exception as err:
-                err.bucket_name = self.bucket_name()
-                raise err
+            err.bucket_name = self.bucket_name()
+            raise err
         # Either get the product met or at least create the core meta data
         mh = self.mh(pm_extractor.product_type)
         met = mh.get_prod_met(self.key)
@@ -461,25 +455,21 @@ class RDBProduct(Product):
         :return:
         """
         rdb_prod = self.rdb_file_prefix()
-        rdb_lite, rdb_full = f'{rdb_prod}.rdb', f'{rdb_prod}.full.rdb'
-        if not (
-                rdb_lite in self.file_matches and
-                rdb_full in self.file_matches):
-            # The RDBs aren't here yet, weird,
-            # perhaps we are too quick on the draw?
-            return
-        try:
-            self.set_rdb_metadata([rdb_lite, rdb_full])
-        except Exception as err:
-            if hasattr(err, 'bucket_name'):
-                err.filename = rdb_lite
-                logger.exception(
-                    "Caught exception while extracting metadata from %s.",
-                    err.filename)
-                self.set_failed_token(str(err))
-                # if failed, set a boolean flag to exit the loop.
-            else:
-                raise
+        rdbs = [f'{rdb_prod}.rdb', f'{rdb_prod}.full.rdb']
+        rdbs_available = [r for r in rdbs if r in self.file_matches]
+        if rdbs_available:
+            try:
+                self.set_rdb_metadata(rdbs_available, rdbs)
+            except Exception as err:
+                if hasattr(err, 'bucket_name'):
+                    err.filename = rdbs[0]
+                    logger.exception(
+                        "Caught exception while extracting metadata from %s.",
+                        err.filename)
+                    self.set_failed_token(str(err))
+                    # if failed, set a boolean flag to exit the loop.
+                else:
+                    raise
 
     def rdb_file_prefix(self):
         """Helper function to get rdb_file_prefix"""
