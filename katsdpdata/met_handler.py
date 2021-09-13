@@ -127,6 +127,8 @@ class MetDataHandlerSuper:
         return self.get_prod_met(met['id'])
 
     def add_bucket_stats(self, met, bucket_met):
+        if not bucket_met:
+            return self.get_prod_met(met['id'])
         met.update(bucket_met)
         self.solr.add([met], commit=True)
         return self.get_prod_met(met['id'])
