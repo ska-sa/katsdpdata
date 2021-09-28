@@ -389,8 +389,11 @@ class RDBProduct(Product):
         return self._get_key_from_product_path().replace('-sdp-l0', '')
 
     def discover_trawl_files(self):
-        """Discover this products trawl files"""
+        """Discover this products trawl files.
+        Only transfer once complete token is available, otherwise []."""
         super()._discover_trawl_files('*.rdb', '*.writing.rdb', 'complete')
+        if not self.complete:
+            self.file_matches = []
 
     def metadata_transfer_complete(self):
         """Update metadata when transfer completes"""
