@@ -18,9 +18,6 @@ PRODUCT_REDUCTON_OLD = "MeerKATTelescopeProduct"
 PRODUCT_NEW = "MeerKATVisibilityProduct"
 FLAGS_NEW = "MeerKATFlagProduct"
 
-STARTDATE = os.environ.get("STARTDATE", "2010-01-01T00:00:00Z")
-ENDDATE = os.environ.get("ENDDATE", "2021-09-01T00:00:00Z")
-
 
 def new_product_exists(product, solr_conn):
     block_id = product["CaptureBlockId"]
@@ -214,11 +211,7 @@ def create_new_l1_products(product, solr, s3_conn, update_set):
 
 solr_conn = pysolr.Solr("http://webtest01.sdp.kat.ac.za:8983/solr/kat_core")
 search_query = f"CAS.ProductTypeName:{TELESCOPE}"
-query_dict = {
-    "q": search_query,
-    "cursorMark": "*",
-    "fq": [f"StartTime:[{STARTTIME} TO {ENDTIME}"],
-}
+query_dict = {"q": search_query, "cursorMark": "*"}
 
 
 s3_conn = S3Connection(
