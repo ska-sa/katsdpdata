@@ -743,8 +743,6 @@ class ProductFactory:
                     pruned_products.append(capture_block_dir)
                     break
         pruned_count = len(pruned_products)
-        #print(pruned_products)
-        #self.set_created_on_pruned(pruned_products)
         return pruned_count, pruned_products
 
     def _get_products_factory(self, product_dirs, product_class):
@@ -771,29 +769,3 @@ class ProductFactory:
         """ Get PRUNED products"""
         return self._get_products_factory(
             pruned_products, PrunedProduct)
-
-
-
-    def set_created_on_pruned(self, pruned_products):
-        """
-        TODO: set the state in the SOLR doc on each of the pruned products
-        TODO: to created
-        """
-        new_met = {}
-        for product in pruned_products:
-            capture_block_id = product.split("/")[-1]
-            product_id = '{}-sdp-l0'.format(capture_block_id)
-            product_type = 'MeerKATTelescopeProduct'
-            new_met = {}
-            new_met['id'] = product_id
-            new_met['CAS.ProductId'] = product_id
-            new_met['CaptureBlockId'] = product_id.split('-')[0]
-            new_met['CaptureStreamId'] = new_met['CaptureBlockId']
-            new_met['CAS.ProductName'] = product_id
-            new_met['CAS.ProductTypeId'] = 'urn:kat:{}'.format(product_type)
-            new_met['CAS.ProductTypeName'] = product_type
-            new_met['CAS.ProductTransferStatus'] = 'PRUNED-PRODUCT-CREATED'
-            self.solr.add([new_met], commit=True)
-
-            #pruned_product = self.get_rdb_products()
-            #pruned_product[0].update_state('PRUNED-PRODUCT_DETECTED')
