@@ -11,6 +11,9 @@ import re
 import shutil
 import time
 from pathlib import PurePath
+from pudb import set_trace
+import pysolr
+
 
 from katsdpdata.met_extractors import MetExtractorException, file_mime_detection
 from katsdpdata.met_handler import MetaDataHandler, ProdMetaDataHandler
@@ -22,8 +25,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
-CAPTURE_STREAM_L0_REGEX = "^[0-9]{10}[-_].*l0$"
-CAPTURE_STREAM_L1_REGEX = "^[0-9]{10}[-_].*l1-flags$"
+CAPTURE_STREAM_L0_REGEX = "^[0-9]{10}[-_].*l0*$"
+CAPTURE_STREAM_L1_REGEX = "^[0-9]{10}[-_].*l1-flags*$"
 # TODO: This needs to be softcoded
 # TODO: https://skaafrica.atlassian.net/browse/SPR1-1111
 MAX_TRANSFERS = 5000
@@ -174,6 +177,7 @@ class Product:
         self._mh = None
 
     def mh(self, product_type=None):
+        #set_trace()
         """If it already exists get the metadata handler, else, instantiate it
         :param product_type: string: String for product type in case we need to
                                     overwrite the product's product_type
@@ -378,6 +382,7 @@ class RDBProduct(Product):
         self.met_handler = MetaDataHandler
         self.product_type = 'MeerKATTelescopeProduct'
 
+
     def _get_key_from_product_path(self):
         """Private method for getting the key from the product path.
         This key is also used as the product ID
@@ -396,6 +401,7 @@ class RDBProduct(Product):
             self.file_matches = []
 
     def metadata_transfer_complete(self):
+        set_trace()
         """Update metadata when transfer completes"""
         mh = self.mh()
         met = mh.get_prod_met()
@@ -406,8 +412,20 @@ class RDBProduct(Product):
         met = mh.set_product_received(met)
         met_bucket = self.get_bucket_stats()
         mh.add_bucket_stats(met, met_bucket)
+        self.solr = pysolr.Solr(self.solr_url)
+        for product_type in ['MeerKATVisibilityProduct', 'MeerKATFlagProduct']:
+            query = 'CaptureBlockId:{} AND CAS.ProductTypeName:{}'.format(met['id'],product_type)
+            query_dict = {"q": query}
+            results = self.solr.search(**query_dict)
+            if results.hits == 1:
+                doc = results.docs[0]
+                if met.get('ProposalId'):
+                    doc.pop('_version_')
+                    doc['ProposalId'] = met.get('ProposalId','kg-testing-proposalID-code')
+                    self.solr.add([doc], commit=True)
 
     def set_rdb_metadata(self, available_refs, original_refs):
+        #set_trace()
         """Ingest a product into the archive. This includes extracting and uploading
         metadata and then moving the product into the archive.
 
@@ -483,6 +501,125 @@ class RDBProduct(Product):
         ]))
         return min(files, key=len)
 
+class PrunedProduct(RDBProduct):
+    # Thinking of this as a product might not be technically correct,
+    # but it makes this implementation easier.
+    regex = CAPTURE_BLOCK_REGEX
+
+    def __init__(self, product_path):
+        super().__init__(product_path)
+        self.met_handler = MetaDataHandler
+        self.product_type = 'MeerKATTelescopeProduct'
+
+
+    def _get_key_from_product_path(self):
+        """Private m ethod for getting the key from the product path.
+        This key is also used as the product ID
+        """
+        name = os.path.split(self.product_path.rstrip('/'))[1]
+        return f'{name}-sdp-l0'
+
+    def _get_product_prefix(self):
+        return self._get_key_from_product_path().replace('-sdp-l0', '')
+
+    def discover_trawl_files(self):
+        """Discover this products trawl files.
+        Only transfer once complete token is available, otherwise []."""
+        super()._discover_trawl_files('*.rdb', '*.writing.rdb', 'complete')
+        if not self.complete:
+            self.file_matches = []
+
+    def metadata_transfer_complete(self):
+        """Update metadata when transfer completes"""
+        mh = self.mh()
+        met = mh.get_prod_met()
+        met = mh.add_inferred_ref_datastore(met)
+        # TODO: We are now setting the state to received again, which isn't
+        # TODO: necessary, perhaps we should rather set the time when we set
+        # TODO: the state in the state change method?
+        met = mh.set_product_received(met)
+        met_bucket = self.get_bucket_stats()
+        mh.add_bucket_stats(met, met_bucket)
+
+    def set_rdb_metadata(self, available_refs, original_refs):
+        #set_trace()
+        """Ingest a product into the archive. This includes extracting and uploading
+        metadata and then moving the product into the archive.
+
+        Parameters
+        ----------
+        trawl_dir: string : full path to directory to trawl for ingest product.
+        prod_id: string : unique id for the product.
+        original_refs : list : list of product file(s).
+        prod_met_extractor: class : a metadata extractor class.
+        solr_url: string : sorl endpoint for metadata queries and upload.
+        boto_dict: dict
+
+        Returns
+        -------
+        met : dict : a metadata dictionary with uploaded key:value pairs.
+        """
+        try:
+            pm_extractor = file_mime_detection(available_refs[0])
+            pm_extractor.extract_metadata()
+        except Exception as err:
+            err.bucket_name = self.bucket_name()
+            raise err
+        # Either get the product met or at least create the core meta data
+        mh = self.mh(pm_extractor.product_type)
+        met = mh.get_prod_met(self.key)
+        if not met:
+            met = mh.create_core_met()
+        if "CAS.ProductTransferStatus" in met and met[
+                "CAS.ProductTransferStatus"] == "RECEIVED":
+            err = MetExtractorException(
+                "%s marked as RECEIVED, while trying to create new product.",
+                mh.product_id)
+            err.bucket_name = self.bucket_name()
+            raise err
+        met_original_refs = list(original_refs)
+        met_original_refs.insert(0, os.path.dirname(
+            os.path.commonprefix(original_refs)))
+        met = mh.add_ref_original(met, met_original_refs)
+        mh.add_prod_met(met, pm_extractor.metadata)
+
+    def metadata_when_created(self):
+        """ When the RDB products are first discovered, we want to set the
+        metadata in SOLR.
+
+        TODO: SET STATES TO FAILED WHEN THIS FAILS
+
+        :param meta_handler:
+        :return:
+        """
+        return
+        if self.file_matches:
+            rdb_prod = self.rdb_file_prefix()
+            rdbs = [f'{rdb_prod}.rdb', f'{rdb_prod}.full.rdb']
+            rdbs_available = [r for r in rdbs if r in self.file_matches]
+            if rdbs_available:
+                try:
+                    self.set_rdb_metadata(rdbs_available, rdbs)
+                except Exception as err:
+                    if hasattr(err, 'bucket_name'):
+                        err.filename = rdbs[0]
+                        logger.exception(
+                            "Caught exception while extracting metadata from %s.",
+                            err.filename)
+                        self.set_failed_token(str(err))
+                        # if failed, set a boolean flag to exit the loop.
+                    else:
+                        raise
+
+    def rdb_file_prefix(self):
+        """Helper function to get rdb_file_prefix"""
+        files = list(set([
+            re.match('^.*[0-9]{10}_[^.]*', cbf).group()
+            for cbf in self.file_matches
+            if re.match('^.*[0-9]{10}_[^.]*', cbf) is not None
+        ]))
+        return min(files, key=len)
+
 
 class L0Product(Product):
     regex = CAPTURE_STREAM_L0_REGEX
@@ -499,12 +636,15 @@ class L0Product(Product):
         name = os.path.split(self.product_path.rstrip('/'))[1]
         return f'{name}-visibility'
 
+
     def _get_product_prefix(self):
         return self._get_key_from_product_path().replace('-sdp-l0-visibility', '-sdp-l0')
 
     def discover_trawl_files(self):
         """Discover this products trawl files"""
         super()._discover_trawl_files('*.npy', '*.writing.npy', 'complete')
+
+
 
 
 class L1Product(Product):
@@ -531,7 +671,7 @@ class L1Product(Product):
 
 
 class ProductFactory:
-    def __init__(self, trawl_dir):
+    def __init__(self, trawl_dir, solr_url):
         """Creates three lists, that have a valid signature for:
             (1) capture blocks and
             (2) capture l0 streams
@@ -549,16 +689,20 @@ class ProductFactory:
         capture_block_dirs: list : full path to valid capture block directories
         capture_stream_dirs: list : full path to valid capture stream directories
         """
+        self.solr = pysolr.Solr(solr_url)
         # get full path to capture block dirs
         self.capture_block_dirs = self._list_dir_helper(
             trawl_dir, CAPTURE_BLOCK_REGEX)
+        #print(self.capture_block_dirs, trawl_dir, CAPTURE_BLOCK_REGEX)
         # get full path to capture stream dirs
         # l0
         self.capture_stream_l0_dirs = self._list_dir_helper(
             trawl_dir, CAPTURE_STREAM_L0_REGEX)
+        #print(self.capture_stream_l0_dirs)
         # l1
         self.capture_stream_l1_dirs = self._list_dir_helper(
             trawl_dir, CAPTURE_STREAM_L1_REGEX)
+        #print(self.capture_stream_l1_dirs)
 
     @staticmethod
     def _list_dir_helper(trawl_dir, regex):
@@ -576,6 +720,7 @@ class ProductFactory:
                 re.match(regex, d)]
 
     def prune_rdb_products(self):
+        #set_trace()
         """Pop capture block directories that don't have their streams transmitted.
         this is tested by checking if there are any capture block stream L0 or
         L1 dirs that start with the capture block id.
@@ -598,8 +743,9 @@ class ProductFactory:
                     pruned_products.append(capture_block_dir)
                     break
         pruned_count = len(pruned_products)
-        self.set_created_on_pruned(pruned_products)
-        return pruned_count
+        #print(pruned_products)
+        #self.set_created_on_pruned(pruned_products)
+        return pruned_count, pruned_products
 
     def _get_products_factory(self, product_dirs, product_class):
         return [
@@ -621,9 +767,33 @@ class ProductFactory:
         return self._get_products_factory(
             self.capture_block_dirs, RDBProduct)
 
+    def get_pruned_products(self, pruned_products):
+        """ Get PRUNED products"""
+        return self._get_products_factory(
+            pruned_products, PrunedProduct)
+
+
+
     def set_created_on_pruned(self, pruned_products):
         """
         TODO: set the state in the SOLR doc on each of the pruned products
         TODO: to created
         """
-        pass
+        new_met = {}
+        for product in pruned_products:
+            capture_block_id = product.split("/")[-1]
+            product_id = '{}-sdp-l0'.format(capture_block_id)
+            product_type = 'MeerKATTelescopeProduct'
+            new_met = {}
+            new_met['id'] = product_id
+            new_met['CAS.ProductId'] = product_id
+            new_met['CaptureBlockId'] = product_id.split('-')[0]
+            new_met['CaptureStreamId'] = new_met['CaptureBlockId']
+            new_met['CAS.ProductName'] = product_id
+            new_met['CAS.ProductTypeId'] = 'urn:kat:{}'.format(product_type)
+            new_met['CAS.ProductTypeName'] = product_type
+            new_met['CAS.ProductTransferStatus'] = 'PRUNED-PRODUCT-CREATED'
+            self.solr.add([new_met], commit=True)
+
+            #pruned_product = self.get_rdb_products()
+            #pruned_product[0].update_state('PRUNED-PRODUCT_DETECTED')

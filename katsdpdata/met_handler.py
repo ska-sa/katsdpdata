@@ -145,6 +145,7 @@ class MetaDataHandler(MetDataHandlerSuper):
         super().__init__(*argv, **kwargs)
 
     def create_core_met(self):
+        #set_trace()
         """Create the core OODT style metadata.
 
         Returns

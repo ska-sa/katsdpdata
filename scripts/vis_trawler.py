@@ -11,6 +11,7 @@ import pysolr
 import sys
 import socket
 import time
+from pudb import set_trace
 
 from optparse import OptionParser
 
@@ -69,7 +70,8 @@ def main(trawl_dir, boto_dict, solr_url):
 
 
 def trawl(trawl_dir, boto_dict, solr_url):
-    """Main action for trawling a directory for ingesting products
+    #set_trace()
+    """Main action for trawqling a directory for ingesting products
     into the archive.
 
     Parameters
@@ -83,14 +85,18 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size: int : The size in bytes of data uploaded. Can be used to
         wait for a set time before trawling directory again.
     """
-    product_factory = ProductFactory(trawl_dir)
+    product_factory = ProductFactory(trawl_dir, solr_url)
     # TODO: The prune can be dropped after the actual vis products are in SOLR
     # TODO: See https://skaafrica.atlassian.net/browse/SPR1-1113
-    total_pruned = product_factory.prune_rdb_products()
+    total_pruned, pruned_products = product_factory.prune_rdb_products()
     logger.info(
         f'A total of { total_pruned } RDB products will not be transferred this '
         f'cycle, because the corresponding streams have not completed.')
     upload_list = []
+    for product in product_factory.get_pruned_products(pruned_products):
+        product.solr_url = solr_url
+        product.update_state('PRODUCT_DETECTED')
+
     max_batch_transfers = MAX_TRANSFERS
     for product_list in [
             product_factory.get_rdb_products(),
