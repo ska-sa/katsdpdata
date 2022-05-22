@@ -145,7 +145,6 @@ class MetaDataHandler(MetDataHandlerSuper):
         super().__init__(*argv, **kwargs)
 
     def create_core_met(self):
-        #set_trace()
         """Create the core OODT style metadata.
 
         Returns
@@ -255,7 +254,7 @@ class ProdMetaDataHandler(MetDataHandlerSuper):
         new_met['CAS.ProductId'] = self.product_id
         new_met['CAS.ProductName'] = self.product_name
         new_met['CAS.ProductTypeId'] = 'urn:kat:{}'.format(self.product_type)
-        new_met['CAS.ProductTypeName'] = self.product_type  
+        new_met['CAS.ProductTypeName'] = self.product_type
         new_met['Prefix'] = self.prefix
         self.solr.add([new_met], commit=True)
         return self.get_prod_met(self.product_id)

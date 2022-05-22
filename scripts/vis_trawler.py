@@ -11,7 +11,7 @@ import pysolr
 import sys
 import socket
 import time
-from pudb import set_trace
+
 
 from optparse import OptionParser
 
@@ -70,7 +70,6 @@ def main(trawl_dir, boto_dict, solr_url):
 
 
 def trawl(trawl_dir, boto_dict, solr_url):
-    #set_trace()
     """Main action for trawqling a directory for ingesting products
     into the archive.
 

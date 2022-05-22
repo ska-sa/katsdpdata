@@ -6,7 +6,7 @@ import numpy as np
 import os
 import subprocess
 import time
-from pudb import set_trace
+
 
 from xml.etree import ElementTree
 from math import floor
@@ -177,19 +177,16 @@ class TelescopeProductMetExtractor(MetExtractor):
                 az, el = t.azel()
                 az, el = katpoint.rad2deg(az), katpoint.rad2deg(el)
                 if -90 <= el <= 90:
-                    self.metaqqdata["ElAz"].append("%f, %f" % (el, katpoint.wrap_angle(az, 360)))
+                    self.metadata["ElAz"].append("%f, %f" % (el, katpoint.wrap_angle(az, 360)))
                 else:
                     self.metadata["ElAz"].append("%f, %f" % ((np.clip(el, -90, 90)), katpoint.wrap_angle(az, 360)))
 
     def _extract_metadata_for_project(self):
-        #set_trace()
         """Populate self.metadata: Grab if available proposal, program block and project id's
         from the observation script arguments."""
         # ProposalId
         if 'proposal_id' in self._katdata.obs_params:
-            self.metadata['ProposalId'] = self._katdata.obs_params.get('proposal_id',"kgomotso-testing proposal_id field")
-            #print(self._katdata.obs_params['proposal_id'])
-
+            self.metadata['ProposalId'] = self._katdata.obs_params['proposal_id']
         # ProgramBlockId
         if 'program_block_id' in self._katdata.obs_params:
             self.metadata['ProgramBlockId'] = self._katdata.obs_params['program_block_id']
@@ -453,7 +450,6 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
         self.product_type = 'MeerKATTelescopeProduct'
 
     def extract_metadata(self):
-        #set_trace()
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If
         True, this method has already been run once. If False, extract metadata.
         This includes:
@@ -473,16 +469,12 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
             logger.warning("Metadata already extracted. Set the metadata_extracted attribute to False and run again.")
 
     def _extract_metadata_for_capture_stream(self):
-        #set_trace()
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
         """
         self.metadata['CaptureBlockId'] = self._katdata.source.metadata.attrs['capture_block_id']
         self.metadata['StreamId'] = self._katdata.source.metadata.attrs['stream_name']
         self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
         self.metadata['Prefix'] = self._katdata.source.metadata.attrs['capture_block_id']
-        print(self._katdata.source.metadata.attrs)
-        #self.metadata['ProposalID'] = self._katdata.source.metadata.attrs['capture_block_id']
-        self.metadata['ProposalId'] = 'Testing'
 
     def _extract_metadata_product_type(self):
         """Override base method. Extract product type to CAS.ProductTypeName.
@@ -510,8 +502,8 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         super(MeerKATFlagProductMetExtractor, self).__init__(metfilename)
         self.product_type = 'MeerKATFlagProduct'
 
+
     def extract_metadata(self):
-        #set_trace()
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If
         True, this method has already been run once. If False, extract metadata.
         This includes:
@@ -538,6 +530,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         """Override base method. Extract product type to CAS.ProductTypeName.
         """
         self.metadata['CAS.ProductTypeName'] = self.product_type
+
 
     def _extract_instrument_name(self):
         """Extract the instrument from the enviroment variable if it exists.

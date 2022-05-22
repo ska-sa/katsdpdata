@@ -11,7 +11,6 @@ import re
 import shutil
 import time
 from pathlib import PurePath
-from pudb import set_trace
 import pysolr
 
 
@@ -177,7 +176,6 @@ class Product:
         self._mh = None
 
     def mh(self, product_type=None):
-        #set_trace()
         """If it already exists get the metadata handler, else, instantiate it
         :param product_type: string: String for product type in case we need to
                                     overwrite the product's product_type
@@ -382,7 +380,6 @@ class RDBProduct(Product):
         self.met_handler = MetaDataHandler
         self.product_type = 'MeerKATTelescopeProduct'
 
-
     def _get_key_from_product_path(self):
         """Private method for getting the key from the product path.
         This key is also used as the product ID
@@ -401,7 +398,6 @@ class RDBProduct(Product):
             self.file_matches = []
 
     def metadata_transfer_complete(self):
-        set_trace()
         """Update metadata when transfer completes"""
         mh = self.mh()
         met = mh.get_prod_met()
@@ -425,7 +421,6 @@ class RDBProduct(Product):
                     self.solr.add([doc], commit=True)
 
     def set_rdb_metadata(self, available_refs, original_refs):
-        #set_trace()
         """Ingest a product into the archive. This includes extracting and uploading
         metadata and then moving the product into the archive.
 
@@ -501,6 +496,7 @@ class RDBProduct(Product):
         ]))
         return min(files, key=len)
 
+
 class PrunedProduct(RDBProduct):
     # Thinking of this as a product might not be technically correct,
     # but it makes this implementation easier.
@@ -542,7 +538,6 @@ class PrunedProduct(RDBProduct):
         mh.add_bucket_stats(met, met_bucket)
 
     def set_rdb_metadata(self, available_refs, original_refs):
-        #set_trace()
         """Ingest a product into the archive. This includes extracting and uploading
         metadata and then moving the product into the archive.
 
@@ -593,32 +588,6 @@ class PrunedProduct(RDBProduct):
         :return:
         """
         return
-        if self.file_matches:
-            rdb_prod = self.rdb_file_prefix()
-            rdbs = [f'{rdb_prod}.rdb', f'{rdb_prod}.full.rdb']
-            rdbs_available = [r for r in rdbs if r in self.file_matches]
-            if rdbs_available:
-                try:
-                    self.set_rdb_metadata(rdbs_available, rdbs)
-                except Exception as err:
-                    if hasattr(err, 'bucket_name'):
-                        err.filename = rdbs[0]
-                        logger.exception(
-                            "Caught exception while extracting metadata from %s.",
-                            err.filename)
-                        self.set_failed_token(str(err))
-                        # if failed, set a boolean flag to exit the loop.
-                    else:
-                        raise
-
-    def rdb_file_prefix(self):
-        """Helper function to get rdb_file_prefix"""
-        files = list(set([
-            re.match('^.*[0-9]{10}_[^.]*', cbf).group()
-            for cbf in self.file_matches
-            if re.match('^.*[0-9]{10}_[^.]*', cbf) is not None
-        ]))
-        return min(files, key=len)
 
 
 class L0Product(Product):
@@ -643,8 +612,6 @@ class L0Product(Product):
     def discover_trawl_files(self):
         """Discover this products trawl files"""
         super()._discover_trawl_files('*.npy', '*.writing.npy', 'complete')
-
-
 
 
 class L1Product(Product):
@@ -720,7 +687,6 @@ class ProductFactory:
                 re.match(regex, d)]
 
     def prune_rdb_products(self):
-        #set_trace()
         """Pop capture block directories that don't have their streams transmitted.
         this is tested by checking if there are any capture block stream L0 or
         L1 dirs that start with the capture block id.
