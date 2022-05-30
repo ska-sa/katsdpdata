@@ -408,17 +408,19 @@ class RDBProduct(Product):
         met = mh.set_product_received(met)
         met_bucket = self.get_bucket_stats()
         mh.add_bucket_stats(met, met_bucket)
-        self.solr = pysolr.Solr(self.solr_url)
-        for product_type in ['MeerKATVisibilityProduct', 'MeerKATFlagProduct']:
-            query = 'CaptureBlockId:{} AND CAS.ProductTypeName:{}'.format(met['id'],product_type)
+        if 'ProposalId' in met:
+            self.solr = pysolr.Solr(self.solr_url)
+            query = 'CaptureBlockId:{} AND (CAS.ProductTypeName:MeerKATVisibilityProduct OR CAS.ProductTypeName:MeerKATFlagProduct)'.format(met['CaptureBlockId'])
             query_dict = {"q": query}
-            results = self.solr.search(**query_dict)
-            if results.hits == 1:
-                doc = results.docs[0]
-                if met.get('ProposalId'):
+            total_results = self.solr.search(**query_dict)
+            if total_results.hits > 1:
+                for results in total_results:
+                    doc = results
                     doc.pop('_version_')
-                    doc['ProposalId'] = met.get('ProposalId','kg-testing-proposalID-code')
+                    doc['ProposalId'] = met['ProposalId']
                     self.solr.add([doc], commit=True)
+
+
 
     def set_rdb_metadata(self, available_refs, original_refs):
         """Ingest a product into the archive. This includes extracting and uploading
@@ -587,16 +589,13 @@ class ProductFactory:
         # get full path to capture block dirs
         self.capture_block_dirs = self._list_dir_helper(
             trawl_dir, CAPTURE_BLOCK_REGEX)
-        #print(self.capture_block_dirs, trawl_dir, CAPTURE_BLOCK_REGEX)
         # get full path to capture stream dirs
         # l0
         self.capture_stream_l0_dirs = self._list_dir_helper(
             trawl_dir, CAPTURE_STREAM_L0_REGEX)
-        #print(self.capture_stream_l0_dirs)
         # l1
         self.capture_stream_l1_dirs = self._list_dir_helper(
             trawl_dir, CAPTURE_STREAM_L1_REGEX)
-        #print(self.capture_stream_l1_dirs)
 
     @staticmethod
     def _list_dir_helper(trawl_dir, regex):
