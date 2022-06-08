@@ -70,7 +70,7 @@ def main(trawl_dir, boto_dict, solr_url):
 
 
 def trawl(trawl_dir, boto_dict, solr_url):
-    """Main action for trawqling a directory for ingesting products
+    """Main action for trawling a directory for ingesting products
     into the archive.
 
     Parameters
