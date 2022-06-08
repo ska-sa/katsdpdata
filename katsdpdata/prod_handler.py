@@ -11,6 +11,8 @@ import re
 import shutil
 import time
 from pathlib import PurePath
+import pysolr
+
 
 from katsdpdata.met_extractors import MetExtractorException, file_mime_detection
 from katsdpdata.met_handler import MetaDataHandler, ProdMetaDataHandler
@@ -22,8 +24,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
-CAPTURE_STREAM_L0_REGEX = "^[0-9]{10}[-_].*l0$"
-CAPTURE_STREAM_L1_REGEX = "^[0-9]{10}[-_].*l1-flags$"
+CAPTURE_STREAM_L0_REGEX = "^[0-9]{10}[-_].*l0*$"
+CAPTURE_STREAM_L1_REGEX = "^[0-9]{10}[-_].*l1-flags*$"
 # TODO: This needs to be softcoded
 # TODO: https://skaafrica.atlassian.net/browse/SPR1-1111
 MAX_TRANSFERS = 5000
@@ -406,6 +408,19 @@ class RDBProduct(Product):
         met = mh.set_product_received(met)
         met_bucket = self.get_bucket_stats()
         mh.add_bucket_stats(met, met_bucket)
+        if 'ProposalId' in met:
+            self.solr = pysolr.Solr(self.solr_url)
+            query = 'CaptureBlockId:{} AND (CAS.ProductTypeName:MeerKATVisibilityProduct OR CAS.ProductTypeName:MeerKATFlagProduct)'.format(met['CaptureBlockId'])
+            query_dict = {"q": query}
+            total_results = self.solr.search(**query_dict)
+            if total_results.hits > 1:
+                for results in total_results:
+                    doc = results
+                    doc.pop('_version_')
+                    doc['ProposalId'] = met['ProposalId']
+                    self.solr.add([doc], commit=True)
+
+
 
     def set_rdb_metadata(self, available_refs, original_refs):
         """Ingest a product into the archive. This includes extracting and uploading
@@ -484,6 +499,26 @@ class RDBProduct(Product):
         return min(files, key=len)
 
 
+class PrunedProduct(RDBProduct):
+    # Thinking of this as a product might not be technically correct,
+    # but it makes this implementation easier.
+    regex = CAPTURE_BLOCK_REGEX
+
+    def __init__(self, product_path):
+        super().__init__(product_path)
+
+    def metadata_when_created(self):
+        """ When the RDB products are first discovered, we want to set the
+        metadata in SOLR.
+
+        TODO: SET STATES TO FAILED WHEN THIS FAILS
+
+        :param meta_handler:
+        :return:
+        """
+        return
+
+
 class L0Product(Product):
     regex = CAPTURE_STREAM_L0_REGEX
 
@@ -498,6 +533,7 @@ class L0Product(Product):
         """
         name = os.path.split(self.product_path.rstrip('/'))[1]
         return f'{name}-visibility'
+
 
     def _get_product_prefix(self):
         return self._get_key_from_product_path().replace('-sdp-l0-visibility', '-sdp-l0')
@@ -531,7 +567,7 @@ class L1Product(Product):
 
 
 class ProductFactory:
-    def __init__(self, trawl_dir):
+    def __init__(self, trawl_dir, solr_url):
         """Creates three lists, that have a valid signature for:
             (1) capture blocks and
             (2) capture l0 streams
@@ -549,6 +585,7 @@ class ProductFactory:
         capture_block_dirs: list : full path to valid capture block directories
         capture_stream_dirs: list : full path to valid capture stream directories
         """
+        self.solr = pysolr.Solr(solr_url)
         # get full path to capture block dirs
         self.capture_block_dirs = self._list_dir_helper(
             trawl_dir, CAPTURE_BLOCK_REGEX)
@@ -598,8 +635,7 @@ class ProductFactory:
                     pruned_products.append(capture_block_dir)
                     break
         pruned_count = len(pruned_products)
-        self.set_created_on_pruned(pruned_products)
-        return pruned_count
+        return pruned_count, pruned_products
 
     def _get_products_factory(self, product_dirs, product_class):
         return [
@@ -621,9 +657,7 @@ class ProductFactory:
         return self._get_products_factory(
             self.capture_block_dirs, RDBProduct)
 
-    def set_created_on_pruned(self, pruned_products):
-        """
-        TODO: set the state in the SOLR doc on each of the pruned products
-        TODO: to created
-        """
-        pass
+    def get_pruned_products(self, pruned_products):
+        """ Get PRUNED products"""
+        return self._get_products_factory(
+            pruned_products, PrunedProduct)

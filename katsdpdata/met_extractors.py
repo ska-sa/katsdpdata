@@ -7,6 +7,7 @@ import os
 import subprocess
 import time
 
+
 from xml.etree import ElementTree
 from math import floor
 
@@ -501,6 +502,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         super(MeerKATFlagProductMetExtractor, self).__init__(metfilename)
         self.product_type = 'MeerKATFlagProduct'
 
+
     def extract_metadata(self):
         """Metadata to extract for this product. Test value of self.__metadata_extracted. If
         True, this method has already been run once. If False, extract metadata.
@@ -523,10 +525,12 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
         self.metadata['Prefix'] = self._katdata.source.metadata.attrs['capture_block_id']
 
+
     def _extract_metadata_product_type(self):
         """Override base method. Extract product type to CAS.ProductTypeName.
         """
         self.metadata['CAS.ProductTypeName'] = self.product_type
+
 
     def _extract_instrument_name(self):
         """Extract the instrument from the enviroment variable if it exists.
