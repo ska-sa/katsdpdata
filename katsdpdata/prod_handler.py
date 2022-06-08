@@ -421,8 +421,10 @@ class RDBProduct(Product):
         mh.add_bucket_stats(met, met_bucket)
         if "ProposalId" in met:
             self.solr = pysolr.Solr(self.solr_url)
-            query = "CaptureBlockId:{} AND (CAS.ProductTypeName:MeerKATVisibilityProduct OR CAS.ProductTypeName:MeerKATFlagProduct)".format(
-                met["CaptureBlockId"]
+            query = (
+                "CaptureBlockId:{} AND"
+                "(CAS.ProductTypeName:MeerKATVisibilityProduct OR"
+                "CAS.ProductTypeName:MeerKATFlagProduct)".format(met["CaptureBlockId"])
             )
             query_dict = {"q": query}
             total_results = self.solr.search(**query_dict)
