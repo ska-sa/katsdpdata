@@ -1,6 +1,9 @@
 import os
 import katsdptelstate
-from .met_extractors import MeerKATTelescopeProductMetExtractor, MeerKATFlagProductMetExtractor
+from .met_extractors import (
+    MeerKATTelescopeProductMetExtractor,
+    MeerKATFlagProductMetExtractor,
+)
 
 
 class ProductTypeDetectionError(Exception):
@@ -19,9 +22,11 @@ def file_type_detection(filename):
     MetExtractor: class : A metadata extractor class to extract metadata from the product
     """
     ext = os.path.splitext(filename)[1]
-    if ext == '.rdb':
+    if ext == ".rdb":
         return telstate_detection(filename)
-    raise ProductTypeDetectionError('%s from %s not a valid file type.' % (ext, filename))
+    raise ProductTypeDetectionError(
+        "%s from %s not a valid file type." % (ext, filename)
+    )
 
 
 def telstate_detection(filename):
@@ -39,10 +44,10 @@ def telstate_detection(filename):
     """
     ts = katsdptelstate.TelescopeState()
     ts.load_from_file(filename)
-    stream_name = ts['stream_name']
+    stream_name = ts["stream_name"]
     v = ts.view(stream_name)
-    if v['stream_type'] == 'sdp.vis':
+    if v["stream_type"] == "sdp.vis":
         return MeerKATTelescopeProductMetExtractor
-    elif v['stream_type'] == 'sdp.flags':
+    elif v["stream_type"] == "sdp.flags":
         return MeerKATFlagProductMetExtractor
-    raise ProductTypeDetectionError('%s not a recognisable stream type')
+    raise ProductTypeDetectionError("%s not a recognisable stream type")
