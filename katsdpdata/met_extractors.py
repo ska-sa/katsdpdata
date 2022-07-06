@@ -445,7 +445,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """
     def __init__(self, cbid_stream_rdb_file):
         katdata = katdal.open(cbid_stream_rdb_file)
-        metfilename = '{}.met'.format(katdata.source.data.name)
+        metfilename = '{}.met'.format(katdata.source.data)
         super(MeerKATTelescopeProductMetExtractor, self).__init__(katdata, metfilename)
         self.product_type = 'MeerKATTelescopeProduct'
 

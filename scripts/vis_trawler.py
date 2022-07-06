@@ -12,7 +12,6 @@ import sys
 import socket
 import time
 
-
 from optparse import OptionParser
 
 from katsdpdata.utilities import get_s3_connection
@@ -92,7 +91,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
         f'A total of { total_pruned } RDB products will not be transferred this '
         f'cycle, because the corresponding streams have not completed.')
     upload_list = []
-    for product in product_factory.get_pruned_products(pruned_products):
+    for product in product_factory.get_pruned_products(pruned_products):#
         product.solr_url = solr_url
         product.update_state('PRODUCT_DETECTED')
 

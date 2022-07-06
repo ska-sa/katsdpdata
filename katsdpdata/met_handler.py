@@ -135,7 +135,10 @@ class MetDataHandlerSuper:
 
     def get_state(self):
         met = self.get_prod_met()
-        return met.get('CAS.ProductTransferStatus', None)
+        if (met.get('CAS.ProductTypeName') == 'MeerKATTelescopeProduct') and (len(met.keys()) < 15):
+            return None
+        else:
+            return met.get('CAS.ProductTransferStatus', None)
 
 
 class MetaDataHandler(MetDataHandlerSuper):
@@ -233,6 +236,7 @@ class MetaDataHandler(MetDataHandlerSuper):
         # ProductName is mapped internally by OODT. Pop it if we're going to insert directly into SOLR.
         prod_met.pop('ProductName', None)
         met.update(prod_met)
+        met.pop('_version_', None)
         self.solr.add([met], commit=True)
         return self.get_prod_met(met['id'])
 

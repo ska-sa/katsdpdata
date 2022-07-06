@@ -409,17 +409,17 @@ class RDBProduct(Product):
         met_bucket = self.get_bucket_stats()
         mh.add_bucket_stats(met, met_bucket)
         if 'ProposalId' in met:
-            self.solr = pysolr.Solr(self.solr_url)
-            query = 'CaptureBlockId:{} AND (CAS.ProductTypeName:MeerKATVisibilityProduct OR CAS.ProductTypeName:MeerKATFlagProduct)'.format(met['CaptureBlockId'])
-            query_dict = {"q": query}
-            total_results = self.solr.search(**query_dict)
-            if total_results.hits > 1:
-                for results in total_results:
-                    doc = results
-                    doc.pop('_version_')
-                    doc['ProposalId'] = met['ProposalId']
-                    self.solr.add([doc], commit=True)
-
+            if len(met['ProposalId']) != 0:
+                self.solr = pysolr.Solr(self.solr_url)
+                query = 'CaptureBlockId:{} AND (CAS.ProductTypeName:MeerKATVisibilityProduct OR CAS.ProductTypeName:MeerKATFlagProduct)'.format(met['CaptureBlockId'])
+                query_dict = {"q": query}
+                total_results = self.solr.search(**query_dict)
+                if total_results.hits > 1:
+                    for results in total_results:
+                        doc = results
+                        doc.pop('_version_',None)
+                        doc['ProposalId'] = met['ProposalId']
+                        self.solr.add([doc], commit=True)
 
 
     def set_rdb_metadata(self, available_refs, original_refs):
