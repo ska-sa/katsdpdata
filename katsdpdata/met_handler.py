@@ -135,10 +135,7 @@ class MetDataHandlerSuper:
 
     def get_state(self):
         met = self.get_prod_met()
-        if (met.get('CAS.ProductTypeName') == 'MeerKATTelescopeProduct') and (len(met.keys()) < 15):
-            return None
-        else:
-            return met.get('CAS.ProductTransferStatus', None)
+        return met.get('CAS.ProductTransferStatus', None)
 
 
 class MetaDataHandler(MetDataHandlerSuper):

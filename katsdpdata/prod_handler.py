@@ -317,8 +317,12 @@ class Product:
             elif current_state == 'RESTAGING':
                 mh.set_product_status('RESTAGED')
             self.metadata_transfer_complete()
-        elif transition == 'PRODUCT_DETECTED':
+        elif transition == 'PRUNED_PRODUCT_DETECTED':
             if not current_state:
+                self.metadata_when_created()
+                mh.set_product_status('PRUNED-CREATED')
+        elif transition == 'PRODUCT_DETECTED':
+            if not current_state or current_state == 'PRUNED-CREATED':
                 self.metadata_when_created()
                 mh.set_product_status('CREATED')
             elif current_state == 'ARCHIVED':

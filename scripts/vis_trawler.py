@@ -93,7 +93,7 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_list = []
     for product in product_factory.get_pruned_products(pruned_products):#
         product.solr_url = solr_url
-        product.update_state('PRODUCT_DETECTED')
+        product.update_state('PRUNED_PRODUCT_DETECTED')
 
     max_batch_transfers = MAX_TRANSFERS
     for product_list in [
