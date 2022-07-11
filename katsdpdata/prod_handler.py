@@ -21,6 +21,7 @@ from katsdpdata.utilities import redact_key
 from katsdpdata.utilities import s3_create_anon_access_policy
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 CAPTURE_BLOCK_REGEX = "^[0-9]{10}$"
@@ -34,7 +35,6 @@ SLEEP_TIME = 20
 
 
 class Uploader:
-
     def __init__(self, trawl_dir, boto_dict, upload_files):
         self.trawl_dir = trawl_dir
         self.boto_dict = boto_dict
@@ -60,7 +60,9 @@ class Uploader:
                 logger.error(
                     "Error status %s. Supplied access key (%s) "
                     "has no permissions on this server.",
-                    e.status, redact_key(s3_conn.access_key))
+                    e.status,
+                    redact_key(s3_conn.access_key),
+                )
             raise
         except boto.exception.S3CreateError as e:
             if e.status == 409:  # Bucket already exists and you're the owner
@@ -89,8 +91,7 @@ class Uploader:
         bucket = None
         transfer_list = []
         for filename in file_list:
-            bucket_name, key_name = os.path.relpath(filename, trawl_dir).split(
-                "/", 1)
+            bucket_name, key_name = os.path.relpath(filename, trawl_dir).split("/", 1)
             file_size = os.path.getsize(filename)
             if not bucket or bucket.name != bucket_name:
                 bucket = s3_create_bucket(s3_conn, bucket_name)
@@ -101,11 +102,14 @@ class Uploader:
             else:
                 logger.error(
                     "%s not deleted. Only uploaded %i of %i bytes.",
-                    filename, res, file_size)
+                    filename,
+                    res,
+                    file_size,
+                )
         return transfer_list
 
     def upload(self):
-        """ The upload method used to upload all upload candidates this round.
+        """The upload method used to upload all upload candidates this round.
         This method sets the internal procs attribute
         """
         max_workers = CPU_MULTIPLIER * multiprocessing.cpu_count()
@@ -122,11 +126,13 @@ class Uploader:
                         self.trawl_dir,
                         self.boto_dict,
                         self.s3_create_bucket,
-                        f))
+                        f,
+                    )
+                )
             executor.shutdown(wait=True)
 
     def set_failed_tokens(self, solr_url):
-        """ For all the products that have failed we are setting a failed taken
+        """For all the products that have failed we are setting a failed taken
         # TODO: untangle the solr_url into a softcoded configuration
         # TODO: https://skaafrica.atlassian.net/browse/SPR1-1111
         """
@@ -137,7 +143,7 @@ class Uploader:
                 logger.debug("%i transfers from future.", len(res))
             except Exception as err:
                 # test s3 problems, else mark as broken
-                if hasattr(err, 'bucket_name'):
+                if hasattr(err, "bucket_name"):
                     product_path = PurePath(self.trawl_dir, err.bucket_name)
                     Product(product_path, solr_url).set_failed_token(str(err))
                     failed_count += 1
@@ -153,7 +159,6 @@ class Uploader:
 
 
 class Product:
-
     def __init__(self, product_path):
         """
         :param product_path: string : The directory to trawl. Usually the
@@ -170,9 +175,9 @@ class Product:
         self.met_handler = None
         self.key = self._get_key_from_product_path()
         self.prefix = self._get_product_prefix()
-        self.solr_url = ''
+        self.solr_url = ""
         self.boto_dict = {}
-        self.product_type = ''
+        self.product_type = ""
         self._mh = None
 
     def mh(self, product_type=None):
@@ -185,7 +190,8 @@ class Product:
         if not product_type:
             product_type = self.product_type
         self._mh = self.met_handler(
-            self.solr_url, product_type, self.key, self.key, self.prefix)
+            self.solr_url, product_type, self.key, self.key, self.prefix
+        )
         return self._mh
 
     def _get_key_from_product_path(self):
@@ -213,7 +219,8 @@ class Product:
                 failed_token.write(msg)
 
     def _discover_trawl_files(
-            self, file_match, file_writing, complete_token, time_out=10):
+        self, file_match, file_writing, complete_token, time_out=10
+    ):
         """Return a list of all trawled files in a directory. Files need to
         match the glob pattern. Also, add the complete token if found. Timeout
         after a while, we're going to trim the upload list anyway.
@@ -241,14 +248,16 @@ class Product:
         write_ext = file_writing[1:]
         # check for failed token, if there return an empty list and incomplete.
         if os.path.isfile(os.path.join(prod_dir, "failed")):
-            logger.warning("%s so not processing, moving to failed directory.",
-                           os.path.join(prod_dir, "failed"))
+            logger.warning(
+                "%s so not processing, moving to failed directory.",
+                os.path.join(prod_dir, "failed"),
+            )
             # move product to failed dir
             failed_dir = os.path.join(os.path.split(prod_dir)[0], "failed")
             if not os.path.isdir(failed_dir):
                 os.mkdir(failed_dir)
             shutil.move(prod_dir, failed_dir)
-            self.update_state('FAILED')
+            self.update_state("FAILED")
             return
         self.complete = False
         for root, dirnames, filenames in os.walk(prod_dir):
@@ -301,8 +310,8 @@ class Product:
     def upload_size(self):
         """This product's contribution to the upload size"""
         return sum(
-            os.path.getsize(f) for f in self._staged_for_transfer
-            if os.path.isfile(f))
+            os.path.getsize(f) for f in self._staged_for_transfer if os.path.isfile(f)
+        )
 
     def update_state(self, transition):
         """The product state machine based on state transitions
@@ -311,33 +320,33 @@ class Product:
         """
         mh = self.mh()
         current_state = mh.get_state()
-        if transition == 'TRANSFER_DONE':
-            if current_state == 'TRANSFERRING':
-                mh.set_product_status('RECEIVED')
-            elif current_state == 'RESTAGING':
-                mh.set_product_status('RESTAGED')
+        if transition == "TRANSFER_DONE":
+            if current_state == "TRANSFERRING":
+                mh.set_product_status("RECEIVED")
+            elif current_state == "RESTAGING":
+                mh.set_product_status("RESTAGED")
             self.metadata_transfer_complete()
-        elif transition == 'PRUNED_PRODUCT_DETECTED':
+        elif transition == "PRUNED_PRODUCT_DETECTED":
             if not current_state:
                 self.metadata_when_created()
-                mh.set_product_status('PRUNED-CREATED')
-        elif transition == 'PRODUCT_DETECTED':
-            if not current_state or current_state == 'PRUNED-CREATED':
+                mh.set_product_status("PRUNED-CREATED")
+        elif transition == "PRODUCT_DETECTED":
+            if not current_state or current_state == "PRUNED-CREATED":
                 self.metadata_when_created()
-                mh.set_product_status('CREATED')
-            elif current_state == 'ARCHIVED':
+                mh.set_product_status("CREATED")
+            elif current_state == "ARCHIVED":
                 self.metadata_when_created()
-                mh.set_product_status('RECREATED')
-        elif transition == 'TRANSFER_STARTED':
+                mh.set_product_status("RECREATED")
+        elif transition == "TRANSFER_STARTED":
             if not current_state:
                 self.metadata_when_created()
-                mh.set_product_status('TRANSFERRING')
-            elif current_state == 'CREATED':
-                mh.set_product_status('TRANSFERRING')
-            elif current_state in ['RECREATED', 'ARCHIVED']:
-                mh.set_product_status('RESTAGING')
-        elif transition == 'FAILED':
-            mh.set_product_status('FAILED')
+                mh.set_product_status("TRANSFERRING")
+            elif current_state == "CREATED":
+                mh.set_product_status("TRANSFERRING")
+            elif current_state in ["RECREATED", "ARCHIVED"]:
+                mh.set_product_status("RESTAGING")
+        elif transition == "FAILED":
+            mh.set_product_status("FAILED")
 
     def metadata_transfer_complete(self):
         mh = self.mh()
@@ -363,14 +372,16 @@ class Product:
             bucket = s3_conn.get_bucket(bucket_name)
         except boto.exception.S3ResponseError as e:
             logger.error(
-                f'Could not get bucket stats for {bucket_name}. '
-                f'It does not seem to exist. {e}')
+                f"Could not get bucket stats for {bucket_name}. "
+                f"It does not seem to exist. {e}"
+            )
             return None
         key_sizes = [k.size for k in bucket.list()]
         met_bucket = {
-            'Prefix': bucket.name,
-            'size': sum(key_sizes),
-            'num_objects': len(key_sizes)}
+            "Prefix": bucket.name,
+            "size": sum(key_sizes),
+            "num_objects": len(key_sizes),
+        }
         return met_bucket
 
 
@@ -382,22 +393,22 @@ class RDBProduct(Product):
     def __init__(self, product_path):
         super().__init__(product_path)
         self.met_handler = MetaDataHandler
-        self.product_type = 'MeerKATTelescopeProduct'
+        self.product_type = "MeerKATTelescopeProduct"
 
     def _get_key_from_product_path(self):
         """Private method for getting the key from the product path.
         This key is also used as the product ID
         """
-        name = os.path.split(self.product_path.rstrip('/'))[1]
-        return f'{name}-sdp-l0'
+        name = os.path.split(self.product_path.rstrip("/"))[1]
+        return f"{name}-sdp-l0"
 
     def _get_product_prefix(self):
-        return self._get_key_from_product_path().replace('-sdp-l0', '')
+        return self._get_key_from_product_path().replace("-sdp-l0", "")
 
     def discover_trawl_files(self):
         """Discover this products trawl files.
         Only transfer once complete token is available, otherwise []."""
-        super()._discover_trawl_files('*.rdb', '*.writing.rdb', 'complete')
+        super()._discover_trawl_files("*.rdb", "*.writing.rdb", "complete")
         if not self.complete:
             self.file_matches = []
 
@@ -412,19 +423,20 @@ class RDBProduct(Product):
         met = mh.set_product_received(met)
         met_bucket = self.get_bucket_stats()
         mh.add_bucket_stats(met, met_bucket)
-        if 'ProposalId' in met:
-            if len(met['ProposalId']) != 0:
+        if "ProposalId" in met:
+            if len(met["ProposalId"]) != 0:
                 self.solr = pysolr.Solr(self.solr_url)
-                query = 'CaptureBlockId:{} AND (CAS.ProductTypeName:MeerKATVisibilityProduct OR CAS.ProductTypeName:MeerKATFlagProduct)'.format(met['CaptureBlockId'])
+                query = "CaptureBlockId:{} AND (CAS.ProductTypeName:MeerKATVisibilityProduct OR CAS.ProductTypeName:MeerKATFlagProduct)".format(
+                    met["CaptureBlockId"]
+                )
                 query_dict = {"q": query}
                 total_results = self.solr.search(**query_dict)
                 if total_results.hits > 1:
                     for results in total_results:
                         doc = results
-                        doc.pop('_version_',None)
-                        doc['ProposalId'] = met['ProposalId']
+                        doc.pop("_version_", None)
+                        doc["ProposalId"] = met["ProposalId"]
                         self.solr.add([doc], commit=True)
-
 
     def set_rdb_metadata(self, available_refs, original_refs):
         """Ingest a product into the archive. This includes extracting and uploading
@@ -454,21 +466,25 @@ class RDBProduct(Product):
         met = mh.get_prod_met(self.key)
         if not met:
             met = mh.create_core_met()
-        if "CAS.ProductTransferStatus" in met and met[
-                "CAS.ProductTransferStatus"] == "RECEIVED":
+        if (
+            "CAS.ProductTransferStatus" in met
+            and met["CAS.ProductTransferStatus"] == "RECEIVED"
+        ):
             err = MetExtractorException(
                 "%s marked as RECEIVED, while trying to create new product.",
-                mh.product_id)
+                mh.product_id,
+            )
             err.bucket_name = self.bucket_name()
             raise err
         met_original_refs = list(original_refs)
-        met_original_refs.insert(0, os.path.dirname(
-            os.path.commonprefix(original_refs)))
+        met_original_refs.insert(
+            0, os.path.dirname(os.path.commonprefix(original_refs))
+        )
         met = mh.add_ref_original(met, met_original_refs)
         mh.add_prod_met(met, pm_extractor.metadata)
 
     def metadata_when_created(self):
-        """ When the RDB products are first discovered, we want to set the
+        """When the RDB products are first discovered, we want to set the
         metadata in SOLR.
 
         TODO: SET STATES TO FAILED WHEN THIS FAILS
@@ -477,17 +493,18 @@ class RDBProduct(Product):
         :return:
         """
         rdb_prod = self.rdb_file_prefix()
-        rdbs = [f'{rdb_prod}.rdb', f'{rdb_prod}.full.rdb']
+        rdbs = [f"{rdb_prod}.rdb", f"{rdb_prod}.full.rdb"]
         rdbs_available = [r for r in rdbs if r in self.file_matches]
         if rdbs_available:
             try:
                 self.set_rdb_metadata(rdbs_available, rdbs)
             except Exception as err:
-                if hasattr(err, 'bucket_name'):
+                if hasattr(err, "bucket_name"):
                     err.filename = rdbs[0]
                     logger.exception(
                         "Caught exception while extracting metadata from %s.",
-                        err.filename)
+                        err.filename,
+                    )
                     self.set_failed_token(str(err))
                     # if failed, set a boolean flag to exit the loop.
                 else:
@@ -495,11 +512,15 @@ class RDBProduct(Product):
 
     def rdb_file_prefix(self):
         """Helper function to get rdb_file_prefix"""
-        files = list(set([
-            re.match('^.*[0-9]{10}_[^.]*', cbf).group()
-            for cbf in self.file_matches
-            if re.match('^.*[0-9]{10}_[^.]*', cbf) is not None
-        ]))
+        files = list(
+            set(
+                [
+                    re.match("^.*[0-9]{10}_[^.]*", cbf).group()
+                    for cbf in self.file_matches
+                    if re.match("^.*[0-9]{10}_[^.]*", cbf) is not None
+                ]
+            )
+        )
         return min(files, key=len)
 
 
@@ -512,7 +533,7 @@ class PrunedProduct(RDBProduct):
         super().__init__(product_path)
 
     def metadata_when_created(self):
-        """ When the RDB products are first discovered, we want to set the
+        """When the RDB products are first discovered, we want to set the
         metadata in SOLR.
 
         TODO: SET STATES TO FAILED WHEN THIS FAILS
@@ -529,22 +550,23 @@ class L0Product(Product):
     def __init__(self, product_path):
         super().__init__(product_path)
         self.met_handler = ProdMetaDataHandler
-        self.product_type = 'MeerKATVisibilityProduct'
+        self.product_type = "MeerKATVisibilityProduct"
 
     def _get_key_from_product_path(self):
         """Private method for getting the key from the product path.
         This key is also used as the product ID
         """
-        name = os.path.split(self.product_path.rstrip('/'))[1]
-        return f'{name}-visibility'
-
+        name = os.path.split(self.product_path.rstrip("/"))[1]
+        return f"{name}-visibility"
 
     def _get_product_prefix(self):
-        return self._get_key_from_product_path().replace('-sdp-l0-visibility', '-sdp-l0')
+        return self._get_key_from_product_path().replace(
+            "-sdp-l0-visibility", "-sdp-l0"
+        )
 
     def discover_trawl_files(self):
         """Discover this products trawl files"""
-        super()._discover_trawl_files('*.npy', '*.writing.npy', 'complete')
+        super()._discover_trawl_files("*.npy", "*.writing.npy", "complete")
 
 
 class L1Product(Product):
@@ -553,7 +575,7 @@ class L1Product(Product):
     def __init__(self, product_path):
         super().__init__(product_path)
         self.met_handler = ProdMetaDataHandler
-        self.product_type = 'MeerKATFlagProduct'
+        self.product_type = "MeerKATFlagProduct"
 
     def _get_product_prefix(self):
         return self._get_key_from_product_path()
@@ -562,12 +584,12 @@ class L1Product(Product):
         """Private method for getting the key from the product path.
         This key is also used as the product ID
         """
-        name = os.path.split(self.product_path.rstrip('/'))[1]
+        name = os.path.split(self.product_path.rstrip("/"))[1]
         return name
 
     def discover_trawl_files(self):
         """Discover this products trawl files"""
-        super()._discover_trawl_files('*.npy', '*.writing.npy', 'complete')
+        super()._discover_trawl_files("*.npy", "*.writing.npy", "complete")
 
 
 class ProductFactory:
@@ -591,15 +613,16 @@ class ProductFactory:
         """
         self.solr = pysolr.Solr(solr_url)
         # get full path to capture block dirs
-        self.capture_block_dirs = self._list_dir_helper(
-            trawl_dir, CAPTURE_BLOCK_REGEX)
+        self.capture_block_dirs = self._list_dir_helper(trawl_dir, CAPTURE_BLOCK_REGEX)
         # get full path to capture stream dirs
         # l0
         self.capture_stream_l0_dirs = self._list_dir_helper(
-            trawl_dir, CAPTURE_STREAM_L0_REGEX)
+            trawl_dir, CAPTURE_STREAM_L0_REGEX
+        )
         # l1
         self.capture_stream_l1_dirs = self._list_dir_helper(
-            trawl_dir, CAPTURE_STREAM_L1_REGEX)
+            trawl_dir, CAPTURE_STREAM_L1_REGEX
+        )
 
     @staticmethod
     def _list_dir_helper(trawl_dir, regex):
@@ -611,10 +634,11 @@ class ProductFactory:
         """
         # list all dirs in the trawl_dir
         sub_dirs = [
-            d for d in os.listdir(trawl_dir) if
-            os.path.isdir(os.path.join(trawl_dir, d))]
-        return [os.path.join(trawl_dir, d) for d in sub_dirs if
-                re.match(regex, d)]
+            d
+            for d in os.listdir(trawl_dir)
+            if os.path.isdir(os.path.join(trawl_dir, d))
+        ]
+        return [os.path.join(trawl_dir, d) for d in sub_dirs if re.match(regex, d)]
 
     def prune_rdb_products(self):
         """Pop capture block directories that don't have their streams transmitted.
@@ -642,26 +666,20 @@ class ProductFactory:
         return pruned_count, pruned_products
 
     def _get_products_factory(self, product_dirs, product_class):
-        return [
-            product_class(product_path)
-            for product_path in product_dirs]
+        return [product_class(product_path) for product_path in product_dirs]
 
     def get_l0_products(self):
         """Get all L0 products"""
-        return self._get_products_factory(
-            self.capture_stream_l0_dirs, L0Product)
+        return self._get_products_factory(self.capture_stream_l0_dirs, L0Product)
 
     def get_l1_products(self):
         """Get all L1 products"""
-        return self._get_products_factory(
-            self.capture_stream_l1_dirs, L1Product)
+        return self._get_products_factory(self.capture_stream_l1_dirs, L1Product)
 
     def get_rdb_products(self):
         """Get all RDB products"""
-        return self._get_products_factory(
-            self.capture_block_dirs, RDBProduct)
+        return self._get_products_factory(self.capture_block_dirs, RDBProduct)
 
     def get_pruned_products(self, pruned_products):
-        """ Get PRUNED products"""
-        return self._get_products_factory(
-            pruned_products, PrunedProduct)
+        """Get PRUNED products"""
+        return self._get_products_factory(pruned_products, PrunedProduct)
