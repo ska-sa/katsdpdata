@@ -241,7 +241,6 @@ class TelescopeProductMetExtractor(MetExtractor):
             self.metadata["ProposalDescription"] = self._katdata.obs_params[
                 "proposal_description"
             ]
-        self.metadata["ProposalId"] = "testing"
 
     # This is copied from katsdpimager.
     # TODO: Find a way that we can share this functionality between repos.
