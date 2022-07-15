@@ -48,16 +48,18 @@ def main(trawl_dir, boto_dict, solr_url):
                 # if we did not upload anything, probably a good idea to sleep for SLEEP_TIME
                 time.sleep(SLEEP_TIME)
         except (socket.error, boto.exception.S3ResponseError, pysolr.SolrError):
-            logger.error("Exception thrown while trawling. Test solr and s3 connection before continuing.")
+            logger.error(
+                "Exception thrown while trawling. Test solr and s3 connection before continuing."
+            )
             while True:
                 try:
                     s3_conn = get_s3_connection(boto_dict)
                     solr_conn = pysolr.Solr(solr_url)
-                    solr_conn.search('*:*')
+                    solr_conn.search("*:*")
                 except Exception as e:
-                    logger.debug('Caught exception.')
-                    logger.debug('Exception: %s', str(e))
-                    logger.debug('Sleeping for %i before continuing.', SLEEP_TIME)
+                    logger.debug("Caught exception.")
+                    logger.debug("Exception: %s", str(e))
+                    logger.debug("Sleeping for %i before continuing.", SLEEP_TIME)
                     time.sleep(SLEEP_TIME)
                 else:
                     s3_conn.close()
@@ -83,19 +85,25 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size: int : The size in bytes of data uploaded. Can be used to
         wait for a set time before trawling directory again.
     """
-    product_factory = ProductFactory(trawl_dir)
+    product_factory = ProductFactory(trawl_dir, solr_url)
     # TODO: The prune can be dropped after the actual vis products are in SOLR
     # TODO: See https://skaafrica.atlassian.net/browse/SPR1-1113
-    total_pruned = product_factory.prune_rdb_products()
+    total_pruned, pruned_products = product_factory.prune_rdb_products()
     logger.info(
-        f'A total of { total_pruned } RDB products will not be transferred this '
-        f'cycle, because the corresponding streams have not completed.')
+        f"A total of { total_pruned } RDB products will not be transferred this "
+        f"cycle, because the corresponding streams have not completed."
+    )
     upload_list = []
+    for product in product_factory.get_pruned_products(pruned_products):
+        product.solr_url = solr_url
+        product.update_state("PRUNED_PRODUCT_DETECTED")
+
     max_batch_transfers = MAX_TRANSFERS
     for product_list in [
-            product_factory.get_rdb_products(),
-            product_factory.get_l1_products(),
-            product_factory.get_l0_products()]:
+        product_factory.get_rdb_products(),
+        product_factory.get_l1_products(),
+        product_factory.get_l0_products(),
+    ]:
         for product in product_list:
             product.discover_trawl_files()
             # TODO: these need to be imported from the envirenoment in future
@@ -103,11 +111,10 @@ def trawl(trawl_dir, boto_dict, solr_url):
             product.boto_dict = boto_dict
             if product.completed_and_transferred():
                 product.cleanup()
-                product.update_state('TRANSFER_DONE')
+                product.update_state("TRANSFER_DONE")
             elif product.file_matches:
-                product.update_state('PRODUCT_DETECTED')
-                max_batch_transfers = product.stage_for_transfer(
-                    max_batch_transfers)
+                product.update_state("PRODUCT_DETECTED")
+                max_batch_transfers = product.stage_for_transfer(max_batch_transfers)
                 if product.is_staged:
                     upload_list.append(product)
 
@@ -118,14 +125,13 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size = sum([product.upload_size() for product in upload_list])
     upload_files = []
     for product in upload_list:
-        product.update_state('TRANSFER_STARTED')
+        product.update_state("TRANSFER_STARTED")
         upload_files.extend(product.staged_for_transfer)
     logger.debug("Uploading %.2f MB of data", (upload_size // 1e6))
     uploader = Uploader(trawl_dir, boto_dict, upload_files)
     uploader.upload()
     failed_count = uploader.set_failed_tokens(solr_url)
-    logger.info(
-        f'A total of {failed_count} exceptions where encountered this cycle.')
+    logger.info(f"A total of {failed_count} exceptions where encountered this cycle.")
     return upload_size
 
 
@@ -135,12 +141,22 @@ if __name__ == "__main__":
     katsdpservices.setup_restart()
 
     parser = OptionParser(usage="vis_trawler.py <trawl_directory>")
-    parser.add_option("--s3-host", default="localhost",
-                      help="S3 gateway host address [default = %default]")
-    parser.add_option("--s3-port", type="int", default=7480,
-                      help="S3 gateway port [default = %default]")
-    parser.add_option("--solr-url", default="http://kat-archive.kat.ac.za:8983/solr/kat_core",
-                      help="Solr end point for metadata extraction [default = %default]")
+    parser.add_option(
+        "--s3-host",
+        default="localhost",
+        help="S3 gateway host address [default = %default]",
+    )
+    parser.add_option(
+        "--s3-port",
+        type="int",
+        default=7480,
+        help="S3 gateway port [default = %default]",
+    )
+    parser.add_option(
+        "--solr-url",
+        default="http://kat-archive.kat.ac.za:8983/solr/kat_core",
+        help="Solr end point for metadata extraction [default = %default]",
+    )
 
     (options, args) = parser.parse_args()
     if len(args) < 1 or not os.path.isdir(args[0]):
