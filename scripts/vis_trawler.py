@@ -12,6 +12,9 @@ import sys
 import socket
 import time
 
+from datetime import timezone
+import datetime
+
 from optparse import OptionParser
 
 from katsdpdata.utilities import get_s3_connection
@@ -111,6 +114,14 @@ def trawl(trawl_dir, boto_dict, solr_url):
             product.boto_dict = boto_dict
             if product.completed_and_transferred():
                 product.cleanup()
+                dt = datetime.datetime.now(timezone.utc)
+                utc_time = dt.replace(tzinfo=timezone.utc)
+                utc_timestamp = utc_time.timestamp()
+                logger.info(
+                    f"Transfer complete time is {utc_timestamp} for {product.product_path}"
+                )
+                # with open("readme.txt", "a") as f:
+                #    f.write(f"Transfer complete time is {utc_timestamp}")
                 product.update_state("TRANSFER_DONE")
             elif product.file_matches:
                 product.update_state("PRODUCT_DETECTED")
@@ -125,7 +136,16 @@ def trawl(trawl_dir, boto_dict, solr_url):
     upload_size = sum([product.upload_size() for product in upload_list])
     upload_files = []
     for product in upload_list:
+        dt = datetime.datetime.now(timezone.utc)
+        utc_time = dt.replace(tzinfo=timezone.utc)
+        utc_timestamp = utc_time.timestamp()
+        logger.info(
+            f"Transfer start time is {utc_timestamp} for {product.product_path}"
+        )
+        # with open("readme.txt", "w") as f:
+        #    f.write(f"Transfer start time is {utc_timestamp}")
         product.update_state("TRANSFER_STARTED")
+
         upload_files.extend(product.staged_for_transfer)
     logger.debug("Uploading %.2f MB of data", (upload_size // 1e6))
     uploader = Uploader(trawl_dir, boto_dict, upload_files)
