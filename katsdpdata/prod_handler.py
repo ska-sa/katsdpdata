@@ -285,6 +285,12 @@ class Product:
     def cleanup(self):
         """Recursive delete the product directory supplied directory.
         Should be a completed product."""
+        dt = datetime.datetime.now(timezone.utc)
+        utc_time = dt.replace(tzinfo=timezone.utc)
+        utc_timestamp = utc_time.timestamp()
+        logger.info(
+            f"Transfer complete time is {utc_timestamp} for {product.product_path}"
+        )
         logger.info("%s is complete. Deleting directory tree.", self.product_path)
         return shutil.rmtree(self.product_path)
 

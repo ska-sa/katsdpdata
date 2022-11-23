@@ -114,14 +114,6 @@ def trawl(trawl_dir, boto_dict, solr_url):
             product.boto_dict = boto_dict
             if product.completed_and_transferred():
                 product.cleanup()
-                dt = datetime.datetime.now(timezone.utc)
-                utc_time = dt.replace(tzinfo=timezone.utc)
-                utc_timestamp = utc_time.timestamp()
-                logger.info(
-                    f"Transfer complete time is {utc_timestamp} for {product.product_path}"
-                )
-                # with open("readme.txt", "a") as f:
-                #    f.write(f"Transfer complete time is {utc_timestamp}")
                 product.update_state("TRANSFER_DONE")
             elif product.file_matches:
                 product.update_state("PRODUCT_DETECTED")
