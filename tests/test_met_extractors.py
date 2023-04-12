@@ -10,8 +10,6 @@ def test_met_integration_time():
     Assert that the newly added Time on Target field is there, the same length
     as the Target list and the correct value.
     """
-    if not exists('/home/katsdpdata/tests/test_data_directory'):
-        return
     met_extractor = file_mime_detection('./tests/1testdata_sdp_l0.rdb')
     met_extractor.extract_metadata()
     # did we get the correct MeerKAT MetExtractor
