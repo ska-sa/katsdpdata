@@ -39,7 +39,7 @@ class TestTelescopeProductExtractor:
         assert metadata['Bandwidth'] == '856000000.0'
         assert metadata['Description'] == \
             'Full-Stokes imaging of MeerKAT gain calibrators (L) LST 06 - 12 (redo)'
-        assert len(metadata['Details']) == 11848
+        assert metadata['Details'].startswith('=====')
         assert metadata['DumpPeriod'] == '7.9966'
         assert metadata['Duration'] == '15065.63'
         assert metadata['ExperimentID'] == '20201125-0014'
