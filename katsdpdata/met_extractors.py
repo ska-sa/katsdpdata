@@ -444,7 +444,7 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     """
     def __init__(self, cbid_stream_rdb_file):
         katdata = katdal.open(cbid_stream_rdb_file)
-        metfilename = '{}.met'.format(katdata.source.data.name)
+        metfilename = '{}.met'.format(katdata.name)
         super(MeerKATTelescopeProductMetExtractor, self).__init__(katdata, metfilename)
         self.product_type = 'MeerKATTelescopeProduct'
 
@@ -470,10 +470,10 @@ class MeerKATTelescopeProductMetExtractor(TelescopeProductMetExtractor):
     def _extract_metadata_for_capture_stream(self):
         """Extract CaptureStreamId, CaptureBlockId and StreamId.
         """
-        self.metadata['CaptureBlockId'] = self._katdata.source.metadata.attrs['capture_block_id']
-        self.metadata['StreamId'] = self._katdata.source.metadata.attrs['stream_name']
+        self.metadata['CaptureBlockId'] = self._katdata.source.capture_block_id
+        self.metadata['StreamId'] = self._katdata.source.stream_name
         self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
-        self.metadata['Prefix'] = self._katdata.source.metadata.attrs['capture_block_id']
+        self.metadata['Prefix'] = self.metadata['CaptureBlockId']
 
     def _extract_metadata_product_type(self):
         """Override base method. Extract product type to CAS.ProductTypeName.
@@ -497,7 +497,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
     def __init__(self, cbid_stream_rdb_file):
         self._ts = katsdptelstate.TelescopeState()
         self._ts.load_from_file(cbid_stream_rdb_file)
-        metfilename = '{}.met'.format(self._ts['capture_block_id']+'_'+self._ts['stream_name'])
+        metfilename = '{}_{}.met'.format(self._ts['capture_block_id'], self._ts['stream_name'])
         super(MeerKATFlagProductMetExtractor, self).__init__(metfilename)
         self.product_type = 'MeerKATFlagProduct'
 
@@ -521,7 +521,7 @@ class MeerKATFlagProductMetExtractor(MetExtractor):
         self.metadata['CaptureBlockId'] = self._ts['capture_block_id']
         self.metadata['StreamId'] = self._ts['stream_name']
         self.metadata['CaptureStreamId'] = self.metadata['CaptureBlockId'] + '_' + self.metadata['StreamId']
-        self.metadata['Prefix'] = self._katdata.source.metadata.attrs['capture_block_id']
+        self.metadata['Prefix'] = self.metadata['CaptureBlockId']
 
     def _extract_metadata_product_type(self):
         """Override base method. Extract product type to CAS.ProductTypeName.

@@ -1,9 +1,9 @@
 -c https://raw.githubusercontent.com/ska-sa/katsdpdockerbase/master/docker-base-build/base-requirements.txt
 
-boto==2.48.0
-katdal==0.16
-katpoint==0.9
-katsdpservices==1.0
-katsdptelstate==0.10
+boto==2.49.0
+katdal==0.20.1
+katpoint==0.10
+katsdpservices==1.2
+katsdptelstate==0.13
 numpy
-pysolr==3.3.3
+pysolr==3.9.0

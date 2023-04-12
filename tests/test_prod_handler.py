@@ -6,6 +6,12 @@ from katsdpdata.prod_handler import ProductFactory, RDBProduct, L0Product, L1Pro
 from katsdpdata.met_handler import MetaDataHandler
 
 
+needs_test_data = pytest.mark.skipif(
+    not exists('/home/katsdpdata/tests/test_data_directory'),
+    reason='Test data not available in the expected place'
+)
+
+
 class STUB_Res:
     def __init__(self):
         self.hits = 0
@@ -73,21 +79,19 @@ def rdb_product_dir():
 
 
 class TestProductFactory:
+    @needs_test_data
     def test_product_factory_product_detection(self, test_trawl_dir):
         """ Assert that the products are being detected correctly.
         """
-        if not exists('/home/katsdpdata/tests/test_data_directory'):
-            return
         pf = ProductFactory(test_trawl_dir)
         assert len(pf.get_rdb_products()) == 2
         assert len(pf.get_l0_products()) == 1
         assert len(pf.get_l1_products()) == 1
 
+    @needs_test_data
     def test_product_factory_pruning(self, test_trawl_dir):
         """ Assert that the products are being detected correctly.
         """
-        if not exists('/home/katsdpdata/tests/test_data_directory'):
-            return
         pf = ProductFactory(test_trawl_dir)
         pf.prune_rdb_products()
         assert len(pf.get_rdb_products()) == 1
@@ -96,9 +100,8 @@ class TestProductFactory:
 
 
 class TestRDBProduct:
+    @needs_test_data
     def test_set_rdb_metadata(self, rdb_product_dir):
-        if not exists('/home/katsdpdata/tests/test_data_directory'):
-            return
         product = RDBProduct(str(rdb_product_dir))
         product.met_handler = STUB_MetaDataHandler
         assert product.mh().solr.search('last').hits == 0
