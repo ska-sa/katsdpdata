@@ -19,7 +19,7 @@ COPY --chown=kat:kat requirements.txt /tmp/install/requirements.txt
 RUN install_pinned.py -r /tmp/install/requirements.txt
 
 # Install the current package
-COPY . /tmp/install/katsdpdata
+COPY --chown=kat:kat . /tmp/install/katsdpdata
 WORKDIR /tmp/install/katsdpdata
 RUN python ./setup.py clean
 RUN pip install --no-deps .
