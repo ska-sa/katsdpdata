@@ -53,6 +53,7 @@ class Uploader:
         try:
             s3_bucket = s3_conn.lookup(bucket_name)
             if s3_bucket is None:
+                logging.info("S3 bucket lookup for %s returned None. Creating bucket and setting policy.", bucket_name)
                 s3_bucket = s3_conn.create_bucket(bucket_name)
                 s3_bucket.set_policy(s3_bucket_policy)
         except boto.exception.S3ResponseError as e:
