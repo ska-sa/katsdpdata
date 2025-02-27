@@ -100,7 +100,7 @@ class TelescopeProductMetExtractor(MetExtractor):
     def _extract_metadata_from_katdata(self):
         """Populate self.metadata: Get information using katdal"""
         self.metadata['Antennas'] = [a.name for a in self._katdata.ants]
-        center_freq = self._katdata.channel_freqs[floor(self._katdata.channels[-1]/2)]
+        center_freq = self._katdata.spectral_windows[self._katdata.spw].centre_freq
         self.metadata['CenterFrequency'] = "{:.2f}".format(center_freq)
         self.metadata['ChannelWidth'] = str(self._katdata.channel_width)
         self.metadata['MinFreq'] = str(min(self._katdata.freqs))
